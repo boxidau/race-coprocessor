@@ -18,7 +18,7 @@ void ClockTime::setup()
     }
     else
     {
-        LOG_VERBOSE("RTC has set the system time");
+        LOG_INFO("RTC has set the system time");
     }
     initialTime = now();
 }

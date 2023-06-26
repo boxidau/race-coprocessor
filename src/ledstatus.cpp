@@ -12,7 +12,7 @@ static Metro ledTimer = Metro(300);
 
 void LEDStatus::setup()
 {
-    pinMode(ERROR_LED, OUTPUT);
+    pinMode(LED1, OUTPUT);
 }
 
 void LEDStatus::loop()
@@ -24,18 +24,18 @@ void LEDStatus::loop()
         {
             // LED off between bit indication
             // odd sequence numbers
-            digitalWrite(ERROR_LED, LOW);
+            digitalWrite(LED1, LOW);
         }
         else if (bit > 7)
         {
             // break to indicate the end/start of flash sequence
             // bit is out of range
-            digitalWrite(ERROR_LED, LOW);
+            digitalWrite(LED1, LOW);
         }
         else
         {
             // display the error code bit
-            digitalWriteFast(ERROR_LED, bitRead(flashCode, bit));
+            digitalWriteFast(LED1, bitRead(flashCode, bit));
         }
         flashCodeIndex++;
     }

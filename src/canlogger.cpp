@@ -2,7 +2,6 @@
 Writes CRTD log files for CANBUS logging
 https://docs.openvehicles.com/en/latest/crtd
 */
-#define NDEBUG
 #include "canlogger.h"
 
 #include "clocktime.h"
@@ -23,14 +22,14 @@ void CANLogger::setup()
 {
     linesWritten = 0;
 
-    LOG_VERBOSE("Initializing SD card");
+    LOG_INFO("Initializing SD card");
     if (!SD.begin(BUILTIN_SDCARD))
     {
-        LOG_VERBOSE("SD card initialization failed, is a card inserted?");
+        LOG_WARN("SD card initialization failed, is a card inserted?");
         return;
     }
 
-    LOG_VERBOSE("An SD card is present");
+    LOG_INFO("An SD card is present");
 
     char logDir[9];
     char logFileName[13];
@@ -49,7 +48,7 @@ void CANLogger::setup()
             return;
         }
     }
-    LOG_VERBOSE("Log directory OK", logDir);
+    LOG_INFO("Log directory OK", logDir);
 
 
     sprintf(logFileName, "%02d%02d%02d.crd", hour(), minute(), second());
@@ -68,10 +67,10 @@ void CANLogger::setup()
         sprintf(logFileName, "%08d.crd", maxLog + 1);   
     }
 
-    LOG_VERBOSE("Log directory", logDir);
-    LOG_VERBOSE("Log file name", logFileName);
+    LOG_INFO("Log directory", logDir);
+    LOG_INFO("Log file name", logFileName);
     sprintf(fullLogFilePath, "%s/%s", logDir, logFileName);
-    LOG_VERBOSE("Log file full path", fullLogFilePath);
+    LOG_INFO("Log file full path", fullLogFilePath);
 
 
     if (SD.exists(fullLogFilePath))
@@ -121,7 +120,7 @@ void CANLogger::write()
 {
     if (!enableLog)
     {
-        if (random(0, 20) == 0) LOG_WARNING("LOG DISABLED", lineBuffer);
+        if (random(0, 20) == 0) LOG_WARN("LOG DISABLED", lineBuffer);
         if (retrySDTimer.check())
         {
             CANLogger::setup();
@@ -129,7 +128,7 @@ void CANLogger::write()
         return;
     }
 
-    if (random(0, 20) == 0) LOG_VERBOSE("LOG WRITE:", lineBuffer);
+    if (random(0, 20) == 0) LOG_DEBUG("LOG WRITE:", + lineBuffer);
 
     if (logFile.println(lineBuffer) != strlen(lineBuffer) + 2)
     {
@@ -143,7 +142,7 @@ void CANLogger::write()
     
     if (retrySDTimer.check())
     {
-        LOG_VERBOSE("LOG FLUSH, written lines: ", linesWritten );
+        LOG_DEBUG("LOG FLUSH, written lines: ", linesWritten );
         logFile.flush();
     }
 }

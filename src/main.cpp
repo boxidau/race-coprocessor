@@ -1,70 +1,76 @@
+#include "constants.h"
+
 #include "Arduino.h"
 #include <Metro.h>
 #include <SPI.h>
 #include <DebugLog.h>
 #include <FlexCAN.h>
-#include <MegaCAN.h>
 
-#include "knockdetector.h"
 #include "canlogger.h"
-#include "constants.h"
-#include "egt.h"
+#include "thermocouple.h"
 #include "clocktime.h"
 #include "ledstatus.h"
 #include "utils.h"
 #include "analogsensors.h"
-#include "gaugeoutput.h"
+#include "dac.h"
+#include "dio.h"
+
 
 Metro statsTimer = Metro(10000);
 Metro pollTimer = Metro(50);
 Metro msTick = Metro(1);
+Metro ledTimer = Metro(100);
 
-static CAN_message_t egtMessage, knockMessage, analogMessage, rxMessage;
+static CAN_message_t thermocoupleMessage, analogMessage, dioMessage, ntcMessage, rxMessage;
 
-static MegaCAN megaCAN;
-static MegaCAN_broadcast_message_t megasquirtData;
-const uint32_t baseID = MEGASQUIRT_BROADCAST_CANID;
+const int adcSensorPins[4] = {EXTERNAL_ADC1, EXTERNAL_ADC2, EXTERNAL_ADC3, EXTERNAL_ADC4};
+const int ntcSensorPins[2] = {EXTERNAL_NTC1, EXTERNAL_NTC2};
+AnalogSensors analogSensors = AnalogSensors(adcSensorPins, 4, CANID_ANALOG);
+AnalogSensors ntcSensors = AnalogSensors(ntcSensorPins, 2, CANID_NTC);
+
+const int dioInputPins[4] = {DIGITAL_IO1, DIGITAL_IO2, DIGITAL_IO3, DIGITAL_IO4};
+const int dioOutputPins[3] = {DIGITAL_IO5, DIGITAL_IO6, DIGITAL_IO7};
+DIO dio = DIO(dioInputPins, 4, dioOutputPins, 3, CANID_DIO);
 
 unsigned long previousLoop, loopStart;
 
 void setup()
 {
+    analogReadRes(10);
+
     pinMode(EXTERNAL_PWM1, OUTPUT);
     pinMode(EXTERNAL_PWM2, OUTPUT);
-
     pinMode(EXTERNAL_DIGITAL_PIN, INPUT);
+    pinMode(LED2, OUTPUT);
 
     Serial.begin(115200);
     SPI.begin();
     Can0.begin(500000);
     delay(500);
-    LOG_VERBOSE("System Boot");
+    LOG_INFO("System Boot");
 
-    ClockTime::setup();
-    CANLogger::setup();
+    analogSensors.setup();
+    ntcSensors.setup();
 
-    AnalogSensors::setup();
     LEDStatus::setup();
-    KnockDetector::setup();
-    EGT::setup();
-    GaugeOutput::setup(0, 200); // boost gauge 0-200kPa
-    LOG_VERBOSE("Ready");
+    Thermocouple::setup();
+    DAC::setup(0, 200);
+    dio.setup();
+    LOG_INFO("Modules Initialized");
+
+    CANLogger::setup();
+    LOG_INFO("CAN Logger Initialized");
 }
 
-void writeAndLog(CAN_message_t &message)
+void broadcastMessage(CAN_message_t &message)
 {
     Can0.write(message);
     CANLogger::logCANMessage(message, CAN_TX);
 }
 
-uint16_t maptest = 0;
-
 void processRXCANMessage()
 {
     CANLogger::logCANMessage(rxMessage, CAN_RX);
-    if (rxMessage.id >= MEGASQUIRT_BROADCAST_CANID && rxMessage.id <= MEGASQUIRT_BROADCAST_CANID + MEGASQUIRT_BROADCAST_PAGES) {
-        megaCAN.getBCastData(rxMessage.id, rxMessage.buf, megasquirtData);
-    }
 }
 
 void loop()
@@ -74,36 +80,42 @@ void loop()
     previousLoop = loopStart;
 
     // tick functions for all modules
-    KnockDetector::loop();
     LEDStatus::loop();
     // end tick functions
 
-    // poll all data and write to TX_CAN log
+    if (ledTimer.check()) {
+        digitalWrite(LED2, !digitalRead(LED2));
+    }
+
+    // poll all data and write to TX_CAN/log
     if (pollTimer.check())
     {
+        LOG_TRACE("Polling modules");
         // EGT poll and log
-        EGT::getCANMessage(egtMessage);
-        LEDStatus::setError(EGT_ERROR, EGT::error > 0);
-        writeAndLog(egtMessage);
+        Thermocouple::getCANMessage(thermocoupleMessage);
+        LEDStatus::setError(EGT_ERROR, Thermocouple::getError() > 0);
+        broadcastMessage(thermocoupleMessage);
 
         // analog sensor poll and log
-        AnalogSensors::getCANMessage(analogMessage);
-        writeAndLog(analogMessage);
+        analogSensors.getCANMessage(analogMessage);
+        broadcastMessage(analogMessage);
 
-        // knock detection log
-        KnockDetector::getCANMessage(knockMessage);
-        LEDStatus::setError(KNOCK_SPI_ERROR, KnockDetector::error);
-        writeAndLog(knockMessage);
+        // ntc sensor poll and log
+        ntcSensors.getCANMessage(ntcMessage);
+        broadcastMessage(ntcMessage);
+
+        dio.getStatusCANMessage(dioMessage);
+        broadcastMessage(dioMessage);
 
         // Logger error status
         LEDStatus::setError(LOGGER_ERROR, CANLogger::error);
 
-        GaugeOutput::update(megasquirtData.map);
+        DAC::update(0);
     }
 
 
     // read canbus data if message is available
-    if(Can0.read(rxMessage))
+    if (Can0.read(rxMessage))
     {
         processRXCANMessage();
     }
@@ -111,6 +123,6 @@ void loop()
     if (statsTimer.check())
     {
         CANLogger::logComment("loop_time=" + (String)loopTime + "uS, error_code=" + hexDump(LEDStatus::getError()));
-        LOG_VERBOSE("loop_time=" + (String)loopTime + "uS, error_code=" + hexDump(LEDStatus::getError()));
+        LOG_INFO("loop_time=" + (String)loopTime + "uS, error_code=" + hexDump(LEDStatus::getError()));
     }
 }

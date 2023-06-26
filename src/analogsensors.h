@@ -4,6 +4,11 @@
 class AnalogSensors
 {
 public:
-    static void setup();
-    static void getCANMessage(CAN_message_t &msg);
+    AnalogSensors(const int *pins, const uint8_t pinCount, int outputCanId);
+    void getCANMessage(CAN_message_t &msg);
+    void setup();
+private:
+    int analogPins[4];
+    uint16_t canId;
+    uint8_t analogPinsCount;
 };
