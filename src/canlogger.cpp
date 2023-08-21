@@ -14,7 +14,7 @@ static char lineBuffer[255];
 static int linesWritten;
 static File logFile;
 static bool enableLog;
-static Metro retrySDTimer = Metro(5000);
+static Metro retrySDTimer = Metro(15000);
 
 bool CANLogger::error = false;
 

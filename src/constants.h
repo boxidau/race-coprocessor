@@ -1,4 +1,4 @@
-#define         MOCK_DATA                       false
+#define         MOCK_DATA                       true
 
 // Device pins
 #define         SPI_HDR_CS                      10
@@ -52,6 +52,7 @@
 #define         CANID_NTC                       2027
 #define         CANID_PWM                       2028
 #define         CANID_DIO                       2029
+#define         CANID_COOLER_SYSTEM             2030
 
 // UART
 #define         UART1_TX_PIN                    8

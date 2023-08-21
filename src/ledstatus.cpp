@@ -13,12 +13,14 @@ static Metro ledTimer = Metro(300);
 void LEDStatus::setup()
 {
     pinMode(LED1, OUTPUT);
+    pinMode(LED3, OUTPUT);
 }
 
 void LEDStatus::loop()
 {
     if (ledTimer.check())
     {
+        digitalWrite(LED3, !digitalRead(LED3));
         int bit = flashCodeIndex % 21 / 2;
         if (flashCodeIndex % 2 == 1)
         {
