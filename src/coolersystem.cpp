@@ -16,6 +16,8 @@ void CoolerSystem::setup()
     digitalWriteFast(coolshirtPumpPin, LOW);
     digitalWriteFast(systemEnablePin, LOW);
     Thermocouple::setup();
+    compressorPID.SetOutputLimits(0, 1023);
+    compressorPID.SetMode(AUTOMATIC);
 };
 
 CoolerSwitchPosition CoolerSystem::_getSwitchPosition()
@@ -79,6 +81,7 @@ void CoolerSystem::_pollFlowRate()
         lastPulse += pulseInterval;
         flowRate = MLPM_MAGIC_NUMBER / pulseInterval;
     }
+    if (MOCK_DATA) flowRate = 2000;
 }
 
 void CoolerSystem::runChillerPump()
@@ -121,34 +124,34 @@ void CoolerSystem::runCoolshirtPump()
 
 void CoolerSystem::runCompressor()
 {
-    // PID controller for compressor
-    const double Kp=2, Ki=5, Kd=1;
-    static double compressorInputTemp = 0;
-    static double compressorOutputValue = 0;
-    static double compressorTempTarget = DESIRED_TEMP;
-    static bool undertempCutoff = false;
-    static PID compressorPID(
-        &compressorInputTemp, &compressorOutputValue, &compressorTempTarget,
-        Kp, Ki, Kd, DIRECT
-    );
+    // PID controller for compressor    
     compressorInputTemp = evaporatorTemp.temperature;
 
     // undertemp check
     // this isn't a panic condition
     // but we are going to shut down the compressor until temp
     // goes back above a safe value
-    if (evaporatorTemp.temperature <= COMPRESSOR_UNDER_TEMP_CUTOFF) undertempCutoff = true;
-    if (evaporatorTemp.temperature >= COMPRESSOR_RESUME_PID_CONTROL_TEMP) undertempCutoff = false;
-
-    if (switchPosition < CoolerSwitchPosition::PRECHILL || undertempCutoff) {
-        compressorValue = 0;
-        analogWrite(compressorPin, 0);
-        return;
+    if (evaporatorTemp.temperature <= COMPRESSOR_UNDER_TEMP_CUTOFF && !undertempCutoff) {
+        undertempCutoff = true;
+        LOG_WARN("Compressor stopped due to under temp cut-off, current temp", evaporatorTemp.temperature);
+    }
+    if (evaporatorTemp.temperature >= COMPRESSOR_RESUME_PID_CONTROL_TEMP && undertempCutoff) {
+        undertempCutoff = false;
+        LOG_INFO("Resume compressor automated control");
     }
 
-    compressorPID.Compute();
-    compressorValue = compressorOutputValue;
-    analogWrite(compressorPin, compressorOutputValue);
+    uint16_t newCompressorValue = 0;
+    if (switchPosition < CoolerSwitchPosition::PRECHILL || undertempCutoff) {
+        newCompressorValue = 0;
+    } else {
+        newCompressorValue = compressorOutputValue;
+        LOG_DEBUG("Compressor input temp:", compressorInputTemp, "target temp:", compressorTempTarget, "output value", compressorOutputValue);
+    }
+    if (compressorValue != newCompressorValue) {
+        LOG_INFO("Updating compressor PWM to", map(newCompressorValue, 0, 1023, 0, 100));
+    }
+    compressorValue = newCompressorValue;
+    analogWrite(compressorPin, compressorValue);
 }
 
 void CoolerSystem::panic(SystemFault fault)
@@ -157,7 +160,6 @@ void CoolerSystem::panic(SystemFault fault)
         LOG_ERROR("Cooler system panic with fault code:", SystemFaultToString(fault));
     }
     systemFault = fault;
-    // update switch position in internal state
     _pollSwitchPosition();
 }
 
@@ -186,6 +188,7 @@ void CoolerSystem::loop()
         runCompressor();
         runCoolshirtPump();
     }
+    compressorPID.Compute();
 };
 
 void CoolerSystem::getCANMessage(CAN_message_t &msg)
@@ -207,7 +210,7 @@ void CoolerSystem::getCANMessage(CAN_message_t &msg)
     //      |   [6]: chiller pump active
     //      |   [5]: system reset required
     //      |   [4]: coolant level OK
-    //      |   [3]: unused
+    //      |   [3]: under-temp compressor cut-off
     //      |   [2,1,0]: switch position
     // 7    | system faults (seen not necessarily current state)
 
@@ -222,6 +225,7 @@ void CoolerSystem::getCANMessage(CAN_message_t &msg)
     if (digitalRead(chillerPumpPin)) msg.buf[6] |= 0x40;
     if (systemFault > SystemFault::SYSTEM_OK) msg.buf[6] |= 0x20;
     if (coolantLevel) msg.buf[6] |= 0x10;
+    if (undertempCutoff) msg.buf[6] |= 0x08;
     msg.buf[6] |= (0x07 & (uint8_t)switchPosition);
     msg.buf[7] = (uint8_t)systemFault;
 }

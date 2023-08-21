@@ -25,7 +25,7 @@ void Thermocouple::readData(const int chipSelectPin, ThermocoupleMessage &msg)
 
     if (MOCK_DATA)
     {
-        rxBuffer[0] = 0x3E;
+        rxBuffer[0] = 0x0A;
         rxBuffer[1] = 0x88;
         rxBuffer[2] = 0x19;
         rxBuffer[3] = 0x80;

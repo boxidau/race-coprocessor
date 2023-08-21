@@ -94,6 +94,18 @@ private:
     uint16_t coolshirtPumpValue = { 0 };
     uint16_t compressorValue = { 0 };
 
+    double compressorInputTemp = { 0 };
+    double compressorOutputValue = { 0 };
+    double compressorTempTarget = { DESIRED_TEMP };
+    bool undertempCutoff = { false };
+    const double Kp=2, Ki=5, Kd=1;
+    PID compressorPID = {
+        PID(
+            &compressorInputTemp, &compressorOutputValue, &compressorTempTarget,
+            Kp, Ki, Kd, REVERSE
+        )
+    };
+
     // getters
     // will return REQUIRES_RESET until the switch has visited the RESET position at least once
     // in a panic condition the need to re-visit the reset is enabled

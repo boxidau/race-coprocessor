@@ -34,7 +34,7 @@ unsigned long previousLoop, loopStart;
 
 void setup()
 {
-    LOG_SET_LEVEL(DebugLogLevel::LVL_DEBUG);
+    // LOG_SET_LEVEL(DebugLogLevel::LVL_DEBUG);
     analogReadRes(10);
     cooler.setup();
     LEDStatus::setup();
