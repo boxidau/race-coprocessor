@@ -81,23 +81,23 @@ private:
     uint8_t compressorPin, chillerPumpPin, coolshirtPumpPin, systemEnablePin;
 
     // internal state
-    bool systemRequiresReset = { true };
-    CoolerSwitchPosition switchPosition = { CoolerSwitchPosition::REQUIRES_RESET };
-    bool coolantLevel = { false };
-    uint16_t systemPressure = 0;
+    bool systemRequiresReset { true };
+    CoolerSwitchPosition switchPosition { CoolerSwitchPosition::REQUIRES_RESET };
+    bool coolantLevel { false };
+    uint16_t systemPressure { 0 };
     ThermocoupleMessage evaporatorTemp;
-    uint16_t flowRate = { 0 };  // mL / min
+    uint16_t flowRate { 0 };  // mL / min
 
     // output states
     // for logging/canbus output
     // systemEnable and chillerPump can just digitalRead their own state
-    uint16_t coolshirtPumpValue = { 0 };
-    uint16_t compressorValue = { 0 };
+    uint16_t coolshirtPumpValue { 0 };
+    uint16_t compressorValue { 0 };
 
-    double compressorInputTemp = { 0 };
-    double compressorOutputValue = { 0 };
-    double compressorTempTarget = { DESIRED_TEMP };
-    bool undertempCutoff = { false };
+    double compressorInputTemp { 0 };
+    double compressorOutputValue { 0 };
+    double compressorTempTarget { DESIRED_TEMP };
+    bool undertempCutoff { false };
     const double Kp=2, Ki=5, Kd=1;
     PID compressorPID = {
         PID(
