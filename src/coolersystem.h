@@ -5,14 +5,15 @@
 #include <PID_v1.h>
 #include <Metro.h>
 #include <FlexCAN.h>
-#include "thermocouple.h"
+
+#include "ntc.h"
+#include "constants.h"
 
 // 7.5 pulses per second == flow rate in LPM
 // therefore 1000000uS / 7.5 * 1000 is the numerator for the pulseInterval (in uS)
 // flow is expessed in mL/min so we can use ints instead of floats
 #define MLPM_MAGIC_NUMBER 133333333
 
-#define UNDERPRESSURE_THRESHOLD_KPA 7
 #define OVERPRESSURE_THRESHOLD_KPA 170
 #define PRESSURE_SENSOR_CALIBRATION_LOW_ADC 264 // 0.5V = 0psig = 101kPa
 #define PRESSURE_SENSOR_CALIBRAION_HIGH_ADC 2616 // 5V = 112psig = 772kPa
@@ -54,10 +55,8 @@ enum class SystemFault {
     SYSTEM_OK  = 0,
     LOW_COOLANT = 1,
     FLOW_RATE_LOW = 2,
-    THERMOCOUPLE_ERROR = 4,
-    SWITCH_ADC_OUT_OF_BOUNDS = 8,
-    SYSTEM_OVER_PRESSURE = 16,
-    SYSTEM_STARTUP = 32,
+    SYSTEM_OVER_PRESSURE = 4,
+    SYSTEM_STARTUP = 128,
 };
 
 constexpr const char* SystemFaultToString(SystemFault sf)
@@ -67,8 +66,6 @@ constexpr const char* SystemFaultToString(SystemFault sf)
         case SystemFault::SYSTEM_OK: return "SYSTEM_OK";
         case SystemFault::LOW_COOLANT: return "LOW_COOLANT";
         case SystemFault::FLOW_RATE_LOW: return "FLOW_RATE_LOW";
-        case SystemFault::THERMOCOUPLE_ERROR: return "THERMOCOUPLE_ERROR";
-        case SystemFault::SWITCH_ADC_OUT_OF_BOUNDS: return "SWITCH_ADC_OUT_OF_BOUNDS";
         case SystemFault::SYSTEM_OVER_PRESSURE: return "SYSTEM_OVER_PRESSURE";
         case SystemFault::SYSTEM_STARTUP: return "SYSTEM_STATUP";
         default: return "UNKNOWN";
@@ -78,16 +75,21 @@ constexpr const char* SystemFaultToString(SystemFault sf)
 class CoolerSystem {
 private:
     // inputs
-    uint8_t switchPin, coolantLevelPin, flowRatePin, pressureSensorPin, thermocoupleCSPin;
+    uint8_t switchPin, coolantLevelPin, flowRatePin, pressureSensorPin;
+
+    // ntc inputs
+    NTC inletNTC, outletNTC;
+
     // outputs
     uint8_t compressorPin, chillerPumpPin, coolshirtPumpPin, systemEnablePin, flowPulsePin;
 
     // internal state
-    bool systemRequiresReset { true };
+    byte _systemFault { (byte)SystemFault::SYSTEM_STARTUP };
     CoolerSystemStatus systemStatus { CoolerSystemStatus::REQUIRES_RESET };
     bool coolantLevel { false };
     uint16_t systemPressure { 0 };
-    ThermocoupleMessage evaporatorTemp;
+    double chillerInletTemp { -100.0 };
+    double chillerOutletTemp { -100.0 };
     uint16_t flowRate { 0 };  // mL / min
 
     // output states
@@ -96,14 +98,13 @@ private:
     uint16_t coolshirtPumpValue { 0 };
     uint16_t compressorValue { 0 };
 
-    double compressorInputTemp { 0 };
     double compressorOutputValue { 0 };
     double compressorTempTarget { DESIRED_TEMP };
     bool undertempCutoff { false };
     const double Kp=2, Ki=5, Kd=1;
     PID compressorPID = {
         PID(
-            &compressorInputTemp, &compressorOutputValue, &compressorTempTarget,
+            &chillerOutletTemp, &compressorOutputValue, &compressorTempTarget,
             Kp, Ki, Kd, DIRECT
         )
     };
@@ -118,6 +119,7 @@ private:
     void _pollSystemStatus();
     void _pollCoolantLevel();
     void _pollFlowRate();
+    void _pollNTCSensors();
 
     // executors
     void runChillerPump();
@@ -131,7 +133,8 @@ public:
         uint8_t _coolantLevelPin,
         uint8_t _flowRatePin,
         uint8_t _pressureSensorPin,
-        uint8_t _thermocoupleCSPin,
+        uint8_t _inletNtcPin,
+        uint8_t _outletNtcPin,
         uint8_t _compressorPin,
         uint8_t _chillerPumpPin,
         uint8_t _coolshirtPumpPin,
@@ -142,7 +145,8 @@ public:
         , coolantLevelPin { _coolantLevelPin }
         , flowRatePin { _flowRatePin }
         , pressureSensorPin { _pressureSensorPin }
-        , thermocoupleCSPin { _thermocoupleCSPin }
+        , inletNTC { NTC(_inletNtcPin) }
+        , outletNTC { NTC(_outletNtcPin) }
         , compressorPin { _compressorPin }
         , chillerPumpPin { _chillerPumpPin }
         , coolshirtPumpPin { _coolshirtPumpPin }
@@ -153,5 +157,5 @@ public:
     void setup();
     void loop();
     void getCANMessage(CAN_message_t &msg);
-    byte systemFault { (byte)SystemFault::SYSTEM_STARTUP };
+    byte systemFault();
 };

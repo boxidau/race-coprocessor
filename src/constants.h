@@ -1,5 +1,7 @@
 #define         MOCK_DATA                       false
 
+#define         ADC_MAX                         8191
+
 // Device pins
 #define         SPI_HDR_CS                      10
 #define         EXTERNAL_DIGITAL_PIN            6

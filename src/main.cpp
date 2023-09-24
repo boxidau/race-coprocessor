@@ -23,7 +23,8 @@ CoolerSystem cooler = CoolerSystem(
     EXTERNAL_ADC3, // coolantLevelPin,
     EXTERNAL_ADC2, // flowRatePin,
     EXTERNAL_ADC4, // pressureSensorPin,
-    SPI_CS_TC2,    // _thermocoupleCSPin,
+    EXTERNAL_NTC1, // _ntc1Pin,
+    EXTERNAL_NTC2, // _ntc2Pin,
     EXTERNAL_PWM2, // compressorPin,
     EXTERNAL_PWM3, // chillerPumpPin,
     EXTERNAL_PWM4, // coolshirtPumpPin,
@@ -68,7 +69,7 @@ void loop()
     // tick functions for all modules
     ledStatus.loop();
     cooler.loop();
-    ledStatus.error = cooler.systemFault;
+    ledStatus.error = cooler.systemFault();
     // end tick functions
 
     if (canBroadcastTimer.check()) {
