@@ -20,24 +20,28 @@ static CAN_message_t coolerSystemMessage, rxMessage;
 
 CoolerSystem cooler = CoolerSystem(
     EXTERNAL_ADC1, // switchPin
-    EXTERNAL_ADC2, // coolantLevelPin,
-    EXTERNAL_ADC3, // flowRatePin,
+    EXTERNAL_ADC3, // coolantLevelPin,
+    EXTERNAL_ADC2, // flowRatePin,
     EXTERNAL_ADC4, // pressureSensorPin,
-    SPI_CS_TC1,    // _thermocoupleCSPin,
-    EXTERNAL_PWM1, // compressorPin,
-    EXTERNAL_PWM2, // chillerPumpPin,
-    EXTERNAL_PWM3, // coolshirtPumpPin,
-    EXTERNAL_PWM4  // systemEnablePin
+    SPI_CS_TC2,    // _thermocoupleCSPin,
+    EXTERNAL_PWM2, // compressorPin,
+    EXTERNAL_PWM3, // chillerPumpPin,
+    EXTERNAL_PWM4, // coolshirtPumpPin,
+    EXTERNAL_PWM1,  // systemEnablePin
+    LED3 // pulseFlowPin
 );
+
+LEDStatus ledStatus = LEDStatus(LED1, LED2);
 
 unsigned long previousLoop, loopStart;
 
 void setup()
 {
     // LOG_SET_LEVEL(DebugLogLevel::LVL_DEBUG);
-    analogReadRes(10);
+    analogReadRes(13);
+    analogWriteRes(13);
     cooler.setup();
-    LEDStatus::setup();
+    ledStatus.setup();
     Serial.begin(115200);
     Can0.begin(500000);
     CANLogger::setup();
@@ -62,8 +66,9 @@ void loop()
     previousLoop = loopStart;
 
     // tick functions for all modules
-    LEDStatus::loop();
+    ledStatus.loop();
     cooler.loop();
+    ledStatus.error = cooler.systemFault;
     // end tick functions
 
     if (canBroadcastTimer.check()) {
@@ -79,7 +84,7 @@ void loop()
 
     if (statsTimer.check())
     {
-        CANLogger::logComment("loop_time=" + (String)loopTime + "uS, error_code=" + hexDump(LEDStatus::getError()));
-        LOG_INFO("loop_time=" + (String)loopTime + "uS, error_code=" + hexDump(LEDStatus::getError()));
+        CANLogger::logComment("loop_time=" + (String)loopTime + "uS, error_code=" + hexDump(ledStatus.error));
+        LOG_INFO("loop_time=" + (String)loopTime + "uS, error_code=" + hexDump(ledStatus.error));
     }
 }

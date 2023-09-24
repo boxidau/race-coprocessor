@@ -25,40 +25,40 @@ void Thermocouple::readData(const int chipSelectPin, ThermocoupleMessage &msg)
 
     if (MOCK_DATA)
     {
-        rxBuffer[0] = 0x0A;
-        rxBuffer[1] = 0x88;
+        rxBuffer[0] = 0x06;
+        rxBuffer[1] = 0x4C;
         rxBuffer[2] = 0x19;
-        rxBuffer[3] = 0x80;
+        rxBuffer[3] = 0x90;
     }
 
     LOG_TRACE("Thermocouple RX", chipSelectPin, hexDump(rxBuffer));
 
     msg.scaledTemperature = ((rxBuffer[0] & 0x7F) << 6 | rxBuffer[1] >> 2);
     if (rxBuffer[0] & 0x80) msg.scaledTemperature *= -1;
-    msg.temperature = scalbn(msg.scaledTemperature, -4);
+    msg.temperature = scalbn(msg.scaledTemperature, -2);
     LOG_TRACE("Thermocouple Value [%d]: %.02f", chipSelectPin, msg.temperature);
     
     msg.scaledInternalTemperature = ((rxBuffer[2] & 0x7F) << 4 | rxBuffer[3] >> 4);
     if (rxBuffer[2] & 0x80) msg.scaledInternalTemperature *= -1;
-    msg.internalTemperature = scalbn(msg.scaledInternalTemperature, -2);
+    msg.internalTemperature = scalbn(msg.scaledInternalTemperature, -4);
     LOG_TRACE("Internal Temp [%d]: %.02f", chipSelectPin, msg.internalTemperature);
 
-    if (rxBuffer[1] & 0x1) LOG_WARN("Thermocouple fault on ", chipSelectPin);
+    if (rxBuffer[1] & 0x1) LOG_DEBUG("Thermocouple fault on ", chipSelectPin);
 
     msg.error = rxBuffer[3] & 0x7;
     if (rxBuffer[3] & 0x4)
     {
-        LOG_WARN("Thermocouple Error: Short to VCC on", chipSelectPin);
+        LOG_DEBUG("Thermocouple Error: Short to VCC on", chipSelectPin);
     }
 
     if (rxBuffer[3] & 0x2) 
     {
-        LOG_WARN("Thermocouple Error: Short to GND on", chipSelectPin);
+        LOG_DEBUG("Thermocouple Error: Short to GND on", chipSelectPin);
     }
 
     if (rxBuffer[3] & 0x1)
     {
-        LOG_WARN("Thermocouple Error: Open circuit on", chipSelectPin);
+        LOG_DEBUG("Thermocouple Error: Open circuit on", chipSelectPin);
     }
 }
 

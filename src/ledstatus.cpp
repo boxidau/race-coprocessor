@@ -5,67 +5,43 @@
 #include <Metro.h>
 #include <DebugLog.h>
 
-byte LEDStatus::flashCode = NO_ERROR;
-uint8_t LEDStatus::flashCodeIndex = 0;
-
-static Metro ledTimer = Metro(300);
-
 void LEDStatus::setup()
 {
-    pinMode(LED1, OUTPUT);
-    pinMode(LED3, OUTPUT);
+    pinMode(rhythmLED, OUTPUT);
+    pinMode(statusLED, OUTPUT);
+    analogWriteFrequency(rhythmLED, 20000);
+    analogWriteFrequency(statusLED, 20000);
 }
 
 void LEDStatus::loop()
 {
+    static Metro ledTimer = Metro(333);
+    static uint8_t flashCodeIndex = 0;
+
     if (ledTimer.check())
     {
-        digitalWrite(LED3, !digitalRead(LED3));
-        int bit = flashCodeIndex % 21 / 2;
+        // pulse the rhythm (clock) LED to make it easy to read the status LED
+        analogWrite(rhythmLED, LED_PWM_MAX);
         if (flashCodeIndex % 2 == 1)
         {
             // LED off between bit indication
             // odd sequence numbers
-            digitalWrite(LED1, LOW);
+            analogWrite(statusLED, 0);
+            analogWrite(rhythmLED, 0);
         }
-        else if (bit > 7)
+        else if (flashCodeIndex >= 16)
         {
             // break to indicate the end/start of flash sequence
             // bit is out of range
-            digitalWrite(LED1, LOW);
+            analogWrite(statusLED, 0);
+            analogWrite(rhythmLED, 0);
         }
         else
         {
             // display the error code bit
-            digitalWriteFast(LED1, bitRead(flashCode, bit));
+            analogWrite(statusLED, bitRead(error, flashCodeIndex / 2) ? LED_PWM_MAX : 0);
         }
         flashCodeIndex++;
+        if (flashCodeIndex >= 18) flashCodeIndex = 0;
     }
-}
-
-void LEDStatus::setError(byte error)
-{
-    flashCode |= error;
-}
-
-void LEDStatus::clearError(byte error)
-{
-    flashCode &= ~error;
-}
-
-void LEDStatus::setError(byte error, bool setOrClear)
-{
-    if (setOrClear)
-    {
-        setError(error);
-    }
-    else
-    {
-        clearError(error);
-    }
-}
-
-byte LEDStatus::getError()
-{
-    return flashCode;
 }
