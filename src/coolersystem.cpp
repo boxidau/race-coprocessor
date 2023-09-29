@@ -20,32 +20,34 @@ void CoolerSystem::setup()
     pinMode(coolantLevelPin, INPUT);
     pinMode(flowRatePin, INPUT);
     pinMode(pressureSensorPin, INPUT);
+    inletNTC.setup();
+    outletNTC.setup();
 
     compressorPID.SetOutputLimits(0, ADC_MAX);
     compressorPID.SetMode(AUTOMATIC);
+
 };
 
 CoolerSystemStatus CoolerSystem::_getSwitchPosition()
 {
     static CoolerSystemStatus switchPosition = CoolerSystemStatus::RESET;
-    const uint16_t switchADCValue = analogRead(switchPin);
-    if (switchADCValue < 760) switchPosition = CoolerSystemStatus::RESET;
-    if (switchADCValue < 1136) switchPosition = CoolerSystemStatus::PRECHILL;
-    if (switchADCValue < 1360) switchPosition = CoolerSystemStatus::PUMP_LOW;
-    if (switchADCValue < 1520) switchPosition = CoolerSystemStatus::PUMP_MEDIUM;
-    if (switchADCValue < 1640) switchPosition = CoolerSystemStatus::PUMP_HIGH;
+    const uint16_t switchADCValue = analogRead(switchPin) >> 3;
+    if (switchADCValue < 790) switchPosition = CoolerSystemStatus::RESET;
+    else if (switchADCValue < 1156) switchPosition = CoolerSystemStatus::PRECHILL;
+    else if (switchADCValue < 1360) switchPosition = CoolerSystemStatus::PUMP_LOW;
+    else if (switchADCValue < 1520) switchPosition = CoolerSystemStatus::PUMP_MEDIUM;
+    else if (switchADCValue < 1640) switchPosition = CoolerSystemStatus::PUMP_HIGH;
     return switchPosition;
 }
 
 void CoolerSystem::_pollSystemStatus()
 {
     CoolerSystemStatus _newSwitchPosition = _getSwitchPosition();
-
-    if (_systemFault > 0 && _newSwitchPosition != CoolerSystemStatus::RESET) {
-        _newSwitchPosition = CoolerSystemStatus::REQUIRES_RESET;
-    }
     if (_newSwitchPosition == CoolerSystemStatus::RESET) {
         _systemFault = 0;
+    }
+    if (_systemFault > 0) {
+        _newSwitchPosition = CoolerSystemStatus::REQUIRES_RESET;
     }
     if (_newSwitchPosition != systemStatus) {
         LOG_INFO("Switch position changed", CoolerSystemStatusToString(systemStatus), "to", CoolerSystemStatusToString(_newSwitchPosition));
@@ -77,7 +79,7 @@ void CoolerSystem::_pollFlowRate()
 {
     static uint lastPulse = 0;
     static uint pulseInterval = 0;
-    static ABounce flowRateInput = ABounce(flowRatePin, 3, 1200);
+    static ABounce flowRateInput = ABounce(flowRatePin, 3, ADC_MAX / 7);
     if (flowRateInput.update() && flowRateInput.risingEdge()) {
         pulseInterval = micros() - lastPulse;
         lastPulse += pulseInterval;
@@ -154,9 +156,9 @@ void CoolerSystem::runCompressor()
 void CoolerSystem::runCoolshirtPump()
 {
     if (systemStatus == CoolerSystemStatus::PUMP_LOW) {
-        coolshirtPumpValue = 3280;
+        coolshirtPumpValue = ADC_MAX / 3;
     } else if (systemStatus == CoolerSystemStatus::PUMP_MEDIUM) {
-        coolshirtPumpValue = 5440;
+        coolshirtPumpValue = ADC_MAX / 3 * 2;
     } else if (systemStatus == CoolerSystemStatus::PUMP_HIGH) {
         coolshirtPumpValue = ADC_MAX;
     } else {
@@ -179,6 +181,8 @@ void CoolerSystem::loop()
     static Metro displayInfoTimer = Metro(1000);
 
     _pollFlowRate();
+    // if (HSR_LOGGER) HSRLogger::addSample(inletNTC.adc());
+
     if (pollTimer.check()) {
         // so as long as we call _pollSwitchPosition before doing any actions
         // we can rely on switch position to accurately give a system state
@@ -204,8 +208,8 @@ void CoolerSystem::loop()
         bool chillerEnabled = digitalRead(chillerPumpPin);
         LOG_INFO("----------------- Cooler Statistics -------------------");
         LOG_INFO("Inputs ------------------------------------------------");
-        LOG_INFO("  Inlet Temperature:             ", chillerInletTemp, "C");
-        LOG_INFO("  Outlet Temperature:            ", chillerOutletTemp, "C");
+        LOG_INFO("  Inlet Temperature:             ", chillerInletTemp, "C (",inletNTC.adc(), ")");
+        LOG_INFO("  Outlet Temperature:            ", chillerOutletTemp, "C (",outletNTC.adc(), ")");
         LOG_INFO("  System Pressure:               ", systemPressure, "kPa");
         LOG_INFO("  Flow Rate:                     ", flowRate, "mL/min");
         LOG_INFO("  Coolant Level:                 ", coolantLevel ? "OK" : "LOW");
@@ -252,12 +256,12 @@ void CoolerSystem::getCANMessage(CAN_message_t &msg)
     //      |   [2,1,0]: switch position
     // 7    | system faults (seen not necessarily current state)
 
-    msg.buf[0] = uint8_t((chillerInletTemp + 15) / 0.25);
-    msg.buf[1] = uint8_t((chillerOutletTemp + 15) / 0.25);
+    msg.buf[0] = chillerInletTemp > -15 ? uint8_t((chillerInletTemp + 15) / 0.25) : 0xFF;
+    msg.buf[1] = chillerOutletTemp > -15 ? uint8_t((chillerOutletTemp + 15) / 0.25): 0xFF;
     msg.buf[2] = (uint8_t)(flowRate / 10);
     msg.buf[3] = systemPressure / 4;
-    msg.buf[4] = (uint8_t)map(compressorValue, 0, ADC_MAX, 0, 254);
-    msg.buf[5] = (uint8_t)map(coolshirtPumpValue, 0, ADC_MAX, 0, 254);
+    msg.buf[4] = (uint8_t)map(compressorValue, 0, ADC_MAX, 0, 255);
+    msg.buf[5] = (uint8_t)map(coolshirtPumpValue, 0, ADC_MAX, 0, 255);
     msg.buf[6] = 0;
     if (digitalRead(systemEnablePin)) msg.buf[6] |= 0x80;
     if (digitalRead(chillerPumpPin)) msg.buf[6] |= 0x40;

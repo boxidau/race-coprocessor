@@ -128,7 +128,7 @@ void CANLogger::write()
         return;
     }
 
-    if (random(0, 20) == 0) LOG_DEBUG("LOG WRITE:", + lineBuffer);
+    if (random(0, 20) == 0) LOG_INFO("LOG WRITE:", + lineBuffer);
 
     if (logFile.println(lineBuffer) != strlen(lineBuffer) + 2)
     {

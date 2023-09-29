@@ -1,10 +1,9 @@
 #define         MOCK_DATA                       false
 
-#define         ADC_MAX                         8191
+#define         ADC_MAX                         65535
 
 // Device pins
 #define         SPI_HDR_CS                      10
-#define         EXTERNAL_DIGITAL_PIN            6
 
 // LED
 #define         LED1                            21
@@ -49,11 +48,6 @@
 // CANBUS
 #define         CAN_TX_PIN                      3
 #define         CAN_RX_PIN                      4
-#define         CANID_THERMOCOUPLE              2025
-#define         CANID_ANALOG                    2026
-#define         CANID_NTC                       2027
-#define         CANID_PWM                       2028
-#define         CANID_DIO                       2029
 #define         CANID_COOLER_SYSTEM             2030
 
 // UART

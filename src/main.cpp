@@ -1,3 +1,6 @@
+#define CAN_LOGGER false
+
+
 #include "constants.h"
 
 #include "Arduino.h"
@@ -12,8 +15,10 @@
 #include "coolersystem.h"
 
 
+#define HSR_LOGGER
+
 Metro statsTimer = Metro(10000);
-Metro canBroadcastTimer = Metro(500);
+Metro canBroadcastTimer = Metro(100);
 Metro msTick = Metro(1);
 
 static CAN_message_t coolerSystemMessage, rxMessage;
@@ -39,25 +44,26 @@ unsigned long previousLoop, loopStart;
 void setup()
 {
     // LOG_SET_LEVEL(DebugLogLevel::LVL_DEBUG);
-    analogReadRes(13);
-    analogWriteRes(13);
+    analogReadRes(16);
+    analogWriteRes(16);
     cooler.setup();
     ledStatus.setup();
-    Serial.begin(115200);
     Can0.begin(500000);
-    CANLogger::setup();
+    Serial.begin(115200);
+    if (CAN_LOGGER) CANLogger::setup();
     LOG_INFO("System Boot OK");
+
 }
 
 void broadcastMessage(CAN_message_t &message)
 {
     Can0.write(message);
-    CANLogger::logCANMessage(message, CAN_TX);
+    if (CAN_LOGGER) CANLogger::logCANMessage(message, CAN_TX);
 }
 
 void processRXCANMessage()
 {
-    CANLogger::logCANMessage(rxMessage, CAN_RX);
+    if (CAN_LOGGER) CANLogger::logCANMessage(rxMessage, CAN_RX);
 }
 
 void loop()

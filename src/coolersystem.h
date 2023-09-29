@@ -8,6 +8,9 @@
 
 #include "ntc.h"
 #include "constants.h"
+#include "CoolerLog.h"
+
+#define HSR_LOGGER true
 
 // 7.5 pulses per second == flow rate in LPM
 // therefore 1000000uS / 7.5 * 1000 is the numerator for the pulseInterval (in uS)
@@ -15,17 +18,17 @@
 #define MLPM_MAGIC_NUMBER 133333333
 
 #define OVERPRESSURE_THRESHOLD_KPA 170
-#define PRESSURE_SENSOR_CALIBRATION_LOW_ADC 264 // 0.5V = 0psig = 101kPa
-#define PRESSURE_SENSOR_CALIBRAION_HIGH_ADC 2616 // 5V = 112psig = 772kPa
+#define PRESSURE_SENSOR_CALIBRATION_LOW_ADC 2112 // 0.5V = 0psig = 101kPa
+#define PRESSURE_SENSOR_CALIBRAION_HIGH_ADC 20930  // 5V = 112psig = 772kPa
 #define PRESSURE_SENSOR_CALIBRATION_LOW_KPA 101
 #define PRESSURE_SENSOR_CALIBRATION_HIGH_KPA 772
 
 #define FLOW_RATE_MIN_THRESHOLD 300
 #define FLOW_RATE_MIN_TIME_MS_THRESHOLD 5000
 
-#define DESIRED_TEMP 5
-#define COMPRESSOR_UNDER_TEMP_CUTOFF 3
-#define COMPRESSOR_RESUME_PID_CONTROL_TEMP 7
+#define DESIRED_TEMP 4.5
+#define COMPRESSOR_UNDER_TEMP_CUTOFF 3.0
+#define COMPRESSOR_RESUME_PID_CONTROL_TEMP 7.0
 
 
 enum class CoolerSystemStatus {
@@ -101,7 +104,7 @@ private:
     double compressorOutputValue { 0 };
     double compressorTempTarget { DESIRED_TEMP };
     bool undertempCutoff { false };
-    const double Kp=2, Ki=5, Kd=1;
+    const double Kp=2.67, Ki=2.4, Kd=5.8;
     PID compressorPID = {
         PID(
             &chillerOutletTemp, &compressorOutputValue, &compressorTempTarget,

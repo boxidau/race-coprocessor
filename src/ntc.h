@@ -1,6 +1,7 @@
 #include "Arduino.h"
 #include "constants.h"
 #include <math.h>
+#include <DebugLog.h>
 
 class NTC
 {
@@ -21,7 +22,12 @@ public:
         , steinhartC { _steinhartC }
         , pullupResistance { _pullupResistance }
     {
-        pinMode(pin, INPUT);
+        
     };
+    
+    void setup() {
+        pinMode(pin, INPUT);
+    }
     double temperature();
+    uint16_t adc();
 };
