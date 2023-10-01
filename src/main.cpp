@@ -1,6 +1,3 @@
-#define CAN_LOGGER false
-
-
 #include "constants.h"
 
 #include "Arduino.h"
@@ -19,7 +16,6 @@
 
 Metro statsTimer = Metro(10000);
 Metro canBroadcastTimer = Metro(100);
-Metro msTick = Metro(1);
 
 static CAN_message_t coolerSystemMessage, rxMessage;
 
@@ -50,7 +46,7 @@ void setup()
     ledStatus.setup();
     Can0.begin(500000);
     Serial.begin(115200);
-    if (CAN_LOGGER) CANLogger::setup();
+    CANLogger::setup();
     LOG_INFO("System Boot OK");
 
 }
@@ -58,12 +54,12 @@ void setup()
 void broadcastMessage(CAN_message_t &message)
 {
     Can0.write(message);
-    if (CAN_LOGGER) CANLogger::logCANMessage(message, CAN_TX);
+    CANLogger::logCANMessage(message, CAN_TX);
 }
 
 void processRXCANMessage()
 {
-    if (CAN_LOGGER) CANLogger::logCANMessage(rxMessage, CAN_RX);
+    CANLogger::logCANMessage(rxMessage, CAN_RX);
 }
 
 void loop()
@@ -73,9 +69,9 @@ void loop()
     previousLoop = loopStart;
 
     // tick functions for all modules
-    ledStatus.loop();
     cooler.loop();
     ledStatus.error = cooler.systemFault();
+    ledStatus.loop();
     // end tick functions
 
     if (canBroadcastTimer.check()) {
@@ -92,6 +88,9 @@ void loop()
     if (statsTimer.check())
     {
         CANLogger::logComment("loop_time=" + (String)loopTime + "uS, error_code=" + hexDump(ledStatus.error));
+    }
+
+    if (loopTime > 1000) {
         LOG_INFO("loop_time=" + (String)loopTime + "uS, error_code=" + hexDump(ledStatus.error));
     }
 }

@@ -1,23 +1,27 @@
 #include "Arduino.h"
+
+#include <avr/io.h>
+#include <avr/interrupt.h>
+
 #include <DebugLog.h>
 #include <SPI.h>
-#include <ABounce.h>
+#include <Bounce.h>
 #include <PID_v1.h>
 #include <Metro.h>
 #include <FlexCAN.h>
 
 #include "ntc.h"
 #include "constants.h"
-#include "CoolerLog.h"
 
-#define HSR_LOGGER true
 
 // 7.5 pulses per second == flow rate in LPM
 // therefore 1000000uS / 7.5 * 1000 is the numerator for the pulseInterval (in uS)
 // flow is expessed in mL/min so we can use ints instead of floats
 #define MLPM_MAGIC_NUMBER 133333333
 
-#define OVERPRESSURE_THRESHOLD_KPA 170
+#define FLOW_SAMPLES 16
+
+#define OVERPRESSURE_THRESHOLD_KPA 190
 #define PRESSURE_SENSOR_CALIBRATION_LOW_ADC 2112 // 0.5V = 0psig = 101kPa
 #define PRESSURE_SENSOR_CALIBRAION_HIGH_ADC 20930  // 5V = 112psig = 772kPa
 #define PRESSURE_SENSOR_CALIBRATION_LOW_KPA 101

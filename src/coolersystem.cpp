@@ -12,9 +12,9 @@ void CoolerSystem::setup()
     pinMode(systemEnablePin, OUTPUT);
     digitalWriteFast(systemEnablePin, LOW);
     pinMode(flowPulsePin, OUTPUT);
-    analogWriteFrequency(compressorPin, 18000);
-    analogWriteFrequency(coolshirtPumpPin, 18000);
-    analogWriteFrequency(systemEnablePin, 18000);
+
+    analogWriteFrequency(coolshirtPumpPin, 24414);
+    analogWriteFrequency(compressorPin, 24414);
 
     pinMode(switchPin, INPUT);
     pinMode(coolantLevelPin, INPUT);
@@ -25,18 +25,17 @@ void CoolerSystem::setup()
 
     compressorPID.SetOutputLimits(0, ADC_MAX);
     compressorPID.SetMode(AUTOMATIC);
-
 };
 
 CoolerSystemStatus CoolerSystem::_getSwitchPosition()
 {
     static CoolerSystemStatus switchPosition = CoolerSystemStatus::RESET;
-    const uint16_t switchADCValue = analogRead(switchPin) >> 3;
-    if (switchADCValue < 790) switchPosition = CoolerSystemStatus::RESET;
-    else if (switchADCValue < 1156) switchPosition = CoolerSystemStatus::PRECHILL;
-    else if (switchADCValue < 1360) switchPosition = CoolerSystemStatus::PUMP_LOW;
-    else if (switchADCValue < 1520) switchPosition = CoolerSystemStatus::PUMP_MEDIUM;
-    else if (switchADCValue < 1640) switchPosition = CoolerSystemStatus::PUMP_HIGH;
+    const uint16_t switchADCValue = analogRead(switchPin);
+    if (switchADCValue < 6000) switchPosition = CoolerSystemStatus::RESET;
+    else if (switchADCValue < 9400) switchPosition = CoolerSystemStatus::PRECHILL;
+    // else if (switchADCValue < 11000) switchPosition = CoolerSystemStatus::PUMP_LOW;
+    else if (switchADCValue < 11500) switchPosition = CoolerSystemStatus::PUMP_MEDIUM;
+    else if (switchADCValue < 14000) switchPosition = CoolerSystemStatus::PUMP_HIGH;
     return switchPosition;
 }
 
@@ -72,25 +71,37 @@ void CoolerSystem::_pollSystemPressure()
 
 void CoolerSystem::_pollCoolantLevel()
 {
-    coolantLevel = analogRead(coolantLevelPin) > 800;
+    coolantLevel = analogRead(coolantLevelPin) > 6500;
 }
 
 void CoolerSystem::_pollFlowRate()
 {
-    static uint lastPulse = 0;
-    static uint pulseInterval = 0;
-    static ABounce flowRateInput = ABounce(flowRatePin, 3, ADC_MAX / 7);
-    if (flowRateInput.update() && flowRateInput.risingEdge()) {
+    static uint32_t lastPulse = 0;
+    static uint32_t pulseInterval = 0;
+    static uint32_t samples[FLOW_SAMPLES];
+    static uint8_t idx = 0;
+    static Bounce flowRateInput = Bounce(flowRatePin, 1);
+    static bool ledStatus = LOW;
+    if (flowRateInput.update() && flowRateInput.fallingEdge()) {
         pulseInterval = micros() - lastPulse;
+        samples[idx % FLOW_SAMPLES] = pulseInterval;
+        idx++;
         lastPulse += pulseInterval;
-        flowRate = MLPM_MAGIC_NUMBER / pulseInterval;
-        digitalWrite(flowPulsePin, !digitalRead(flowPulsePin));
+        uint sum = 0;
+        for (uint8_t i = 0; i < FLOW_SAMPLES; i++) {
+            sum += samples[i];
+        }
+        uint16_t avg = (sum / FLOW_SAMPLES);
+        flowRate = MLPM_MAGIC_NUMBER / avg;
+        ledStatus = !ledStatus;
+        digitalWriteFast(flowPulsePin, ledStatus);
     }
+
     // if we haven't seen a pulse in a long time
     // reset flow rate to 0
-    if (micros() - lastPulse > 500000) {
+    if (micros() - lastPulse > 3000000) {
         flowRate = 0;
-        LOG_DEBUG("Flow sensor timeout");
+        // LOG_ERROR("Flow sensor timeout");
     }
 }
 
@@ -103,18 +114,17 @@ void CoolerSystem::_pollNTCSensors()
 void CoolerSystem::runChillerPump()
 {
     static uint32_t pumpStartTime = 0;
+    static uint16_t pumpOutput = 0;
     if (systemStatus < CoolerSystemStatus::PRECHILL) {
-        if (digitalRead(chillerPumpPin)) {
-            LOG_INFO("Stopping chiller pump");
-        }
-        digitalWrite(chillerPumpPin, LOW); 
+        pumpOutput = 0;
+        analogWrite(chillerPumpPin, 0); 
         return;
     }
 
-    if (!digitalRead(chillerPumpPin)) {
+    if (pumpOutput == 0) {
         pumpStartTime = millis();
-        digitalWrite(chillerPumpPin, HIGH);
-        LOG_INFO("Starting chiller pump");
+        pumpOutput = (ADC_MAX / 3) * 2;
+        analogWrite(chillerPumpPin, pumpOutput);
     }
     uint32_t pumpRunTime = millis() - pumpStartTime;
     // we haven't seen enough flow after some amount of time
@@ -142,10 +152,10 @@ void CoolerSystem::runCompressor()
 
     uint16_t newCompressorValue = ADC_MAX;
     if (systemStatus < CoolerSystemStatus::PRECHILL || undertempCutoff) {
-        digitalWrite(systemEnablePin, LOW);
+        digitalWriteFast(systemEnablePin, LOW);
         newCompressorValue = ADC_MAX;
     } else {
-        digitalWrite(systemEnablePin, HIGH);
+        digitalWriteFast(systemEnablePin, HIGH);
         newCompressorValue = compressorOutputValue;
         // LOG_DEBUG("Compressor input temp:", compressorInputTemp, "target temp:", compressorTempTarget, "output value", compressorOutputValue);
     }
@@ -177,11 +187,13 @@ void CoolerSystem::check(bool checkResult, SystemFault fault)
 
 void CoolerSystem::loop()
 {
-    static Metro pollTimer = Metro(100);
+    static Metro pollTimer = Metro(113);
     static Metro displayInfoTimer = Metro(1000);
+    static Metro msTick = Metro(1);
 
-    _pollFlowRate();
-    // if (HSR_LOGGER) HSRLogger::addSample(inletNTC.adc());
+    if (msTick.check()) {
+        _pollFlowRate();
+    }
 
     if (pollTimer.check()) {
         // so as long as we call _pollSwitchPosition before doing any actions
@@ -253,8 +265,8 @@ void CoolerSystem::getCANMessage(CAN_message_t &msg)
     //      |   [5]: system reset required
     //      |   [4]: coolant level OK
     //      |   [3]: under-temp compressor cut-off
-    //      |   [2,1,0]: switch position
-    // 7    | system faults (seen not necessarily current state)
+    //      |   [2,1,0]: system status
+    // 7    | system faults
 
     msg.buf[0] = chillerInletTemp > -15 ? uint8_t((chillerInletTemp + 15) / 0.25) : 0xFF;
     msg.buf[1] = chillerOutletTemp > -15 ? uint8_t((chillerOutletTemp + 15) / 0.25): 0xFF;
