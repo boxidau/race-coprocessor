@@ -1,8 +1,5 @@
 #include "Arduino.h"
 
-#include <avr/io.h>
-#include <avr/interrupt.h>
-
 #include <DebugLog.h>
 #include <SPI.h>
 #include <Bounce.h>
@@ -11,6 +8,7 @@
 #include <FlexCAN.h>
 
 #include "ntc.h"
+#include "averagingadc.h"
 #include "constants.h"
 
 
@@ -21,11 +19,11 @@
 
 #define FLOW_SAMPLES 16
 
-#define OVERPRESSURE_THRESHOLD_KPA 190
-#define PRESSURE_SENSOR_CALIBRATION_LOW_ADC 2112 // 0.5V = 0psig = 101kPa
-#define PRESSURE_SENSOR_CALIBRAION_HIGH_ADC 20930  // 5V = 112psig = 772kPa
+#define OVERPRESSURE_THRESHOLD_KPA 230
+#define PRESSURE_SENSOR_CALIBRATION_LOW_ADC 9930 // 2112 // 0.5V = 0psig = 101kPa
+#define PRESSURE_SENSOR_CALIBRAION_HIGH_ADC 65535  // 5V = 112psig = 772kPa
 #define PRESSURE_SENSOR_CALIBRATION_LOW_KPA 101
-#define PRESSURE_SENSOR_CALIBRATION_HIGH_KPA 772
+#define PRESSURE_SENSOR_CALIBRATION_HIGH_KPA 583 // 772
 
 #define FLOW_RATE_MIN_THRESHOLD 300
 #define FLOW_RATE_MIN_TIME_MS_THRESHOLD 5000
@@ -82,7 +80,9 @@ constexpr const char* SystemFaultToString(SystemFault sf)
 class CoolerSystem {
 private:
     // inputs
-    uint8_t switchPin, coolantLevelPin, flowRatePin, pressureSensorPin;
+    AveragingADC switchADC;
+    uint8_t coolantLevelPin, flowRatePin;
+    AveragingADC pressureSensor;
 
     // ntc inputs
     NTC inletNTC, outletNTC;
@@ -93,11 +93,13 @@ private:
     // internal state
     byte _systemFault { (byte)SystemFault::SYSTEM_STARTUP };
     CoolerSystemStatus systemStatus { CoolerSystemStatus::REQUIRES_RESET };
+    Bounce coolantLevelBounce;
     bool coolantLevel { false };
     uint16_t systemPressure { 0 };
     double chillerInletTemp { -100.0 };
     double chillerOutletTemp { -100.0 };
     uint16_t flowRate { 0 };  // mL / min
+    bool chillerPumpRunning { false };
 
     // output states
     // for logging/canbus output
@@ -148,10 +150,10 @@ public:
         uint8_t _systemEnablePin,
         uint8_t _flowPulsePin
     )
-        : switchPin { _switchPin }
+        : switchADC { AveragingADC(_switchPin) }
         , coolantLevelPin { _coolantLevelPin }
         , flowRatePin { _flowRatePin }
-        , pressureSensorPin { _pressureSensorPin }
+        , pressureSensor { AveragingADC(_pressureSensorPin) }
         , inletNTC { NTC(_inletNtcPin) }
         , outletNTC { NTC(_outletNtcPin) }
         , compressorPin { _compressorPin }
@@ -159,8 +161,9 @@ public:
         , coolshirtPumpPin { _coolshirtPumpPin }
         , systemEnablePin { _systemEnablePin }
         , flowPulsePin { _flowPulsePin }
-
-    {};
+        , coolantLevelBounce { Bounce(coolantLevelPin, 40) }
+    {
+    };
     void setup();
     void loop();
     void getCANMessage(CAN_message_t &msg);

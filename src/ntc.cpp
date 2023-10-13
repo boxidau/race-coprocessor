@@ -1,7 +1,11 @@
 #include "ntc.h"
 
+void NTC::loop() {
+    samples[idx++ % NTC_SAMPLES] = analogRead(pin);
+}
+
 double NTC::temperature() {
-    double ntcResistance = pullupResistance / ((ADC_MAX / (double)analogRead(pin)) - 1);
+    double ntcResistance = pullupResistance / ((ADC_MAX / (double)adc()) - 1);
     double lnR = log(ntcResistance);
     return (
         1 / (
@@ -11,5 +15,9 @@ double NTC::temperature() {
 }
 
 uint16_t NTC::adc() {
-    return analogRead(pin);
+    uint sum = 0;
+    for (uint i = 0; i < NTC_SAMPLES; i++) {
+        sum += samples[i];
+    }
+    return (sum / NTC_SAMPLES);
 }

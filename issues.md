@@ -1,0 +1,10 @@
+- pressure sensor smoothing DONE
+  - discard invalid samples
+- diagnose why undertemp is flapping
+- smooth temp sensor readings DONE
+- always run the chiller pump DONE
+- fix flowRate overflow in canbus message DONE 
+- high res temp can message
+- why coolant drops aren't raising faults
+- adjust resistors on switch DONE
+- debounce coolant level DONE

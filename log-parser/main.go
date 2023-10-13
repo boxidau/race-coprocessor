@@ -51,7 +51,7 @@ func main() {
 		}
 		inletTemp := (float64(uint8(pBytes[0])) * 0.25) - 15
 		outletTemp := (float64(uint8(pBytes[1])) * 0.25) - 15
-		flowRate := uint(uint8(pBytes[2])) * 10
+		flowRate := uint(uint8(pBytes[2])) * 15
 		systemPressure := uint(uint8(pBytes[3])) * 4
 		compressorPWM := uint8(pBytes[4])
 		shirtPWM := uint8(pBytes[5])
@@ -63,7 +63,7 @@ func main() {
 		//      |   [4]: coolant level OK
 		//      |   [3]: under-temp compressor cut-off
 		//      |   [2,1,0]: system status
-		flags := uint8(pBytes[5])
+		flags := uint8(pBytes[6])
 		systemEnable := (flags & 0x80) >> 7
 		chillerPumpEnabled := (flags & 0x40) >> 6
 		resetRequired := (flags & 0x20) >> 5

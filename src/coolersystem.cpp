@@ -16,10 +16,8 @@ void CoolerSystem::setup()
     analogWriteFrequency(coolshirtPumpPin, 24414);
     analogWriteFrequency(compressorPin, 24414);
 
-    pinMode(switchPin, INPUT);
-    pinMode(coolantLevelPin, INPUT);
     pinMode(flowRatePin, INPUT);
-    pinMode(pressureSensorPin, INPUT);
+    pinMode(coolantLevelPin, INPUT);
     inletNTC.setup();
     outletNTC.setup();
 
@@ -30,12 +28,12 @@ void CoolerSystem::setup()
 CoolerSystemStatus CoolerSystem::_getSwitchPosition()
 {
     static CoolerSystemStatus switchPosition = CoolerSystemStatus::RESET;
-    const uint16_t switchADCValue = analogRead(switchPin);
-    if (switchADCValue < 6000) switchPosition = CoolerSystemStatus::RESET;
-    else if (switchADCValue < 9400) switchPosition = CoolerSystemStatus::PRECHILL;
-    // else if (switchADCValue < 11000) switchPosition = CoolerSystemStatus::PUMP_LOW;
-    else if (switchADCValue < 11500) switchPosition = CoolerSystemStatus::PUMP_MEDIUM;
-    else if (switchADCValue < 14000) switchPosition = CoolerSystemStatus::PUMP_HIGH;
+    const uint16_t switchADCValue = switchADC.adc();
+    if (switchADCValue < 37000) switchPosition = CoolerSystemStatus::RESET;
+    else if (switchADCValue < 51000) switchPosition = CoolerSystemStatus::PRECHILL;
+    else if (switchADCValue < 57500) switchPosition = CoolerSystemStatus::PUMP_LOW;
+    else if (switchADCValue < 63000) switchPosition = CoolerSystemStatus::PUMP_MEDIUM;
+    else if (switchADCValue < 66000) switchPosition = CoolerSystemStatus::PUMP_HIGH;
     return switchPosition;
 }
 
@@ -58,7 +56,7 @@ void CoolerSystem::_pollSystemPressure()
 {
     systemPressure = map(
         constrain(
-            analogRead(pressureSensorPin),
+            pressureSensor.adc(),
             PRESSURE_SENSOR_CALIBRATION_LOW_ADC,
             PRESSURE_SENSOR_CALIBRAION_HIGH_ADC
         ),
@@ -71,7 +69,9 @@ void CoolerSystem::_pollSystemPressure()
 
 void CoolerSystem::_pollCoolantLevel()
 {
-    coolantLevel = analogRead(coolantLevelPin) > 6500;
+    if (coolantLevelBounce.update()) {
+        coolantLevel = coolantLevelBounce.read();
+    }
 }
 
 void CoolerSystem::_pollFlowRate()
@@ -115,9 +115,21 @@ void CoolerSystem::runChillerPump()
 {
     static uint32_t pumpStartTime = 0;
     static uint16_t pumpOutput = 0;
-    if (systemStatus < CoolerSystemStatus::PRECHILL) {
+    // doesn't use system status since we want to run the pump in specific fault modes
+    if (_getSwitchPosition() < CoolerSystemStatus::PRECHILL) {
+        pumpOutput = 0;
+        analogWrite(chillerPumpPin, 0);
+        chillerPumpRunning = false;
+        return;
+    }
+
+    if (
+        (_systemFault & uint8_t(SystemFault::LOW_COOLANT))
+        || (_systemFault & uint8_t(SystemFault::SYSTEM_STARTUP))
+    ) {
         pumpOutput = 0;
         analogWrite(chillerPumpPin, 0); 
+        chillerPumpRunning = false;
         return;
     }
 
@@ -125,6 +137,7 @@ void CoolerSystem::runChillerPump()
         pumpStartTime = millis();
         pumpOutput = (ADC_MAX / 3) * 2;
         analogWrite(chillerPumpPin, pumpOutput);
+        chillerPumpRunning = true;
     }
     uint32_t pumpRunTime = millis() - pumpStartTime;
     // we haven't seen enough flow after some amount of time
@@ -141,11 +154,11 @@ void CoolerSystem::runCompressor()
     // this isn't a panic condition
     // but we are going to shut down the compressor until temp
     // goes back above a safe value
-    if (chillerOutletTemp <= COMPRESSOR_UNDER_TEMP_CUTOFF && !undertempCutoff) {
+    if (chillerInletTemp <= COMPRESSOR_UNDER_TEMP_CUTOFF && !undertempCutoff) {
         undertempCutoff = true;
-        LOG_WARN("Compressor stopped due to under temp cut-off, current temp", chillerOutletTemp);
+        LOG_WARN("Compressor stopped due to under temp cut-off, current temp", chillerInletTemp);
     }
-    if (chillerOutletTemp >= COMPRESSOR_RESUME_PID_CONTROL_TEMP && undertempCutoff) {
+    if (chillerInletTemp >= COMPRESSOR_RESUME_PID_CONTROL_TEMP && undertempCutoff) {
         undertempCutoff = false;
         LOG_INFO("Resume compressor automated control");
     }
@@ -193,6 +206,11 @@ void CoolerSystem::loop()
 
     if (msTick.check()) {
         _pollFlowRate();
+        inletNTC.loop();
+        outletNTC.loop();
+        pressureSensor.loop();
+        _pollCoolantLevel();
+        switchADC.loop();
     }
 
     if (pollTimer.check()) {
@@ -203,7 +221,6 @@ void CoolerSystem::loop()
         _pollSystemPressure();
         check(systemPressure < OVERPRESSURE_THRESHOLD_KPA, SystemFault::SYSTEM_OVER_PRESSURE);
 
-        _pollCoolantLevel();
         check(coolantLevel, SystemFault::LOW_COOLANT);
 
         _pollNTCSensors();
@@ -217,18 +234,17 @@ void CoolerSystem::loop()
 
     if (displayInfoTimer.check()) {
         bool systemEnabled = digitalRead(systemEnablePin);
-        bool chillerEnabled = digitalRead(chillerPumpPin);
         LOG_INFO("----------------- Cooler Statistics -------------------");
         LOG_INFO("Inputs ------------------------------------------------");
         LOG_INFO("  Inlet Temperature:             ", chillerInletTemp, "C (",inletNTC.adc(), ")");
         LOG_INFO("  Outlet Temperature:            ", chillerOutletTemp, "C (",outletNTC.adc(), ")");
-        LOG_INFO("  System Pressure:               ", systemPressure, "kPa");
+        LOG_INFO("  System Pressure:               ", systemPressure, "kPa (", pressureSensor.adc(), ")");
         LOG_INFO("  Flow Rate:                     ", flowRate, "mL/min");
         LOG_INFO("  Coolant Level:                 ", coolantLevel ? "OK" : "LOW");
-        LOG_INFO("  Switch Position:               ", CoolerSystemStatusToString(_getSwitchPosition()), " (", analogRead(switchPin), ")");
+        LOG_INFO("  Switch Position:               ", CoolerSystemStatusToString(_getSwitchPosition()), " (", switchADC.adc(), ")");
         LOG_INFO("Outputs -----------------------------------------------");
         LOG_INFO("  System Enabled:                ", (systemEnabled) ? "ON" : "OFF");
-        LOG_INFO("  Chiller Pump:                  ", (chillerEnabled) ? "ON" : "OFF");
+        LOG_INFO("  Chiller Pump:                  ", (chillerPumpRunning) ? "ON" : "OFF");
         LOG_INFO("  Compressor PWM:                ", map(compressorValue, 0, ADC_MAX, 100, 0), "%");
         LOG_INFO("  Coolshirt PWM:                 ", map(coolshirtPumpValue, 0, ADC_MAX, 0, 100), "%");
         LOG_INFO("  Undertemp Cutoff:              ", undertempCutoff ? "CUTOFF" : "OK");
@@ -270,13 +286,13 @@ void CoolerSystem::getCANMessage(CAN_message_t &msg)
 
     msg.buf[0] = chillerInletTemp > -15 ? uint8_t((chillerInletTemp + 15) / 0.25) : 0xFF;
     msg.buf[1] = chillerOutletTemp > -15 ? uint8_t((chillerOutletTemp + 15) / 0.25): 0xFF;
-    msg.buf[2] = (uint8_t)(flowRate / 10);
+    msg.buf[2] = (uint8_t)(flowRate / 15);
     msg.buf[3] = systemPressure / 4;
     msg.buf[4] = (uint8_t)map(compressorValue, 0, ADC_MAX, 0, 255);
     msg.buf[5] = (uint8_t)map(coolshirtPumpValue, 0, ADC_MAX, 0, 255);
     msg.buf[6] = 0;
     if (digitalRead(systemEnablePin)) msg.buf[6] |= 0x80;
-    if (digitalRead(chillerPumpPin)) msg.buf[6] |= 0x40;
+    if (chillerPumpRunning) msg.buf[6] |= 0x40;
     if (_systemFault) msg.buf[6] |= 0x20;
     if (coolantLevel) msg.buf[6] |= 0x10;
     if (undertempCutoff) msg.buf[6] |= 0x08;
