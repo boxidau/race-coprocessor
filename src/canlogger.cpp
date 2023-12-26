@@ -96,7 +96,7 @@ void CANLogger::stringify(char output[255], const CAN_message_t &message, bool r
             ClockTime::getMillisTime(),
             1, // hardcode canbus 1 for now
             rx ? "R" : "T",
-            message.flags.extended ? "29" : "11",
+            message.ext ? "29" : "11",
             message.id
     );
 

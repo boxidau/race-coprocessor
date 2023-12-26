@@ -36,4 +36,10 @@ public:
     void loop();
     double temperature();
     uint16_t adc();
+
+    double temperatureFor(uint16_t);
+
+    double minV();
+
+    double maxV();
 };

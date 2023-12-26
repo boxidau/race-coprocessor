@@ -11,11 +11,12 @@
 #include "utils.h"
 #include "coolersystem.h"
 
-
 #define HSR_LOGGER
 
 Metro statsTimer = Metro(10000);
 Metro canBroadcastTimer = Metro(100);
+
+FlexCAN CANbus = FlexCAN(500000);
 
 static CAN_message_t coolerSystemMessage, rxMessage;
 
@@ -44,7 +45,7 @@ void setup()
     analogWriteRes(16);
     cooler.setup();
     ledStatus.setup();
-    Can0.begin(500000);
+    CANbus.begin();
     Serial.begin(115200);
     CANLogger::setup();
     LOG_INFO("System Boot OK");
@@ -53,7 +54,7 @@ void setup()
 
 void broadcastMessage(CAN_message_t &message)
 {
-    Can0.write(message);
+    CANbus.write(message);
     CANLogger::logCANMessage(message, CAN_TX);
 }
 

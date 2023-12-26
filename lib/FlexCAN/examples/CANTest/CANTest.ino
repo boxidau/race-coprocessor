@@ -1,26 +1,26 @@
 // -------------------------------------------------------------
-// CANtest for Teensy 3.6 dual CAN bus
-// by Collin Kidder, Based on CANTest by Pawelsky (based on CANtest by teachop)
+// CANtest for Teensy 3.1
+// by teachop
 //
-// Both buses are left at default 250k speed and the second bus sends frames to the first
-// to do this properly you should have the two buses linked together. This sketch
-// also assumes that you need to set enable pins active. Comment out if not using
-// enable pins or set them to your correct pins.
-//
-// This sketch tests both buses as well as interrupt driven Rx and Tx. There are only
-// two Tx buffers by default so sending 5 at a time forces the interrupt driven system
-// to buffer the final three and send them via interrupts. All the while all Rx frames
-// are internally saved to a software buffer by the interrupt handler.
+// This test is talking to a single other echo-node on the bus.
+// 6 frames are transmitted and rx frames are counted.
+// Tx and rx are done in a way to force some driver buffering.
+// Serial is used to print the ongoing status.
 //
 
+#include <Metro.h>
 #include <FlexCAN.h>
 
-#ifndef __MK66FX1M0__
-  #error "Teensy 3.6 with dual CAN bus is required to run this example"
-#endif
+Metro sysTimer = Metro(1);// milliseconds
 
-static CAN_message_t msg;
+int led = 13;
+FlexCAN CANbus(500000);
+static CAN_message_t msg,rxmsg;
 static uint8_t hex[17] = "0123456789abcdef";
+
+int txCount,rxCount;
+unsigned int txTimer,rxTimer;
+
 
 // -------------------------------------------------------------
 static void hexDump(uint8_t dumpLen, uint8_t *bytePtr)
@@ -39,51 +39,65 @@ static void hexDump(uint8_t dumpLen, uint8_t *bytePtr)
 // -------------------------------------------------------------
 void setup(void)
 {
+  CANbus.begin();
+  pinMode(led, OUTPUT);
+  digitalWrite(led, 1);
+
   delay(1000);
-  Serial.println(F("Hello Teensy 3.6 dual CAN Test."));
+  Serial.println(F("Hello Teensy 3.1 CAN Test."));
 
-  Can0.begin();  
-  Can1.begin();
-
-  //if using enable pins on a transceiver they need to be set on
-  pinMode(2, OUTPUT);
-  pinMode(35, OUTPUT);
-
-  digitalWrite(2, HIGH);
-  digitalWrite(35, HIGH);
-
-  msg.ext = 0;
-  msg.id = 0x100;
-  msg.len = 8;
-  msg.buf[0] = 10;
-  msg.buf[1] = 20;
-  msg.buf[2] = 0;
-  msg.buf[3] = 100;
-  msg.buf[4] = 128;
-  msg.buf[5] = 64;
-  msg.buf[6] = 32;
-  msg.buf[7] = 16;
+  sysTimer.reset();
 }
 
 
 // -------------------------------------------------------------
 void loop(void)
 {
-  CAN_message_t inMsg;
-  while (Can0.available()) 
-  {
-    Can0.read(inMsg);
-    Serial.print("CAN bus 0: "); hexDump(8, inMsg.buf);
+  // service software timers based on Metro tick
+  if ( sysTimer.check() ) {
+    if ( txTimer ) {
+      --txTimer;
+    }
+    if ( rxTimer ) {
+      --rxTimer;
+    }
   }
-  msg.buf[0]++;
-  Can1.write(msg);
-  msg.buf[0]++;
-  Can1.write(msg);
-  msg.buf[0]++;
-  Can1.write(msg);
-  msg.buf[0]++;
-  Can1.write(msg);
-  msg.buf[0]++;
-  Can1.write(msg);  
-  delay(20);
+
+  // if not time-delayed, read CAN messages and print 1st byte
+  if ( !rxTimer ) {
+    while ( CANbus.read(rxmsg) ) {
+      //hexDump( sizeof(rxmsg), (uint8_t *)&rxmsg );
+      Serial.write(rxmsg.buf[0]);
+      rxCount++;
+    }
+  }
+
+  // insert a time delay between transmissions
+  if ( !txTimer ) {
+    // if frames were received, print the count
+    if ( rxCount ) {
+      Serial.write('=');
+      Serial.print(rxCount);
+      rxCount = 0;
+    }
+    txTimer = 100;//milliseconds
+    msg.len = 8;
+    msg.id = 0x222;
+    for( int idx=0; idx<8; ++idx ) {
+      msg.buf[idx] = '0'+idx;
+    }
+    // send 6 at a time to force tx buffering
+    txCount = 6;
+    digitalWrite(led, 1);
+    Serial.println(".");
+    while ( txCount-- ) {
+      CANbus.write(msg);
+      msg.buf[0]++;
+    }
+    digitalWrite(led, 0);
+    // time delay to force some rx data queue use
+    rxTimer = 3;//milliseconds
+  }
+
 }
+

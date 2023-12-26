@@ -15,3 +15,19 @@ uint16_t AveragingADC::adc() {
     // LOG_INFO("END");
     return uint16_t(sum / ADC_SAMPLES);
 }
+
+uint16_t AveragingADC::minV() {
+    uint16_t min = 65535;
+    for (uint i = 0; i < ADC_SAMPLES; i++) {
+        if (samples[i] < min) min = samples[i];
+    }
+    return min;
+}
+
+uint16_t AveragingADC::maxV() {
+    uint16_t max = 0;
+    for (uint i = 0; i < ADC_SAMPLES; i++) {
+        if (samples[i] > max) max = samples[i];
+    }
+    return max;
+}

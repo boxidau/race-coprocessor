@@ -202,7 +202,8 @@ void CoolerSystem::loop()
 {
     static Metro pollTimer = Metro(113);
     static Metro displayInfoTimer = Metro(1000);
-    static Metro msTick = Metro(1);
+    static Metro msTick = Metro(3);
+    static Metro msShowTempTick = Metro(300);
 
     if (msTick.check()) {
         _pollFlowRate();
@@ -211,6 +212,11 @@ void CoolerSystem::loop()
         pressureSensor.loop();
         _pollCoolantLevel();
         switchADC.loop();
+    }
+    if (msShowTempTick.check()) {
+        auto minTemp = inletNTC.minV();
+        auto maxTemp = inletNTC.maxV();
+        LOG_INFO("min: ", minTemp, "\tmax: ", maxTemp, "\t delta: ", maxTemp - minTemp, "\t avg: ", inletNTC.temperature());
     }
 
     if (pollTimer.check()) {
@@ -265,7 +271,7 @@ void CoolerSystem::getCANMessage(CAN_message_t &msg)
 {
     msg.id = CANID_COOLER_SYSTEM;
     msg.len = 8;
-    msg.flags = {};
+    // msg.flags = {};
 
     // byte | purpose
     // ------------------------------

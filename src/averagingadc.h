@@ -19,4 +19,6 @@ public:
     }
     void loop();
     uint16_t adc();
+    uint16_t minV();
+    uint16_t maxV();
 };
