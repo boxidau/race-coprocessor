@@ -22,14 +22,14 @@ void CANLogger::setup()
 {
     linesWritten = 0;
 
-    LOG_INFO("Initializing SD card");
+    LOG_DEBUG("Initializing SD card");
     if (!SD.begin(BUILTIN_SDCARD))
     {
         LOG_WARN("SD card initialization failed, is a card inserted?");
         return;
     }
 
-    LOG_INFO("An SD card is present");
+    LOG_DEBUG("An SD card is present");
 
     char logDir[9];
     char logFileName[13];
@@ -120,7 +120,6 @@ void CANLogger::write()
 {
     if (!enableLog)
     {
-        if (random(0, 20) == 0) LOG_WARN("LOG DISABLED", lineBuffer);
         if (retrySDTimer.check())
         {
             CANLogger::setup();
@@ -128,8 +127,7 @@ void CANLogger::write()
         return;
     }
 
-    if (random(0, 20) == 0) LOG_INFO("LOG WRITE:", + lineBuffer);
-
+    LOG_DEBUG("LOG WRITE:", + lineBuffer);
     if (logFile.println(lineBuffer) != strlen(lineBuffer) + 2)
     {
         enableLog = false;

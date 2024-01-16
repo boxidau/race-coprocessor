@@ -12,21 +12,22 @@ private:
     const uint8_t pin;
     const double steinhartA, steinhartB, steinhartC, pullupResistance;
     uint16_t samples[NTC_SAMPLES];
-    uint8_t idx = { 0 };
+    uint8_t idx { 0 };
+    uint32_t rollingSum { 0 };
 
 public:
     NTC(
         const uint8_t _pin,
+        const double _pullupResistance = 2400,
         const double _steinhartA = 0.00112865375,
         const double _steinhartB = 0.0002342041378,
-        const double _steinhartC = 0.00000008737724626,
-        const double _pullupResistance = 2400
+        const double _steinhartC = 0.00000008737724626
     )
         : pin { _pin }
+        , pullupResistance { _pullupResistance }
         , steinhartA { _steinhartA }
         , steinhartB { _steinhartB }
         , steinhartC { _steinhartC }
-        , pullupResistance { _pullupResistance }
     {
     };
     

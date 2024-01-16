@@ -1,3 +1,5 @@
+#pragma once
+
 #include "Arduino.h"
 
 #include <DebugLog.h>
@@ -7,21 +9,18 @@
 #include <Metro.h>
 #include <FlexCAN.h>
 
-#include "ntc.h"
-#include "averagingadc.h"
 #include "constants.h"
+#include "pwm.h"
+#include "ntc.h"
+#include "calibratedadc.h"
+#include "voltagemonitor.h"
+#include "flowsensor.h"
 
-
-// 7.5 pulses per second == flow rate in LPM
-// therefore 1000000uS / 7.5 * 1000 is the numerator for the pulseInterval (in uS)
-// flow is expessed in mL/min so we can use ints instead of floats
-#define MLPM_MAGIC_NUMBER 133333333
-
-#define FLOW_SAMPLES 16
+#define FLOW_SENSOR_PULSES_PER_SECOND 7.5
 
 #define OVERPRESSURE_THRESHOLD_KPA 230
-#define PRESSURE_SENSOR_CALIBRATION_LOW_ADC 9930 // 2112 // 0.5V = 0psig = 101kPa
-#define PRESSURE_SENSOR_CALIBRAION_HIGH_ADC 65535  // 5V = 112psig = 772kPa
+#define PRESSURE_SENSOR_CALIBRATION_LOW_ADC 5674 // 2112 // 0.5V = 0psig = 101kPa
+#define PRESSURE_SENSOR_CALIBRAION_HIGH_ADC 51066  // 5V = 112psig = 772kPa
 #define PRESSURE_SENSOR_CALIBRATION_LOW_KPA 101
 #define PRESSURE_SENSOR_CALIBRATION_HIGH_KPA 583 // 772
 
@@ -31,7 +30,7 @@
 #define DESIRED_TEMP 4.5
 #define COMPRESSOR_UNDER_TEMP_CUTOFF 3.0
 #define COMPRESSOR_RESUME_PID_CONTROL_TEMP 7.0
-
+#define COMPRESSOR_PID_MAX_PCT 0.74
 
 enum class CoolerSystemStatus {
     REQUIRES_RESET = 0,
@@ -61,7 +60,9 @@ enum class SystemFault {
     LOW_COOLANT = 1,
     FLOW_RATE_LOW = 2,
     SYSTEM_OVER_PRESSURE = 4,
-    SYSTEM_STARTUP = 128,
+    SYSTEM_UNDERVOLT = 8,
+    SYSTEM_OVERVOLT = 16,
+    SYSTEM_STARTUP = 32,
 };
 
 constexpr const char* SystemFaultToString(SystemFault sf)
@@ -72,33 +73,58 @@ constexpr const char* SystemFaultToString(SystemFault sf)
         case SystemFault::LOW_COOLANT: return "LOW_COOLANT";
         case SystemFault::FLOW_RATE_LOW: return "FLOW_RATE_LOW";
         case SystemFault::SYSTEM_OVER_PRESSURE: return "SYSTEM_OVER_PRESSURE";
+        case SystemFault::SYSTEM_UNDERVOLT: return "SYSTEM_UNDERVOLT";
+        case SystemFault::SYSTEM_OVERVOLT: return "SYSTEM_OVERVOLT";
         case SystemFault::SYSTEM_STARTUP: return "SYSTEM_STATUP";
         default: return "UNKNOWN";
     }
 }
 
+struct CoolerSystemData {
+    byte fault;
+    bool coolantLevel;
+    uint16_t systemPressure;
+    double evaporatorInletTemp;
+    double evaporatorOutletTemp;
+    double condenserInletTemp;
+    double condenserOutletTemp;
+    double ambientTemp;
+    uint16_t flowRate;
+    uint8_t compressorPWM;
+};
+
 class CoolerSystem {
 private:
     // inputs
-    AveragingADC switchADC;
-    uint8_t coolantLevelPin, flowRatePin;
-    AveragingADC pressureSensor;
-
-    // ntc inputs
-    NTC inletNTC, outletNTC;
+    CalibratedADC switchADC, pressureSensor;
+    uint8_t coolantLevelPin;
+    FlowSensor flowSensor;
+    NTC evaporatorInletNTC, evaporatorOutletNTC, condenserInletNTC, condenserOutletNTC, ambientNTC;
 
     // outputs
-    uint8_t compressorPin, chillerPumpPin, coolshirtPumpPin, systemEnablePin, flowPulsePin;
+    PWMOutput compressorPWM, coolshirtPWM, chillerPumpPWM, systemEnableOutput;
 
     // internal state
+    Bounce coolantLevelBounce;
+    VoltageMonitor& voltageMonitor;
     byte _systemFault { (byte)SystemFault::SYSTEM_STARTUP };
     CoolerSystemStatus systemStatus { CoolerSystemStatus::REQUIRES_RESET };
-    Bounce coolantLevelBounce;
+
+    Metro pollTimer { Metro(100) };
+    Metro displayInfoTimer { Metro(2000) };
+    Metro msTick = { Metro(1) };
+    uint32_t pumpStartTime = { 0 };
+    CoolerSystemStatus switchPosition { CoolerSystemStatus::RESET };
+
+    // sensor values
+    uint16_t flowRate { 0 };
     bool coolantLevel { false };
     uint16_t systemPressure { 0 };
-    double chillerInletTemp { -100.0 };
-    double chillerOutletTemp { -100.0 };
-    uint16_t flowRate { 0 };  // mL / min
+    double evaporatorInletTemp { -100.0 };
+    double evaporatorOutletTemp { -100.0 };
+    double condenserInletTemp { -100.0 };
+    double condenserOutletTemp { -100.0 };
+    double ambientTemp { -100.0 };
     bool chillerPumpRunning { false };
 
     // output states
@@ -113,8 +139,8 @@ private:
     const double Kp=2.67, Ki=2.4, Kd=5.8;
     PID compressorPID = {
         PID(
-            &chillerOutletTemp, &compressorOutputValue, &compressorTempTarget,
-            Kp, Ki, Kd, DIRECT
+            &evaporatorOutletTemp, &compressorOutputValue, &compressorTempTarget,
+            Kp, Ki, Kd, true, DIRECT
         )
     };
 
@@ -124,11 +150,8 @@ private:
     CoolerSystemStatus _getSwitchPosition();
 
     // pollers/updaters
-    void _pollSystemPressure();
     void _pollSystemStatus();
     void _pollCoolantLevel();
-    void _pollFlowRate();
-    void _pollNTCSensors();
 
     // executors
     void runChillerPump();
@@ -142,30 +165,37 @@ public:
         uint8_t _coolantLevelPin,
         uint8_t _flowRatePin,
         uint8_t _pressureSensorPin,
-        uint8_t _inletNtcPin,
-        uint8_t _outletNtcPin,
+        uint8_t _evaporatorInletNtcPin,
+        uint8_t _evaporatorOutletNtcPin,
+        uint8_t _condenserInletNtcPin,
+        uint8_t _condenserOutletNtcPin,
+        uint8_t _ambientNtcPin,
         uint8_t _compressorPin,
         uint8_t _chillerPumpPin,
         uint8_t _coolshirtPumpPin,
         uint8_t _systemEnablePin,
-        uint8_t _flowPulsePin
+        VoltageMonitor &_voltageMonitor
     )
-        : switchADC { AveragingADC(_switchPin) }
+        : switchADC { CalibratedADC(_switchPin) }
+        , pressureSensor { CalibratedADC(_pressureSensorPin) }
         , coolantLevelPin { _coolantLevelPin }
-        , flowRatePin { _flowRatePin }
-        , pressureSensor { AveragingADC(_pressureSensorPin) }
-        , inletNTC { NTC(_inletNtcPin) }
-        , outletNTC { NTC(_outletNtcPin) }
-        , compressorPin { _compressorPin }
-        , chillerPumpPin { _chillerPumpPin }
-        , coolshirtPumpPin { _coolshirtPumpPin }
-        , systemEnablePin { _systemEnablePin }
-        , flowPulsePin { _flowPulsePin }
+        , flowSensor { FlowSensor(_flowRatePin, FLOW_SENSOR_PULSES_PER_SECOND) }
+        , evaporatorInletNTC { NTC(_evaporatorInletNtcPin, 6800) }
+        , evaporatorOutletNTC { NTC(_evaporatorOutletNtcPin, 6800) }
+        , condenserInletNTC { NTC(_condenserInletNtcPin, 15000) }
+        , condenserOutletNTC { NTC(_condenserOutletNtcPin, 15000) }
+        , ambientNTC { NTC(_ambientNtcPin, 6800) }
+        , compressorPWM { PWMOutput(_compressorPin, true) }
+        , coolshirtPWM { PWMOutput(_coolshirtPumpPin) }
+        , chillerPumpPWM { PWMOutput(_chillerPumpPin) }
+        , systemEnableOutput { PWMOutput(_systemEnablePin) }
         , coolantLevelBounce { Bounce(coolantLevelPin, 40) }
+        , voltageMonitor { _voltageMonitor }
     {
     };
     void setup();
     void loop();
     void getCANMessage(CAN_message_t &msg);
     byte systemFault();
+    void getSystemData(CoolerSystemData &data);
 };

@@ -7,34 +7,44 @@
 
 #include "canlogger.h"
 #include "clocktime.h"
-#include "ledstatus.h"
 #include "utils.h"
 #include "coolersystem.h"
+#include "ui.h"
+#include "voltagemonitor.h"
 
 #define HSR_LOGGER
 
 Metro statsTimer = Metro(10000);
 Metro canBroadcastTimer = Metro(100);
 
-FlexCAN CANbus = FlexCAN(500000);
+FlexCAN CANbus = FlexCAN(500000, 0, true, true);
 
-static CAN_message_t coolerSystemMessage, rxMessage;
+CAN_message_t coolerSystemMessage, rxMessage;
 
-CoolerSystem cooler = CoolerSystem(
-    EXTERNAL_ADC1, // switchPin
-    EXTERNAL_ADC3, // coolantLevelPin,
-    EXTERNAL_ADC2, // flowRatePin,
-    EXTERNAL_ADC4, // pressureSensorPin,
-    EXTERNAL_NTC1, // _ntc1Pin,
-    EXTERNAL_NTC2, // _ntc2Pin,
-    EXTERNAL_PWM2, // compressorPin,
-    EXTERNAL_PWM3, // chillerPumpPin,
-    EXTERNAL_PWM4, // coolshirtPumpPin,
-    EXTERNAL_PWM1,  // systemEnablePin
-    LED3 // pulseFlowPin
+VoltageMonitor voltageMonitor = VoltageMonitor(
+    ADC_SYSTEM_12V,
+    ADC_SYSTEM_5V,
+    ADC_SYSTEM_3V3
 );
 
-LEDStatus ledStatus = LEDStatus(LED1, LED2);
+CoolerSystem cooler = CoolerSystem(
+    ADC_MAIN_SWITCH, // switchPin
+    COOLANT_SWITCH, // coolantLevelPin,
+    FLOW_SENSOR, // flowRatePin,
+    ADC_PRESSURE_SENSOR, // pressureSensorPin,
+    NTC_EVAPORATOR_1, // _ntc1Pin,
+    NTC_EVAPORATOR_2, // _ntc2Pin,
+    NTC_CONDENSER_1, // condenser inlet
+    NTC_CONDENSER_2, // condenser outlet
+    NTC_AMBIENT,
+    DAC_COMPRESSOR_SPEED, // compressorPin,
+    PWM1, // chillerPumpPin,
+    PWM2, // coolshirtPumpPin,
+    PWM3,  // systemEnablePin
+    voltageMonitor
+);
+
+CoolerUI ui = CoolerUI(cooler, SPI_DISPLAY_CS, UI_BUTTON);
 
 unsigned long previousLoop, loopStart;
 
@@ -44,10 +54,11 @@ void setup()
     analogReadRes(16);
     analogWriteRes(16);
     cooler.setup();
-    ledStatus.setup();
     CANbus.begin();
     Serial.begin(115200);
+    ClockTime::setup();
     CANLogger::setup();
+    ui.setup();
     LOG_INFO("System Boot OK");
 
 }
@@ -71,8 +82,7 @@ void loop()
 
     // tick functions for all modules
     cooler.loop();
-    ledStatus.error = cooler.systemFault();
-    ledStatus.loop();
+    ui.loop();
     // end tick functions
 
     if (canBroadcastTimer.check()) {
@@ -88,10 +98,10 @@ void loop()
 
     if (statsTimer.check())
     {
-        CANLogger::logComment("loop_time=" + (String)loopTime + "uS, error_code=" + hexDump(ledStatus.error));
+        CANLogger::logComment("loop_time=" + (String)loopTime + "uS");
     }
 
-    if (loopTime > 1000) {
-        LOG_INFO("loop_time=" + (String)loopTime + "uS, error_code=" + hexDump(ledStatus.error));
+    if (loopTime > 2000) {
+        LOG_INFO("SLOW LOOP loop_time=" + (String)loopTime + "uS");
     }
 }

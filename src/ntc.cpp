@@ -1,17 +1,14 @@
 #include "ntc.h"
 
 void NTC::loop() {
-    samples[idx++ % NTC_SAMPLES] = analogRead(pin);
+    uint16_t curValue = analogRead(pin);
+    samples[idx++ % NTC_SAMPLES] = curValue;
+    rollingSum += curValue;
+    rollingSum -= samples[idx % NTC_SAMPLES];
 }
 
 double NTC::temperature() {
-    double ntcResistance = pullupResistance / ((ADC_MAX / (double)adc()) - 1);
-    double lnR = log(ntcResistance);
-    return (
-        1 / (
-            steinhartA + (steinhartB * lnR) + (steinhartC * pow(lnR, 3))
-        )
-    ) - 273.15;
+    return temperatureFor(adc());
 }
 
 double NTC::temperatureFor(uint16_t val) {
@@ -25,13 +22,8 @@ double NTC::temperatureFor(uint16_t val) {
 }
 
 uint16_t NTC::adc() {
-    uint sum = 0;
-    for (uint i = 0; i < NTC_SAMPLES; i++) {
-        sum += samples[i];
-    }
-    return (sum / NTC_SAMPLES);
+    return rollingSum / NTC_SAMPLES;
 }
-
 
 double NTC::minV() {
     uint16_t min = 65535;

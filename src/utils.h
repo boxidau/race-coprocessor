@@ -2,7 +2,7 @@
 #include <DebugLog.h>
 #include "Print.h"
 
-static uint8_t hex[17] = "0123456789ABCDEF";
+const uint8_t hex[17] = "0123456789ABCDEF";
 
 inline String hexDump(unsigned char *arr)
 {
