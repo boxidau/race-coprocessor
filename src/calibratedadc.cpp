@@ -2,7 +2,7 @@
 #include <ADC.h>
 
 void CalibratedADC::loop() {
-    samples[idx % ADC_SAMPLES] = ADC().analogRead(pin, adc);
+    samples[idx % ADC_SAMPLES] = adcObj->analogRead(pin);
     idx++;
 }
 

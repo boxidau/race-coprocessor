@@ -45,17 +45,17 @@ uint16_t NTC::max() {
 uint16_t NTC::stdev() {
     double var = 0;
     double avg = double(rollingSum) / NTC_SAMPLES;
-    for (uint i = 0; i < ADC_SAMPLES; i++) {
+    for (uint i = 0; i < NTC_SAMPLES; i++) {
         var += pow(double(samples[i]) - avg, 2);
     }
-    return uint16_t(sqrt(var / ADC_SAMPLES));
+    return uint16_t(sqrt(var / NTC_SAMPLES));
 }
 
 double NTC::temperatureStdev() {
     double var = 0;
     double avg = temperature();
-    for (uint i = 0; i < ADC_SAMPLES; i++) {
+    for (uint i = 0; i < NTC_SAMPLES; i++) {
         var += pow(temperatureFor(samples[i]) - avg, 2);
     }
-    return sqrt(var / ADC_SAMPLES));
+    return sqrt(var / NTC_SAMPLES);
 }

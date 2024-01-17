@@ -8,9 +8,6 @@ class FlowSensor {
 private:
     Bounce _flowRateInput;
     uint32_t _flowSensorPin, _pulsePeriodMicros, _pulseInterval;
-    static volatile uint32_t _samples[FLOW_SAMPLES];
-    static volatile uint8_t _idx { 0 };
-    static volatile bool _filled { false };
     uint16_t _flowRate { 0 }; // mL/min
     uint _timeoutMilliseconds;
 

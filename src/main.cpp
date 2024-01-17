@@ -28,7 +28,7 @@ VoltageMonitor voltageMonitor = VoltageMonitor(
     ADC_SYSTEM_5V,
     ADC_SYSTEM_5V_ADC_NUM,
     ADC_SYSTEM_3V3,
-    ADC_SYSTEM_3V3_ADC_NUM,
+    ADC_SYSTEM_3V3_ADC_NUM
 );
 
 CoolerSystem cooler = CoolerSystem(
@@ -61,15 +61,19 @@ void setup()
 
     // Set up and calibrate ADCs, see https://forum.pjrc.com/index.php?threads/adc-library-with-support-for-teensy-4-3-x-and-lc.25532/
     ADC adc = ADC();
-    adc.setResolution(16);
-    adc.setReference(ADC_REFERENCE::REF_EXT);
-    adc.setAveraging(0);
-    adc.adc0.setConversionSpeed(ADC_CONVERSION_SPEED::HIGH_SPEED); // try LOW_SPEED or VERY_LOW_SPEED
-    adc.adc0.setSamplingSpeed(ADC_SAMPLING_SPEED::HIGH_SPEED);
-    adc.adc0.recalibrate();
-    adc.adc1.setConversionSpeed(ADC_CONVERSION_SPEED::HIGH_SPEED);
-    adc.adc1.setSamplingSpeed(ADC_SAMPLING_SPEED::HIGH_SPEED);
-    adc.adc1.recalibrate();
+    adc.adc0->setResolution(16);
+    adc.adc0->setReference(ADC_REFERENCE::REF_EXT);
+    adc.adc0->setAveraging(0);
+    adc.adc0->setConversionSpeed(ADC_CONVERSION_SPEED::HIGH_SPEED); // try LOW_SPEED or VERY_LOW_SPEED
+    adc.adc0->setSamplingSpeed(ADC_SAMPLING_SPEED::HIGH_SPEED);
+    adc.adc0->recalibrate();
+
+    adc.adc1->setResolution(16);
+    adc.adc1->setReference(ADC_REFERENCE::REF_EXT);
+    adc.adc1->setAveraging(0);
+    adc.adc1->setConversionSpeed(ADC_CONVERSION_SPEED::HIGH_SPEED);
+    adc.adc1->setSamplingSpeed(ADC_SAMPLING_SPEED::HIGH_SPEED);
+    adc.adc1->recalibrate();
 
     analogWriteRes(12);
 

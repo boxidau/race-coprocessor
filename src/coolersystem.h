@@ -49,11 +49,13 @@ constexpr CoolerSystemStatus CoolerSwitchPositionToStatus(CoolerSwitchPosition c
     switch (csp)
     {
         case CoolerSwitchPosition::RESET: return CoolerSystemStatus::RESET;
-        case CoolerSwitchPosition::PRECHILL: CoolerSystemStatus::PRECHILL;
+        case CoolerSwitchPosition::PRECHILL: return CoolerSystemStatus::PRECHILL;
         case CoolerSwitchPosition::PUMP_LOW: return CoolerSystemStatus::PUMP_LOW;
         case CoolerSwitchPosition::PUMP_MEDIUM: return CoolerSystemStatus::PUMP_MEDIUM;
         case CoolerSwitchPosition::PUMP_HIGH: return CoolerSystemStatus::PUMP_HIGH;
-        default: return -1;
+        default:
+            LOG_ERROR("Invalid switch position", int(csp));
+            return CoolerSystemStatus::RESET;
     }
 }
 
@@ -143,7 +145,7 @@ private:
     CoolerSwitchPosition switchPosition { CoolerSwitchPosition::UNKNOWN };
 
     Metro pollTimer { Metro(100) };
-    Metro displayInfoTimer { Metro(NTC_DEBUG ? 500 : 2000)) };
+    Metro displayInfoTimer { Metro(NTC_DEBUG ? 500 : 2000) };
     Metro msTick = { Metro(1) };
     uint32_t pumpStartTime = { 0 };
 
@@ -168,7 +170,10 @@ private:
     double compressorTempTarget { DESIRED_TEMP };
     bool undertempCutoff { false };
     const double Kp=1.5e-1, Ki=1e-3, Kd=0;
-    PID compressorPID;
+    PID compressorPID { PID(
+        &evaporatorOutletTemp, &compressorSpeed, &compressorTempTarget,
+        Kp, Ki, Kd, P_ON_M, REVERSE
+    )};
 
     // getters
     // will return REQUIRES_RESET until the switch has visited the RESET position at least once
@@ -198,6 +203,7 @@ public:
         uint8_t _condenserInletNtcPin,
         uint8_t _condenserOutletNtcPin,
         uint8_t _ambientNtcPin,
+        uint8_t _ntcADCNum,
         uint8_t _compressorSpeedPin,
         uint8_t _chillerPumpPin,
         uint8_t _coolshirtPumpPin,
@@ -207,13 +213,13 @@ public:
         : switchADC { SwitchADC(_switchPin, _switchADCNum) }
         , pressureSensor { CalibratedADC(_pressureSensorPin, _pressureSensorADCNum) }
         , coolantLevelPin { _coolantLevelPin }
-        , flowSensor { FlowSensor(_flowRatePin, FLOW_SENSOR_PULSES_PER_SECOND) }
-        , evaporatorInletNTC { NTC(_evaporatorInletNtcPin, NTC_ADC_NUM, 6800) }
-        , evaporatorOutletNTC { NTC(_evaporatorOutletNtcPin, NTC_ADC_NUM, 6800) }
-        , condenserInletNTC { NTC(_condenserInletNtcPin, NTC_ADC_NUM, 15000) }
-        , condenserOutletNTC { NTC(_condenserOutletNtcPin, NTC_ADC_NUM, 15000) }
-        , ambientNTC { NTC(_ambientNtcPin, NTC_ADC_NUM, 6800) }
         , compressorSpeedPin { _compressorSpeedPin }
+        , flowSensor { FlowSensor(_flowRatePin, FLOW_SENSOR_PULSES_PER_SECOND) }
+        , evaporatorInletNTC { NTC(_evaporatorInletNtcPin, _ntcADCNum, 6800) }
+        , evaporatorOutletNTC { NTC(_evaporatorOutletNtcPin, _ntcADCNum, 6800) }
+        , condenserInletNTC { NTC(_condenserInletNtcPin, _ntcADCNum, 15000) }
+        , condenserOutletNTC { NTC(_condenserOutletNtcPin, _ntcADCNum, 15000) }
+        , ambientNTC { NTC(_ambientNtcPin, _ntcADCNum, 6800) }
         , coolshirtPWM { PWMOutput(_coolshirtPumpPin) }
         , chillerPumpPWM { PWMOutput(_chillerPumpPin) }
         , systemEnableOutput { PWMOutput(_systemEnablePin) }

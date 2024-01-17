@@ -1,8 +1,8 @@
-#include "calibratedadc.h"
+#include "switchadc.h"
 #include <ADC.h>
 
 void SwitchADC::loop() {
-    samples[idx % ADC_SAMPLES] = ADC().analogRead(pin, adc);
+    samples[idx % SWITCH_ADC_SAMPLES] = adcModule->analogRead(pin);
     idx++;
 }
 
@@ -20,7 +20,7 @@ CoolerSwitchPosition _getSwitchPosition(uint16_t switchADCValue)
 CoolerSwitchPosition SwitchADC::position()
 {
     // check every sample agrees, if not then the switch is likely in a bounce state
-    for (uint i = 1; i < ADC_SAMPLES; i++) {
+    for (uint i = 1; i < SWITCH_ADC_SAMPLES; i++) {
         if (_getSwitchPosition(samples[i]) != _getSwitchPosition(samples[i-1])) {
             LOG_INFO("Switch position samples disagree, returning UNKNOWN position", samples[i], samples[i-1]);
             return CoolerSwitchPosition::UNKNOWN;
@@ -31,8 +31,8 @@ CoolerSwitchPosition SwitchADC::position()
 
 uint16_t SwitchADC::adc() {
     uint32_t sum = 0;
-    for (uint i = 0; i < ADC_SAMPLES; i++) {
+    for (uint i = 0; i < SWITCH_ADC_SAMPLES; i++) {
         sum += samples[i];
     }
-    return uint16_t(sum / ADC_SAMPLES);
+    return uint16_t(sum / SWITCH_ADC_SAMPLES);
 }

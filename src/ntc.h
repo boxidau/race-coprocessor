@@ -10,7 +10,7 @@ class NTC
 {
 private:
     const uint8_t pin, adcNum;
-    const double steinhartA, steinhartB, steinhartC, pullupResistance;
+    const double pullupResistance, steinhartA, steinhartB, steinhartC;
     uint16_t samples[NTC_SAMPLES];
     uint8_t idx { 0 };
     uint32_t rollingSum { 0 };

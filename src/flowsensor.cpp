@@ -1,21 +1,25 @@
 #include "flowsensor.h"
 
+static volatile uint32_t _samples[FLOW_SAMPLES];
+static volatile uint8_t _idx;
+static volatile bool _filled;
+
 void recordPulse() {
-    FlowSensor::_samples[FlowSensor::_idx++] = micros();
-    if (FlowSensor::_idx == FLOW_SAMPLES) {
-        FlowSensor::_idx == 0;
-        FlowSensor::_filled = true;
+    _samples[_idx++] = micros();
+    if (_idx == FLOW_SAMPLES) {
+        _idx == 0;
+        _filled = true;
     }
 }
 
-void setup() {
+void FlowSensor::setup() {
     pinMode(_flowSensorPin, INPUT);
     attachInterrupt(digitalPinToInterrupt(_flowSensorPin), recordPulse, RISING);
 }
 
 void FlowSensor::loop() {
     return;
-
+/*
     if (_flowRateInput.update() && _flowRateInput.risingEdge()) {
         _pulseInterval = micros() - _lastPulse;
         _samples[_idx % FLOW_SAMPLES] = _pulseInterval;
@@ -35,6 +39,7 @@ void FlowSensor::loop() {
         _flowRate = 0;
         // LOG_ERROR("Flow sensor timeout");
     }
+*/
 }
 
 uint16_t FlowSensor::flowRate() {

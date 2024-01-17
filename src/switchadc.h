@@ -3,8 +3,9 @@
 #include "Arduino.h"
 #include "constants.h"
 #include <DebugLog.h>
+#include <ADC.h>
 
-#define ADC_SAMPLES 10
+#define SWITCH_ADC_SAMPLES 10
 
 enum class CoolerSwitchPosition {
     UNKNOWN        = 0,
@@ -19,12 +20,12 @@ class SwitchADC
 {
 private:
     const uint8_t pin;
-    const uint8_t adcNum;
     uint8_t idx = { 0 };
-    uint16_t samples[ADC_SAMPLES];
+    uint16_t samples[SWITCH_ADC_SAMPLES];
+    ADC_Module* adcModule;
 
 public:
-    SwitchADC(const uint8_t _pin, const uint8_t _adcNum) : pin { _pin }, adcNum { _adcNum } {
+    SwitchADC(const uint8_t _pin, const uint8_t _adcNum) : pin { _pin }, adcModule { ADC().adc[_adcNum] } {
     };
     
     void setup() {

@@ -38,12 +38,8 @@ void CoolerSystem::setup()
     );
 
     pinMode(compressorSpeedPin, OUTPUT);
-    compressorPID = PID(
-        &evaporatorOutletTemp, &compressorSpeed, &compressorTempTarget,
-        Kp, Ki, Kd, P_ON_M, REVERSE
-    );
     compressorPID.SetOutputLimits(COMPRESSOR_MIN_SPEED_RATIO, COMPRESSOR_MAX_SPEED_RATIO);
-    compressorPID.setSampleTime(1);
+    compressorPID.SetSampleTime(1);
 
     voltageMonitor.setup();
 };
@@ -123,10 +119,10 @@ void CoolerSystem::runCompressor()
     if (systemStatus < CoolerSystemStatus::PRECHILL || undertempCutoff) {
         systemEnableOutput.setBoolean(false);
         analogWrite(compressorSpeedPin, 0);
-        compressorPID.setMode(MANUAL);
+        compressorPID.SetMode(MANUAL);
     } else {
         systemEnableOutput.setBoolean(true);
-        compressorPID.setMode(AUTOMATIC);
+        compressorPID.SetMode(AUTOMATIC);
         analogWrite(compressorSpeedPin, 1 * COMPRESSOR_SPEED_RATIO_TO_ANALOG); // 9V = 100%, 4.5V = 50%.
         // LOG_DEBUG("Compressor input temp:", compressorInputTemp, "target temp:", compressorTempTarget, "output value", compressorSpeed);
     }
