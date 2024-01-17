@@ -34,6 +34,17 @@
 #define         NTC_EVAPORATOR_DIFF_1           PIN_A10
 #define         NTC_EVAPORATOR_DIFF_2           PIN_A11
 
+#define         NTC_ADC_NUM                     0
+#define         ADC_SPARE_12V_ADC_NUM           0
+#define         ADC_SPARE_5V_ADC_NUM            0
+#define         ADC_SYSTEM_12V_ADC_NUM          1
+#define         ADC_SYSTEM_5V_ADC_NUM           1
+#define         ADC_SYSTEM_3V3_ADC_NUM          1
+#define         ADC_MAIN_SWITCH_ADC_NUM         1
+#define         ADC_LDR_ADC_NUM                 1
+#define         ADC_COMPRESSOR_CURRENT_ADC_NUM  1
+#define         ADC_PRESSURE_SENSOR_ADC_NUM     1
+
 #define         DAC_COMPRESSOR_SPEED            PIN_A21
 
 // CANBUS

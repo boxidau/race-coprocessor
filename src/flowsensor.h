@@ -7,16 +7,18 @@
 class FlowSensor {
 private:
     Bounce _flowRateInput;
-    uint32_t _flowSensorPin, _pulsePeriodMicros, _lastPulse, _pulseInterval;
-    uint32_t _samples[FLOW_SAMPLES];
-    uint8_t _idx { 0 };
+    uint32_t _flowSensorPin, _pulsePeriodMicros, _pulseInterval;
+    static volatile uint32_t _samples[FLOW_SAMPLES];
+    static volatile uint8_t _idx { 0 };
+    static volatile bool _filled { false };
     uint16_t _flowRate { 0 }; // mL/min
     uint _timeoutMilliseconds;
+
 public:
     FlowSensor(
         uint flowSensorPin,
         double pulsesPerLiter,
-        uint timeoutMilliseconds = 3000,
+        uint timeoutMilliseconds = 1000,
         uint debounceMs = 1
     )
         : _flowRateInput { Bounce(flowSensorPin, debounceMs) }
@@ -26,14 +28,7 @@ public:
     {
     };
 
-    const uint16_t flowRate() {
-        return _flowRate;
-    };
-
-    void setup() {
-        pinMode(_flowSensorPin, INPUT);
-    };
-
+    void setup();
     void loop();
-
+    uint16_t flowRate();
 };

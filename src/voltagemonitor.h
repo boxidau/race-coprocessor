@@ -11,8 +11,8 @@ const uint16_t OVERVOLT_5V   = 5100;
 
 // 12V is vehicle voltage
 // charging is expected to be 14+ volts
-const uint16_t UNDERVOLT_12V = 11500;
-const uint16_t OVERVOLT_12V  = 15000;
+const uint16_t UNDERVOLT_12V = 10500;
+const uint16_t OVERVOLT_12V  = 16000;
 
 
 class VoltageMonitor {
@@ -24,12 +24,15 @@ private:
 public:
     VoltageMonitor(
         uint sys12vPin,
+        uint sys12vADCNum,
         uint sys5vPin,
-        uint sys3v3Pin
+        uint sys5vADCNum,
+        uint sys3v3Pin,
+        uint sys3v3ADCNum
     )
-        : sys12v { CalibratedADC(sys12vPin) }
-        , sys5v { CalibratedADC(sys5vPin) }
-        , sys3v3 { CalibratedADC(sys3v3Pin) }
+        : sys12v { CalibratedADC(sys12vPin, sys12vADCNum) }
+        , sys5v { CalibratedADC(sys5vPin, sys5vADCNum) }
+        , sys3v3 { CalibratedADC(sys3v3Pin, sys3v3ADCNum) }
     {
     };
     void setup();

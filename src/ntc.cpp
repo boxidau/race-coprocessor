@@ -1,7 +1,8 @@
 #include "ntc.h"
+#include <ADC.h>
 
 void NTC::loop() {
-    uint16_t curValue = analogRead(pin);
+    uint16_t curValue = ADC().analogRead(pin, adcNum);
     samples[idx++ % NTC_SAMPLES] = curValue;
     rollingSum += curValue;
     rollingSum -= samples[idx % NTC_SAMPLES];
@@ -25,18 +26,36 @@ uint16_t NTC::adc() {
     return rollingSum / NTC_SAMPLES;
 }
 
-double NTC::minV() {
-    uint16_t min = 65535;
+uint16_t NTC::min() {
+    uint16_t min = ADC_MAX;
     for (uint i = 0; i < NTC_SAMPLES; i++) {
         if (samples[i] < min) min = samples[i];
     }
-    return temperatureFor(min);
+    return min;
 }
 
-double NTC::maxV() {
+uint16_t NTC::max() {
     uint16_t max = 0;
     for (uint i = 0; i < NTC_SAMPLES; i++) {
         if (samples[i] > max) max = samples[i];
     }
-    return temperatureFor(max);
+    return max;
+}
+
+uint16_t NTC::stdev() {
+    double var = 0;
+    double avg = double(rollingSum) / NTC_SAMPLES;
+    for (uint i = 0; i < ADC_SAMPLES; i++) {
+        var += pow(double(samples[i]) - avg, 2);
+    }
+    return uint16_t(sqrt(var / ADC_SAMPLES));
+}
+
+double NTC::temperatureStdev() {
+    double var = 0;
+    double avg = temperature();
+    for (uint i = 0; i < ADC_SAMPLES; i++) {
+        var += pow(temperatureFor(samples[i]) - avg, 2);
+    }
+    return sqrt(var / ADC_SAMPLES));
 }

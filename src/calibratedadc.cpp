@@ -1,7 +1,8 @@
 #include "calibratedadc.h"
+#include <ADC.h>
 
 void CalibratedADC::loop() {
-    samples[idx % ADC_SAMPLES] = analogRead(pin);
+    samples[idx % ADC_SAMPLES] = ADC().analogRead(pin, adc);
     idx++;
 }
 

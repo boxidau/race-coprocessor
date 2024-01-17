@@ -4,6 +4,7 @@
 #include <Metro.h>
 #include <DebugLog.h>
 #include <FlexCAN.h>
+#include <ADC.h>
 
 #include "canlogger.h"
 #include "clocktime.h"
@@ -23,21 +24,27 @@ CAN_message_t coolerSystemMessage, rxMessage;
 
 VoltageMonitor voltageMonitor = VoltageMonitor(
     ADC_SYSTEM_12V,
+    ADC_SYSTEM_12V_ADC_NUM,
     ADC_SYSTEM_5V,
-    ADC_SYSTEM_3V3
+    ADC_SYSTEM_5V_ADC_NUM,
+    ADC_SYSTEM_3V3,
+    ADC_SYSTEM_3V3_ADC_NUM,
 );
 
 CoolerSystem cooler = CoolerSystem(
     ADC_MAIN_SWITCH, // switchPin
+    ADC_MAIN_SWITCH_ADC_NUM, // switchADCNum
     COOLANT_SWITCH, // coolantLevelPin,
     FLOW_SENSOR, // flowRatePin,
     ADC_PRESSURE_SENSOR, // pressureSensorPin,
+    ADC_PRESSURE_SENSOR_ADC_NUM, // pressureSensorADCNum,
     NTC_EVAPORATOR_1, // _ntc1Pin,
     NTC_EVAPORATOR_2, // _ntc2Pin,
     NTC_CONDENSER_1, // condenser inlet
     NTC_CONDENSER_2, // condenser outlet
     NTC_AMBIENT,
-    DAC_COMPRESSOR_SPEED, // compressorPin,
+    NTC_ADC_NUM,
+    DAC_COMPRESSOR_SPEED, // compressorSpeedPin,
     PWM1, // chillerPumpPin,
     PWM2, // coolshirtPumpPin,
     PWM3,  // systemEnablePin
@@ -51,8 +58,21 @@ unsigned long previousLoop, loopStart;
 void setup()
 {
     // LOG_SET_LEVEL(DebugLogLevel::LVL_DEBUG);
-    analogReadRes(16);
-    analogWriteRes(16);
+
+    // Set up and calibrate ADCs, see https://forum.pjrc.com/index.php?threads/adc-library-with-support-for-teensy-4-3-x-and-lc.25532/
+    ADC adc = ADC();
+    adc.setResolution(16);
+    adc.setReference(ADC_REFERENCE::REF_EXT);
+    adc.setAveraging(0);
+    adc.adc0.setConversionSpeed(ADC_CONVERSION_SPEED::HIGH_SPEED); // try LOW_SPEED or VERY_LOW_SPEED
+    adc.adc0.setSamplingSpeed(ADC_SAMPLING_SPEED::HIGH_SPEED);
+    adc.adc0.recalibrate();
+    adc.adc1.setConversionSpeed(ADC_CONVERSION_SPEED::HIGH_SPEED);
+    adc.adc1.setSamplingSpeed(ADC_SAMPLING_SPEED::HIGH_SPEED);
+    adc.adc1.recalibrate();
+
+    analogWriteRes(12);
+
     cooler.setup();
     CANbus.begin();
     Serial.begin(115200);
@@ -77,8 +97,8 @@ void processRXCANMessage()
 void loop()
 {
     loopStart = micros();
-    unsigned long loopTime = loopStart - previousLoop;
-    previousLoop = loopStart;
+    // handle overflow
+    unsigned long loopTime = loopStart > previousLoop ? loopStart - previousLoop : loopStart + (UINT32_MAX - previousLoop);
 
     // tick functions for all modules
     cooler.loop();

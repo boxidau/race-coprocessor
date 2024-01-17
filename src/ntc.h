@@ -9,7 +9,7 @@
 class NTC
 {
 private:
-    const uint8_t pin;
+    const uint8_t pin, adcNum;
     const double steinhartA, steinhartB, steinhartC, pullupResistance;
     uint16_t samples[NTC_SAMPLES];
     uint8_t idx { 0 };
@@ -18,12 +18,14 @@ private:
 public:
     NTC(
         const uint8_t _pin,
-        const double _pullupResistance = 2400,
+        const uint8_t _adcNum,
+        const double _pullupResistance,
         const double _steinhartA = 0.00112865375,
         const double _steinhartB = 0.0002342041378,
         const double _steinhartC = 0.00000008737724626
     )
         : pin { _pin }
+        , adcNum { _adcNum }
         , pullupResistance { _pullupResistance }
         , steinhartA { _steinhartA }
         , steinhartB { _steinhartB }
@@ -40,7 +42,8 @@ public:
 
     double temperatureFor(uint16_t);
 
-    double minV();
-
-    double maxV();
+    uint16_t min();
+    uint16_t max();
+    uint16_t stdev();
+    double temperatureStdev();
 };

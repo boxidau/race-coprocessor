@@ -91,7 +91,7 @@ void CoolerUI::loop() {
             snprintf(buf, 5, "%4.2f", rtData.evaporatorOutletTemp);
             break;
         case 2:
-            snprintf(buf, 5, "%d", rtData.compressorPWM);
+            snprintf(buf, 5, "%d", rtData.compressorSpeed * 100);
             break;
         case 3:
             snprintf(buf, 5, "%4.2f", rtData.flowRate / 1000.0);

@@ -4,11 +4,11 @@ Metro msTick = Metro(1);
 
 void VoltageMonitor::setup() {
     sys12v.setup();
-    sys12v.setCalibration(0, 0, 39777, 12000, false);
+    sys12v.setCalibration(0, 0, 39784, 12000, false);
     sys5v.setup();
     sys5v.setCalibration(0, 0, 56740, 5000, false);
     sys3v3.setup();
-    sys3v3.setCalibration(0, 0, 54592, 3300, false);
+    sys3v3.setCalibration(0, 0, 54598, 3300, false);
 };
 
 void VoltageMonitor::loop() {
