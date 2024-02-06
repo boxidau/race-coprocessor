@@ -3,7 +3,7 @@
 #include "Arduino.h"
 #include "constants.h"
 #include <DebugLog.h>
-#include <ADC.h>
+#include "singletonadc.h"
 
 #define ADC_SAMPLES 100
 
@@ -16,11 +16,11 @@ private:
     uint16_t calibrationLowADC, calibrationLowValue;
     uint16_t calibrationHighADC, calibrationHighValue;
     bool constrainCalibration { false };
-    ADC_Module* adcObj;
+    const uint8_t adcNum;
+    bool bufferInitialFill { false };
 
 public:
-    CalibratedADC(const uint8_t _pin, const uint8_t _adcNum) : pin { _pin }, adcObj { ADC().adc[_adcNum] } {
-    };
+    CalibratedADC(const uint8_t _pin, const uint8_t _adcNum) : pin { _pin }, adcNum { _adcNum } {};
     
     void setup() {
         pinMode(pin, INPUT);

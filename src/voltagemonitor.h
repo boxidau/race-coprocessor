@@ -20,7 +20,6 @@ class VoltageMonitor {
 private:
     CalibratedADC sys12v, sys5v, sys3v3;
     Metro msTick { Metro(1) };
-    bool startup { true };
 public:
     VoltageMonitor(
         uint sys12vPin,

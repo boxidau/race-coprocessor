@@ -2,10 +2,8 @@
 #include <ADC.h>
 
 void NTC::loop() {
-    uint16_t curValue = ADC().analogRead(pin, adcNum);
+    uint16_t curValue = SingletonADC::getADC()->analogRead(pin, adcNum);
     samples[idx++ % NTC_SAMPLES] = curValue;
-    rollingSum += curValue;
-    rollingSum -= samples[idx % NTC_SAMPLES];
 }
 
 double NTC::temperature() {
@@ -23,7 +21,11 @@ double NTC::temperatureFor(uint16_t val) {
 }
 
 uint16_t NTC::adc() {
-    return rollingSum / NTC_SAMPLES;
+    uint32_t avg = 0;
+    for (uint i = 0; i < NTC_SAMPLES; i++) {
+        avg += samples[i];
+    }
+    return avg / NTC_SAMPLES;
 }
 
 uint16_t NTC::min() {
@@ -44,7 +46,7 @@ uint16_t NTC::max() {
 
 uint16_t NTC::stdev() {
     double var = 0;
-    double avg = double(rollingSum) / NTC_SAMPLES;
+    double avg = adc();
     for (uint i = 0; i < NTC_SAMPLES; i++) {
         var += pow(double(samples[i]) - avg, 2);
     }

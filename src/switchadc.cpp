@@ -2,7 +2,7 @@
 #include <ADC.h>
 
 void SwitchADC::loop() {
-    samples[idx % SWITCH_ADC_SAMPLES] = adcModule->analogRead(pin);
+    samples[idx % SWITCH_ADC_SAMPLES] = SingletonADC::getADC()->analogRead(pin, adcNum);
     idx++;
 }
 
