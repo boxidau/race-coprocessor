@@ -1,8 +1,11 @@
 #include "calibratedadc.h"
 
 void CalibratedADC::loop() {
-    samples[idx % ADC_SAMPLES] = adcObj->analogRead(pin);
+    samples[idx % ADC_SAMPLES] = SingletonADC::getADC()->analogRead(pin, adcNum);
     idx++;
+    if (idx == ADC_SAMPLES) {
+        bufferInitialFill = true;
+    }
 }
 
 void CalibratedADC::setCalibration(
@@ -20,6 +23,9 @@ void CalibratedADC::setCalibration(
 }
 
 const uint16_t CalibratedADC::adc() {
+    if (!bufferInitialFill) {
+        return samples[(idx - 1) % ADC_SAMPLES];
+    }
     uint32_t sum = 0;
     for (uint i = 0; i < ADC_SAMPLES; i++) {
         sum += samples[i];

@@ -168,7 +168,6 @@ void CoolerSystem::loop()
         condenserInletNTC.loop();
         condenserOutletNTC.loop();
         ambientNTC.loop();
-
         pressureSensor.loop();
         currentSensor.loop();
         compressorFault.loop();
@@ -201,21 +200,20 @@ void CoolerSystem::loop()
         runCoolshirtPump();
     }
 
-    if (NTC_DEBUG && displayInfoTimer.check()) {
-        uint16_t min = ambientNTC.min(), max = ambientNTC.max();
-        Serial.printf(
-            "Ambient Temp: avg %5d  (%.2f)    stdev %5d  (%.2f)    range %5d  (%.2f)\n",
-            ambientNTC.adc(),
-            ambientNTC.temperature(),
-            ambientNTC.stdev(),
-            ambientNTC.temperatureStdev(),
-            max - min,
-            ambientNTC.temperatureFor(max) - ambientNTC.temperatureFor(min)
-        );
-        return;
-    }
-
     if (displayInfoTimer.check()) {
+        if (NTC_DEBUG) {
+            uint16_t min = ambientNTC.min(), max = ambientNTC.max();
+            Serial.printf(
+                "Ambient Temp: avg %5d  (%.2f)    stdev %5d  (%.2f)    range %5d  (%.2f)\n",
+                ambientNTC.adc(),
+                ambientNTC.temperature(),
+                ambientNTC.stdev(),
+                ambientNTC.temperatureStdev(),
+                max - min,
+                ambientNTC.temperatureFor(max) - ambientNTC.temperatureFor(min)
+            );
+            return;
+        }
         Serial.println("----------------- Cooler Statistics -------------------");
         Serial.println("Voltages ----------------------------------------------");
         Serial.printf("  System 12V:                    %.2f V\n", voltageMonitor.get12vMilliVolts() / 1000.0);

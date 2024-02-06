@@ -1,6 +1,6 @@
 #include "Arduino.h"
 #include "constants.h"
-#include <ADC.h>
+#include "singletonadc.h"
 #include <math.h>
 #include <DebugLog.h>
 
@@ -13,7 +13,6 @@ private:
     const double pullupResistance, steinhartA, steinhartB, steinhartC;
     uint16_t samples[NTC_SAMPLES];
     uint8_t idx { 0 };
-    uint32_t rollingSum { 0 };
 
 public:
     NTC(

@@ -3,7 +3,7 @@
 #include "Arduino.h"
 #include "constants.h"
 #include <DebugLog.h>
-#include <ADC.h>
+#include "singletonadc.h"
 
 #define SWITCH_ADC_SAMPLES 10
 
@@ -22,10 +22,10 @@ private:
     const uint8_t pin;
     uint8_t idx = { 0 };
     uint16_t samples[SWITCH_ADC_SAMPLES];
-    ADC_Module* adcModule;
+    uint8_t adcNum;
 
 public:
-    SwitchADC(const uint8_t _pin, const uint8_t _adcNum) : pin { _pin }, adcModule { ADC().adc[_adcNum] } {
+    SwitchADC(const uint8_t _pin, const uint8_t _adcNum) : pin { _pin }, adcNum { _adcNum } {
     };
     
     void setup() {
