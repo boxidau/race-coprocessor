@@ -46,6 +46,15 @@ void CoolerUI::loop() {
         displayPageNameUntil = millis() + 1000; 
     }
 
+    // pulse the green LED with period = flow rate / 4
+    unsigned long lastFlowPulse = coolerSystem.lastFlowPulseMicros();
+    if (lastFlowPulse != lastFlowPulseDisplayed) {
+        if (pulseDivider++ % 2) {
+            display.setLED(ScreenLED::GREEN, !display.getLED(ScreenLED::GREEN));
+        }
+        lastFlowPulseDisplayed = lastFlowPulse;
+    }
+
     if (!displayUpdate.check()) {
         return;
     }
@@ -91,7 +100,7 @@ void CoolerUI::loop() {
             snprintf(buf, 5, "%4.2f", rtData.evaporatorOutletTemp);
             break;
         case 2:
-            snprintf(buf, 5, "%d", uint(rtData.compressorSpeed * 100));
+            snprintf(buf, 5, "%d", int(rtData.compressorSpeed * 100));
             break;
         case 3:
             snprintf(buf, 5, "%4.2f", rtData.flowRate / 1000.0);

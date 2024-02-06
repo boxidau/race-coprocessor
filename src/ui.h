@@ -15,6 +15,8 @@ private:
     uint displayPageNameUntil { 0 };
     CoolerSystemData rtData { CoolerSystemData() };
     bool pageTurnerEnabled { true };
+    unsigned long lastFlowPulseDisplayed { 0 };
+    uint8_t pulseDivider { 0 };
 
 public:
     CoolerUI(

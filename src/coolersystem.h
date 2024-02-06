@@ -16,12 +16,18 @@
 #include "switchadc.h"
 #include "voltagemonitor.h"
 #include "flowsensor.h"
+#include "compressorfault.h"
 
 #define OVERPRESSURE_THRESHOLD_KPA 230
 #define PRESSURE_SENSOR_CALIBRATION_LOW_ADC 5674 // 0.5V = 0psig = 101kPa
-#define PRESSURE_SENSOR_CALIBRAION_HIGH_ADC 51063  // 4.5V = 100psig = 791kPa
+#define PRESSURE_SENSOR_CALIBRATION_HIGH_ADC 51063  // 4.5V = 100psig = 791kPa
 #define PRESSURE_SENSOR_CALIBRATION_LOW_KPA 101
 #define PRESSURE_SENSOR_CALIBRATION_HIGH_KPA 791
+
+#define CURRENT_SENSOR_CALIBRATION_LOW_ADC 5660 // 0.5V = 0A
+#define CURRENT_SENSOR_CALIBRATION_HIGH_ADC 50942  // 4.5V = 50A
+#define CURRENT_SENSOR_CALIBRATION_LOW_AMPS 0
+#define CURRENT_SENSOR_CALIBRATION_HIGH_AMPS 50
 
 #define FLOW_SENSOR_PULSES_PER_SECOND 7.5
 #define FLOW_RATE_MIN_THRESHOLD 1000
@@ -94,6 +100,7 @@ enum class SystemFault {
     SYSTEM_UNDERVOLT = 8,
     SYSTEM_OVERVOLT = 16,
     SYSTEM_STARTUP = 32,
+    COMPRESSOR_FAULT = 64,
 };
 
 constexpr const char* SystemFaultToString(SystemFault sf)
@@ -106,7 +113,8 @@ constexpr const char* SystemFaultToString(SystemFault sf)
         case SystemFault::SYSTEM_OVER_PRESSURE: return "SYSTEM_OVER_PRESSURE";
         case SystemFault::SYSTEM_UNDERVOLT: return "SYSTEM_UNDERVOLT";
         case SystemFault::SYSTEM_OVERVOLT: return "SYSTEM_OVERVOLT";
-        case SystemFault::SYSTEM_STARTUP: return "SYSTEM_STATUP";
+        case SystemFault::SYSTEM_STARTUP: return "SYSTEM_STARTUP";
+        case SystemFault::COMPRESSOR_FAULT: return "COMPRESSOR_FAULT";
         default: return "UNKNOWN";
     }
 }
@@ -115,6 +123,7 @@ struct CoolerSystemData {
     byte fault;
     bool coolantLevel;
     uint16_t systemPressure;
+    double compressorCurrent;
     double evaporatorInletTemp;
     double evaporatorOutletTemp;
     double condenserInletTemp;
@@ -129,6 +138,8 @@ private:
     // inputs
     SwitchADC switchADC;
     CalibratedADC pressureSensor;
+    CalibratedADC currentSensor;
+    CompressorFault compressorFault;
     uint8_t coolantLevelPin;
     uint8_t compressorSpeedPin;
     FlowSensor flowSensor;
@@ -150,9 +161,11 @@ private:
     uint32_t pumpStartTime = { 0 };
 
     // sensor values
+    CompressorFaultCode compressorFaultCode { CompressorFaultCode::OK };
     uint16_t flowRate { 0 };
     bool coolantLevel { false };
     uint16_t systemPressure { 0 };
+    double compressorCurrent { 0 };
     double evaporatorInletTemp { -100.0 };
     double evaporatorOutletTemp { -100.0 };
     double condenserInletTemp { -100.0 };
@@ -198,6 +211,9 @@ public:
         uint8_t _flowRatePin,
         uint8_t _pressureSensorPin,
         uint8_t _pressureSensorADCNum,
+        uint8_t _currentSensorPin,
+        uint8_t _currentSensorADCNum,
+        uint8_t _compressorLDRPin,
         uint8_t _evaporatorInletNtcPin,
         uint8_t _evaporatorOutletNtcPin,
         uint8_t _condenserInletNtcPin,
@@ -212,6 +228,8 @@ public:
     )
         : switchADC { SwitchADC(_switchPin, _switchADCNum) }
         , pressureSensor { CalibratedADC(_pressureSensorPin, _pressureSensorADCNum) }
+        , currentSensor { CalibratedADC(_currentSensorPin, _currentSensorADCNum) }
+        , compressorFault { CompressorFault(_compressorLDRPin) }
         , coolantLevelPin { _coolantLevelPin }
         , compressorSpeedPin { _compressorSpeedPin }
         , flowSensor { FlowSensor(_flowRatePin, FLOW_SENSOR_PULSES_PER_SECOND) }
@@ -232,4 +250,5 @@ public:
     void getCANMessage(CAN_message_t &msg);
     byte systemFault();
     void getSystemData(CoolerSystemData &data);
+    unsigned long lastFlowPulseMicros();
 };

@@ -28,7 +28,9 @@ VoltageMonitor voltageMonitor = VoltageMonitor(
     ADC_SYSTEM_5V,
     ADC_SYSTEM_5V_ADC_NUM,
     ADC_SYSTEM_3V3,
-    ADC_SYSTEM_3V3_ADC_NUM
+    ADC_SYSTEM_3V3_ADC_NUM,
+    ADC_SPARE_5V, // P3V3 using 5V spare ADC
+    ADC_SPARE_5V_ADC_NUM
 );
 
 CoolerSystem cooler = CoolerSystem(
@@ -38,6 +40,9 @@ CoolerSystem cooler = CoolerSystem(
     FLOW_SENSOR, // flowRatePin,
     ADC_PRESSURE_SENSOR, // pressureSensorPin,
     ADC_PRESSURE_SENSOR_ADC_NUM, // pressureSensorADCNum,
+    ADC_COMPRESSOR_CURRENT, // currentSensorPin,
+    ADC_COMPRESSOR_CURRENT_ADC_NUM, // currentSensorADCNum,
+    ADC_COMPRESSOR_LDR, // compressorLDRPin,
     NTC_EVAPORATOR_1, // _ntc1Pin,
     NTC_EVAPORATOR_2, // _ntc2Pin,
     NTC_CONDENSER_1, // condenser inlet

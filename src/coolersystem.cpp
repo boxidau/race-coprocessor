@@ -20,6 +20,7 @@ void CoolerSystem::setup()
 
     flowSensor.setup();
     pinMode(coolantLevelPin, INPUT);
+    compressorFault.setup();
 
     evaporatorInletNTC.setup();
     evaporatorOutletNTC.setup();
@@ -32,8 +33,17 @@ void CoolerSystem::setup()
     pressureSensor.setCalibration(
         PRESSURE_SENSOR_CALIBRATION_LOW_ADC,
         PRESSURE_SENSOR_CALIBRATION_LOW_KPA,
-        PRESSURE_SENSOR_CALIBRAION_HIGH_ADC,
+        PRESSURE_SENSOR_CALIBRATION_HIGH_ADC,
         PRESSURE_SENSOR_CALIBRATION_HIGH_KPA,
+        true
+    );
+
+    currentSensor.setup();
+    currentSensor.setCalibration(
+        CURRENT_SENSOR_CALIBRATION_LOW_ADC,
+        CURRENT_SENSOR_CALIBRATION_LOW_AMPS,
+        CURRENT_SENSOR_CALIBRATION_HIGH_ADC,
+        CURRENT_SENSOR_CALIBRATION_HIGH_AMPS,
         true
     );
 
@@ -160,6 +170,8 @@ void CoolerSystem::loop()
         ambientNTC.loop();
 
         pressureSensor.loop();
+        currentSensor.loop();
+        compressorFault.loop();
         _pollCoolantLevel();
         switchADC.loop();
         voltageMonitor.loop();
@@ -170,11 +182,13 @@ void CoolerSystem::loop()
     if (pollTimer.check()) {
         flowRate = flowSensor.flowRate();
         systemPressure = pressureSensor.calibratedValue() * voltageMonitor.get5vMilliVolts() / 5000;
+        compressorCurrent = currentSensor.calibratedValue() * voltageMonitor.get5vMilliVolts() / 5000;
         evaporatorInletTemp = evaporatorInletNTC.temperature();
         evaporatorOutletTemp = evaporatorOutletNTC.temperature();
         condenserInletTemp = condenserInletNTC.temperature();
         condenserOutletTemp = condenserOutletNTC.temperature();
         ambientTemp = ambientNTC.temperature();
+        compressorFaultCode = compressorFault.getCode();
         _pollSystemStatus();
         check(systemPressure < OVERPRESSURE_THRESHOLD_KPA, SystemFault::SYSTEM_OVER_PRESSURE);
         check(coolantLevel, SystemFault::LOW_COOLANT);
@@ -207,6 +221,7 @@ void CoolerSystem::loop()
         Serial.printf("  System 12V:                    %.2f V\n", voltageMonitor.get12vMilliVolts() / 1000.0);
         Serial.printf("  System 5V:                     %.2f V\n", voltageMonitor.get5vMilliVolts() / 1000.0);
         Serial.printf("  System 3.3V:                   %.2f V\n", voltageMonitor.get3v3MilliVolts() / 1000.0);
+        Serial.printf("  System P3.3V:                  %.2f V\n", voltageMonitor.getp3v3MilliVolts() / 1000.0);
         Serial.println("Inputs ------------------------------------------------");
         Serial.printf("  Evaporator Inlet:              %.2f °C ( %d )\n", evaporatorInletTemp, evaporatorInletNTC.adc());
         Serial.printf("  Evaporator Outlet:             %.2f °C ( %d )\n", evaporatorOutletTemp, evaporatorOutletNTC.adc());
@@ -214,6 +229,9 @@ void CoolerSystem::loop()
         Serial.printf("  Condenser Outlet:              %.2f °C ( %d )\n", condenserOutletTemp, condenserOutletNTC.adc());
         Serial.printf("  Ambient Temp:                  %.2f °C ( %d )\n", ambientTemp, ambientNTC.adc());
         Serial.printf("  System Pressure:               %d kPa ( %d )\n", systemPressure, pressureSensor.adc());
+        Serial.printf("  Coolant Level:                 %s\n", coolantLevel ? "OK" : "LOW");
+        Serial.printf("  Compressor Current:            %.2f A ( %d )\n", compressorCurrent, currentSensor.adc());
+        Serial.printf("  Compressor Status:             %s (%d ms ago)\n", CompressorFaultToString(compressorFaultCode), compressorFault.durationSinceFaultRecorded());
         Serial.printf("  Flow Rate:                     %d mL/min\n", flowRate);
         Serial.printf("  Coolant Level:                 %s\n", coolantLevel ? "OK" : "LOW");
         Serial.printf("  Switch Position:               %s ( %d )\n", CoolerSwitchPositionToString(switchADC.position()), switchADC.adc());
@@ -231,6 +249,7 @@ void CoolerSystem::loop()
         printFaultLine(SystemFault::SYSTEM_UNDERVOLT, _systemFault);
         printFaultLine(SystemFault::SYSTEM_OVERVOLT, _systemFault);
         printFaultLine(SystemFault::SYSTEM_STARTUP, _systemFault);
+        printFaultLine(SystemFault::COMPRESSOR_FAULT, _systemFault);
         Serial.println("-------------------------------------------------------");
     }
 };
@@ -246,16 +265,25 @@ void CoolerSystem::getSystemData(CoolerSystemData &data) {
     data.fault = _systemFault;
     data.flowRate = flowRate;
     data.systemPressure = systemPressure;
+    data.compressorCurrent = compressorCurrent;
 };
+
+unsigned long CoolerSystem::lastFlowPulseMicros() {
+    return flowSensor.lastPulseMicros();
+}
 
 byte CoolerSystem::systemFault() {
     return _systemFault;
 }
 
+uint8_t clampAndScale(double val, int minVal, int scale) {
+    return max(255, (uint8_t)(max(minVal, val)) - minVal) / scale;
+}
+
 void CoolerSystem::getCANMessage(CAN_message_t &msg)
 {
     msg.id = CANID_COOLER_SYSTEM;
-    msg.len = 8;
+    msg.len = 9;
     // msg.flags = {};
 
     // byte | purpose
@@ -274,19 +302,25 @@ void CoolerSystem::getCANMessage(CAN_message_t &msg)
     //      |   [3]: under-temp compressor cut-off
     //      |   [2,1,0]: system status
     // 7    | system faults
+    // 8    | compressor fault
 
-    msg.buf[0] = evaporatorInletTemp > -15 ? uint8_t((evaporatorInletTemp + 15) / 0.25) : 0xFF;
-    msg.buf[1] = evaporatorOutletTemp > -15 ? uint8_t((evaporatorOutletTemp + 15) / 0.25): 0xFF;
+    msg.buf[0] = clampAndScale(evaporatorInletTemp, -5, 0.2);
+    msg.buf[1] = evaporatorOutletTemp > -5 ? uint8_t((evaporatorOutletTemp + 5) / 0.2): 0xFF;
+    msg.buf[0] = condenserInletTemp > 10 ? uint8_t((condenserInletTemp - 10) / 0.35) : 0xFF;
+    msg.buf[1] = condenserOutletTemp > 10 ? uint8_t((condenserOutletTemp - 10) / 0.35): 0xFF;
+    msg.buf[1] = ambientTemp > 10 ? uint8_t((ambientTemp - 10) / 0.2): 0xFF;
     msg.buf[2] = (uint8_t)(flowRate / 15);
     msg.buf[3] = systemPressure / 4;
-    msg.buf[4] = compressorSpeed * 256;
-    msg.buf[5] = coolshirtPWM.value() >> 8;
-    msg.buf[6] = 0;
-    if (systemEnableOutput.value()) msg.buf[6] |= 0x80;
-    if (chillerPumpPWM.value() >> 8) msg.buf[6] |= 0x40;
-    if (_systemFault) msg.buf[6] |= 0x20;
-    if (coolantLevel) msg.buf[6] |= 0x10;
-    if (undertempCutoff) msg.buf[6] |= 0x08;
-    msg.buf[6] |= (0x07 & (uint8_t)systemStatus);
-    msg.buf[7] = (uint8_t)_systemFault;
+    msg.buf[4] = compressorSpeed * 255;
+    msg.buf[5] = (uint8_t)(compressorCurrent / 40 * 255);
+    msg.buf[6] = coolshirtPWM.value() >> 8;
+    msg.buf[7] = 0;
+    if (systemEnableOutput.value()) msg.buf[7] |= 0x80;
+    if (chillerPumpPWM.value() >> 8) msg.buf[7] |= 0x40;
+    if (_systemFault) msg.buf[7] |= 0x20;
+    if (coolantLevel) msg.buf[7] |= 0x10;
+    if (undertempCutoff) msg.buf[7] |= 0x08;
+    msg.buf[7] |= (0x07 & (uint8_t)systemStatus);
+    msg.buf[8] = (uint8_t)_systemFault;
+    msg.buf[9] = (uint8_t)compressorFault.getCode();
 };

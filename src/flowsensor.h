@@ -28,4 +28,5 @@ public:
     void setup();
     void loop();
     uint16_t flowRate();
+    unsigned long lastPulseMicros();
 };

@@ -7,7 +7,7 @@ static volatile bool _filled;
 void recordPulse() {
     _samples[_idx++] = micros();
     if (_idx == FLOW_SAMPLES) {
-        _idx == 0;
+        _idx = 0;
         _filled = true;
     }
 }
@@ -62,4 +62,8 @@ uint16_t FlowSensor::flowRate() {
 
     uint32_t period = lastPulse > firstPulse ? lastPulse - firstPulse : lastPulse + (UINT32_MAX - firstPulse);
     return _pulsePeriodMicros / (period / (FLOW_SAMPLES - 1));
+}
+
+unsigned long FlowSensor::lastPulseMicros() {
+    return _samples[_idx == 0 ? FLOW_SAMPLES - 1 : _idx - 1];
 }

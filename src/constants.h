@@ -23,7 +23,7 @@
 #define         ADC_SYSTEM_5V                   PIN_A22
 #define         ADC_SYSTEM_3V3                  PIN_A18
 #define         ADC_MAIN_SWITCH                 PIN_A17
-#define         ADC_LDR                         PIN_A20
+#define         ADC_COMPRESSOR_LDR              PIN_A20
 #define         ADC_COMPRESSOR_CURRENT          PIN_A2
 #define         ADC_PRESSURE_SENSOR             PIN_A3
 #define         NTC_AMBIENT                     PIN_A5
