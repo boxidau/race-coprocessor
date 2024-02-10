@@ -32,6 +32,7 @@
 #define FLOW_SENSOR_PULSES_PER_SECOND 7.5
 #define FLOW_RATE_MIN_THRESHOLD 1000
 #define FLOW_RATE_MIN_TIME_MS_THRESHOLD 5000
+#define SPECIFIC_HEAT 4033 // J/kgK of chiller fluid (90% water / 10% IPA @ 3C)
 
 #define DESIRED_TEMP 5.0
 #define COMPRESSOR_UNDER_TEMP_CUTOFF 3.0
@@ -41,6 +42,8 @@
 #define COMPRESSOR_SPEED_RATIO_TO_ANALOG (9 / (3.3 * 3.717) * 4095)
 
 #define NTC_DEBUG 0
+#define POLL_TIMER_MS 100
+#define COOLER_LOOP_STARTUP_TIME_MS 200
 
 enum class CoolerSystemStatus {
     REQUIRES_RESET = 0,
@@ -143,7 +146,7 @@ private:
     uint8_t coolantLevelPin;
     uint8_t compressorSpeedPin;
     FlowSensor flowSensor;
-    NTC evaporatorInletNTC, evaporatorOutletNTC, condenserInletNTC, condenserOutletNTC, ambientNTC;
+    NTC evaporatorInletNTC, evaporatorOutletNTC, evaporatorDifferentialNTC, condenserInletNTC, condenserOutletNTC, ambientNTC;
 
     // outputs
     PWMOutput coolshirtPWM, chillerPumpPWM, systemEnableOutput;
@@ -155,7 +158,7 @@ private:
     CoolerSystemStatus systemStatus { CoolerSystemStatus::REQUIRES_RESET };
     CoolerSwitchPosition switchPosition { CoolerSwitchPosition::UNKNOWN };
 
-    Metro pollTimer { Metro(100) };
+    Metro pollTimer { Metro(POLL_TIMER_MS) };
     Metro displayInfoTimer { Metro(NTC_DEBUG ? 500 : 2000) };
     Metro msTick = { Metro(1) };
     uint32_t pumpStartTime = { 0 };
@@ -168,10 +171,14 @@ private:
     double compressorCurrent { 0 };
     double evaporatorInletTemp { -100.0 };
     double evaporatorOutletTemp { -100.0 };
+    double evaporatorDifferentialTemp { -100.0 };
     double condenserInletTemp { -100.0 };
     double condenserOutletTemp { -100.0 };
     double ambientTemp { -100.0 };
+    double coolingPower { 0 };
     bool chillerPumpRunning { false };
+    unsigned long loopStartTime { 0 };
+    bool startupDone { false };
 
     // output states
     // for logging/canbus output
@@ -216,6 +223,8 @@ public:
         uint8_t _compressorLDRPin,
         uint8_t _evaporatorInletNtcPin,
         uint8_t _evaporatorOutletNtcPin,
+        uint8_t _evaporatorDifferentialNtcPin1,
+        uint8_t _evaporatorDifferentialNtcPin2,
         uint8_t _condenserInletNtcPin,
         uint8_t _condenserOutletNtcPin,
         uint8_t _ambientNtcPin,
@@ -233,10 +242,11 @@ public:
         , coolantLevelPin { _coolantLevelPin }
         , compressorSpeedPin { _compressorSpeedPin }
         , flowSensor { FlowSensor(_flowRatePin, FLOW_SENSOR_PULSES_PER_SECOND) }
-        , evaporatorInletNTC { NTC(_evaporatorInletNtcPin, _ntcADCNum, 6800) }
-        , evaporatorOutletNTC { NTC(_evaporatorOutletNtcPin, _ntcADCNum, 6800) }
-        , condenserInletNTC { NTC(_condenserInletNtcPin, _ntcADCNum, 15000) }
-        , condenserOutletNTC { NTC(_condenserOutletNtcPin, _ntcADCNum, 15000) }
+        , evaporatorInletNTC { NTC(_evaporatorInletNtcPin, _ntcADCNum, 15000) }
+        , evaporatorOutletNTC { NTC(_evaporatorOutletNtcPin, _ntcADCNum, 15000) }
+        , evaporatorDifferentialNTC { NTC(_evaporatorDifferentialNtcPin1, _ntcADCNum, 15000, _evaporatorDifferentialNtcPin2) }
+        , condenserInletNTC { NTC(_condenserInletNtcPin, _ntcADCNum, 6800) }
+        , condenserOutletNTC { NTC(_condenserOutletNtcPin, _ntcADCNum, 6800) }
         , ambientNTC { NTC(_ambientNtcPin, _ntcADCNum, 6800) }
         , coolshirtPWM { PWMOutput(_coolshirtPumpPin) }
         , chillerPumpPWM { PWMOutput(_chillerPumpPin) }

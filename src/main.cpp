@@ -46,6 +46,8 @@ CoolerSystem cooler = CoolerSystem(
     ADC_COMPRESSOR_LDR, // compressorLDRPin,
     NTC_EVAPORATOR_1, // _ntc1Pin,
     NTC_EVAPORATOR_2, // _ntc2Pin,
+    NTC_EVAPORATOR_DIFF_1,
+    NTC_EVAPORATOR_DIFF_2,
     NTC_CONDENSER_1, // condenser inlet
     NTC_CONDENSER_2, // condenser outlet
     NTC_AMBIENT,
@@ -53,7 +55,7 @@ CoolerSystem cooler = CoolerSystem(
     DAC_COMPRESSOR_SPEED, // compressorSpeedPin,
     PWM1, // chillerPumpPin,
     PWM2, // coolshirtPumpPin,
-    PWM3,  // systemEnablePin
+    PWM3, // systemEnablePin
     voltageMonitor
 );
 
@@ -66,21 +68,21 @@ void setup()
     // LOG_SET_LEVEL(DebugLogLevel::LVL_DEBUG);
 
     // Set up and calibrate ADCs, see https://forum.pjrc.com/index.php?threads/adc-library-with-support-for-teensy-4-3-x-and-lc.25532/
+    // adc0 is for NTCs, adc1 everything else
     ADC *adc = SingletonADC::getADC();
     adc->adc0->setResolution(16);
     adc->adc0->setReference(ADC_REFERENCE::REF_EXT);
     adc->adc0->setAveraging(0);
-    adc->adc0->setConversionSpeed(ADC_CONVERSION_SPEED::HIGH_SPEED_16BITS); // try LOW_SPEED or VERY_LOW_SPEED
+    adc->adc0->setConversionSpeed(ADC_CONVERSION_SPEED::VERY_LOW_SPEED); // try LOW_SPEED or VERY_LOW_SPEED. HIGH_SPEED_16_BITS is good
     adc->adc0->setSamplingSpeed(ADC_SAMPLING_SPEED::HIGH_SPEED);
     adc->adc0->recalibrate();
 
     adc->adc1->setResolution(16);
     adc->adc1->setReference(ADC_REFERENCE::REF_EXT);
     adc->adc1->setAveraging(0);
-    adc->adc1->setConversionSpeed(ADC_CONVERSION_SPEED::HIGH_SPEED_16BITS);
+    adc->adc1->setConversionSpeed(ADC_CONVERSION_SPEED::HIGH_SPEED);
     adc->adc1->setSamplingSpeed(ADC_SAMPLING_SPEED::HIGH_SPEED);
     adc->adc1->recalibrate();
-
 
     analogWriteRes(12);
 
@@ -109,9 +111,7 @@ void loop()
 {
     loopStart = micros();
     // handle overflow
-    // unsigned long loopTime = loopStart > previousLoop ? loopStart - previousLoop : loopStart + (UINT32_MAX - previousLoop);
-    // previousLoop = loopStart;
-    unsigned long loopTime = loopStart - previousLoop;
+    unsigned long loopTime = loopStart > previousLoop ? loopStart - previousLoop : loopStart + (UINT32_MAX - previousLoop);
     previousLoop = loopStart;
 
     // tick functions for all modules
@@ -136,6 +136,6 @@ void loop()
     }
 
     if (loopTime > 2000) {
-        // LOG_INFO("SLOW LOOP loop_time=" + (String)loopTime + "uS");
+        LOG_INFO("SLOW LOOP loop_time=" + (String)loopTime + "uS");
     }
 }

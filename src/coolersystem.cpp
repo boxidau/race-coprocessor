@@ -48,8 +48,10 @@ void CoolerSystem::setup()
     );
 
     pinMode(compressorSpeedPin, OUTPUT);
+    analogWrite(compressorSpeedPin, 1 * COMPRESSOR_SPEED_RATIO_TO_ANALOG); // 9V = 100%
     compressorPID.SetOutputLimits(COMPRESSOR_MIN_SPEED_RATIO, COMPRESSOR_MAX_SPEED_RATIO);
-    compressorPID.SetSampleTime(1);
+    compressorPID.SetSampleTime(POLL_TIMER_MS);
+    compressorPID.SetMode(MANUAL);
 
     voltageMonitor.setup();
 };
@@ -132,8 +134,8 @@ void CoolerSystem::runCompressor()
         compressorPID.SetMode(MANUAL);
     } else {
         systemEnableOutput.setBoolean(true);
-        compressorPID.SetMode(AUTOMATIC);
-        analogWrite(compressorSpeedPin, 1 * COMPRESSOR_SPEED_RATIO_TO_ANALOG); // 9V = 100%, 4.5V = 50%.
+        // compressorPID.SetMode(AUTOMATIC);
+        // analogWrite(compressorSpeedPin, 1 * COMPRESSOR_SPEED_RATIO_TO_ANALOG); // 9V = 100%, 4.5V = 50%.
         // LOG_DEBUG("Compressor input temp:", compressorInputTemp, "target temp:", compressorTempTarget, "output value", compressorSpeed);
     }
 }
@@ -162,21 +164,32 @@ void CoolerSystem::check(bool checkResult, SystemFault fault)
 
 void CoolerSystem::loop()
 {
+    double ntcSampleDuration = micros();
+    loopStartTime = loopStartTime || micros();
+
     if (msTick.check()) {
         evaporatorInletNTC.loop();
         evaporatorOutletNTC.loop();
+        evaporatorDifferentialNTC.loop();
         condenserInletNTC.loop();
         condenserOutletNTC.loop();
         ambientNTC.loop();
+        ntcSampleDuration = ntcSampleDuration - micros();
+
         pressureSensor.loop();
         currentSensor.loop();
         compressorFault.loop();
         _pollCoolantLevel();
         switchADC.loop();
         voltageMonitor.loop();
-        compressorPID.Compute();
     }
     //flowSensor.loop();
+
+    // give time for samples to populate
+    if (!startupDone && micros() - loopStartTime < COOLER_LOOP_STARTUP_TIME_MS * 1000) {
+        return;
+    }
+    startupDone = true;
 
     if (pollTimer.check()) {
         flowRate = flowSensor.flowRate();
@@ -184,9 +197,11 @@ void CoolerSystem::loop()
         compressorCurrent = currentSensor.calibratedValue() * voltageMonitor.get5vMilliVolts() / 5000;
         evaporatorInletTemp = evaporatorInletNTC.temperature();
         evaporatorOutletTemp = evaporatorOutletNTC.temperature();
+        evaporatorDifferentialTemp = evaporatorInletTemp + evaporatorInletNTC.temperatureFor(evaporatorInletNTC.adc() + evaporatorDifferentialNTC.adc());
         condenserInletTemp = condenserInletNTC.temperature();
         condenserOutletTemp = condenserOutletNTC.temperature();
         ambientTemp = ambientNTC.temperature();
+        coolingPower = (evaporatorInletTemp - evaporatorOutletTemp) * SPECIFIC_HEAT * (double) flowRate / 60000; // Watts
         compressorFaultCode = compressorFault.getCode();
         _pollSystemStatus();
         check(systemPressure < OVERPRESSURE_THRESHOLD_KPA, SystemFault::SYSTEM_OVER_PRESSURE);
@@ -195,6 +210,7 @@ void CoolerSystem::loop()
         check(!voltageMonitor.underVoltage(), SystemFault::SYSTEM_UNDERVOLT);
 
         // begin actions
+        compressorPID.Compute();
         runChillerPump();
         runCompressor();
         runCoolshirtPump();
@@ -204,13 +220,19 @@ void CoolerSystem::loop()
         if (NTC_DEBUG) {
             uint16_t min = ambientNTC.min(), max = ambientNTC.max();
             Serial.printf(
-                "Ambient Temp: avg %5d  (%.2f)    stdev %5d  (%.2f)    range %5d  (%.2f)\n",
+                "Ambient Temp: avg %5d (%.3f)  median %5d (%.3f)  stdev %5d (%.3f)  range %5d (%.3f)      filtered: avg %5d (%.3f)  stdev %5d (%.3f)      duration %5d\n",
                 ambientNTC.adc(),
                 ambientNTC.temperature(),
+                ambientNTC.median(),
+                ambientNTC.temperatureFor(ambientNTC.median()),
                 ambientNTC.stdev(),
                 ambientNTC.temperatureStdev(),
                 max - min,
-                ambientNTC.temperatureFor(max) - ambientNTC.temperatureFor(min)
+                ambientNTC.averageWithoutOutliers(),
+                ambientNTC.temperatureFor(ambientNTC.averageWithoutOutliers()),
+                ambientNTC.stdevWithoutOutliers(),
+                ambientNTC.temperatureStdevWithoutOutliers(),
+                ntcSampleDuration
             );
             return;
         }
@@ -226,6 +248,7 @@ void CoolerSystem::loop()
         Serial.printf("  Condenser Inlet:               %.2f °C ( %d )\n", condenserInletTemp, condenserInletNTC.adc());
         Serial.printf("  Condenser Outlet:              %.2f °C ( %d )\n", condenserOutletTemp, condenserOutletNTC.adc());
         Serial.printf("  Ambient Temp:                  %.2f °C ( %d )\n", ambientTemp, ambientNTC.adc());
+        Serial.printf("  Cooling Power:                 %.2f W\n", coolingPower);
         Serial.printf("  System Pressure:               %d kPa ( %d )\n", systemPressure, pressureSensor.adc());
         Serial.printf("  Coolant Level:                 %s\n", coolantLevel ? "OK" : "LOW");
         Serial.printf("  Compressor Current:            %.2f A ( %d )\n", compressorCurrent, currentSensor.adc());
