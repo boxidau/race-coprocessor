@@ -185,6 +185,10 @@ void CoolerSystem::loop()
         _pollCoolantLevel();
         switchADC.loop();
         voltageMonitor.loop();
+
+        if (NTC_DEBUG && startupDone) {
+            ntcLogger.logSamples(evaporatorInletNTC.latest(), evaporatorOutletNTC.latest(), evaporatorDifferentialNTC.latest(), condenserInletNTC.latest(), condenserOutletNTC.latest(), ambientNTC.latest());
+        }
     }
     //flowSensor.loop();
 
@@ -221,8 +225,6 @@ void CoolerSystem::loop()
 
     if (displayInfoTimer.check()) {
         if (NTC_DEBUG) {
-            ntcLogger.logSamples(evaporatorInletNTC.latest(), evaporatorOutletNTC.latest(), evaporatorDifferentialNTC.latest(), condenserInletNTC.latest(), condenserOutletNTC.latest(), ambientNTC.latest());
-
             uint16_t min = ambientNTC.min(), max = ambientNTC.max();
             Serial.printf(
                 "[%3f s] Ambient Temp: avg %5d (%.3f)  median %5d (%.3f)  stdev %5d (%.3f)  range %5d (%.3f)      filtered: avg %5d (%.3f)  stdev %5d (%.3f)      duration %5d\n",
