@@ -52,6 +52,7 @@ public:
     void loop();
     double temperature();
     double adc();
+    uint16_t latest();
 
     double temperatureFor(double temp);
 

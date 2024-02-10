@@ -17,6 +17,7 @@
 #include "voltagemonitor.h"
 #include "flowsensor.h"
 #include "compressorfault.h"
+#include "ntclogger.h"
 
 #define OVERPRESSURE_THRESHOLD_KPA 230
 #define PRESSURE_SENSOR_CALIBRATION_LOW_ADC 5674 // 0.5V = 0psig = 101kPa
@@ -162,6 +163,7 @@ private:
     Metro displayInfoTimer { Metro(NTC_DEBUG ? 500 : 2000) };
     Metro msTick = { Metro(1) };
     uint32_t pumpStartTime = { 0 };
+    NTCLogger ntcLogger;
 
     // sensor values
     CompressorFaultCode compressorFaultCode { CompressorFaultCode::OK };

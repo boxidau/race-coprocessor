@@ -71,7 +71,7 @@ void NTCLogger::setup()
     enableLog = true;
 }
 
-void NTCLogger::logSamples(uint16_t ntc1, uint16_t ntc2, uint16_t ntc3, uint16_t ntc4, uint16_t ambient) {
+void NTCLogger::logSamples(uint16_t ntc1, uint16_t ntc2, uint16_t ntcDifferential, uint16_t ntc3, uint16_t ntc4, uint16_t ambient) {
     if (!enableLog) {
         return;
     }
@@ -88,6 +88,7 @@ void NTCLogger::logSamples(uint16_t ntc1, uint16_t ntc2, uint16_t ntc3, uint16_t
     data.time = time64 / 1000;
     data.ntc1 = ntc1;
     data.ntc2 = ntc2;
+    data.ntcDifferential = ntcDifferential;
     data.ntc3 = ntc3;
     data.ntc4 = ntc4;
     data.ambient = ambient;
@@ -109,9 +110,9 @@ void NTCLogger::flush()
     int fileWritten = 0;
     for (uint i = 0; i < ntcData.size(); i++) {
         NTCData& data = ntcData[i];
-        bufWritten += snprintf(lineBuf + bufWritten, 64, "%lu,%u,%u,%u,%u,%u\n", data.time, data.ntc1, data.ntc2, data.ntc3, data.ntc4, data.ambient);
+        bufWritten += snprintf(lineBuf + bufWritten, 64, "%lu,%u,%u,%u,%u,%u,%u\n", data.time, data.ntc1, data.ntc2, data.ntcDifferential, data.ntc3, data.ntc4, data.ambient);
         if (bufWritten > LINEBUF_SIZE - 64) {
-            bufWritten += snprintf(lineBuf + bufWritten, 10, ",,,,,\n");
+            bufWritten += snprintf(lineBuf + bufWritten, 10, ",,,,,,\n");
             fileWritten = logFile.print(lineBuf);
             if (fileWritten != bufWritten + 2)
             {

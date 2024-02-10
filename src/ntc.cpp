@@ -36,6 +36,10 @@ double NTC::temperatureFor(double val) {
     ) - 273.15;
 }
 
+uint16_t NTC::latest() {
+    return samples[(idx - 1) % NTC_SAMPLES];
+}
+
 double NTC::adc() {
     return ((double) runningSum) / NTC_SAMPLES;
 }

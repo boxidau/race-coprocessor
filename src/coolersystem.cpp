@@ -27,6 +27,9 @@ void CoolerSystem::setup()
     condenserInletNTC.setup();
     condenserOutletNTC.setup();
     ambientNTC.setup();
+    if (NTC_DEBUG) {
+        ntcLogger.setup();
+    }
 
     switchADC.setup();
     pressureSensor.setup();
@@ -218,9 +221,12 @@ void CoolerSystem::loop()
 
     if (displayInfoTimer.check()) {
         if (NTC_DEBUG) {
+            ntcLogger.logSamples(evaporatorInletNTC.latest(), evaporatorOutletNTC.latest(), evaporatorDifferentialNTC.latest(), condenserInletNTC.latest(), condenserOutletNTC.latest(), ambientNTC.latest());
+
             uint16_t min = ambientNTC.min(), max = ambientNTC.max();
             Serial.printf(
-                "Ambient Temp: avg %5d (%.3f)  median %5d (%.3f)  stdev %5d (%.3f)  range %5d (%.3f)      filtered: avg %5d (%.3f)  stdev %5d (%.3f)      duration %5d\n",
+                "[%3f s] Ambient Temp: avg %5d (%.3f)  median %5d (%.3f)  stdev %5d (%.3f)  range %5d (%.3f)      filtered: avg %5d (%.3f)  stdev %5d (%.3f)      duration %5d\n",
+                (double) ntcLogger.msSinceStarted() / 1000,
                 ambientNTC.adc(),
                 ambientNTC.temperature(),
                 ambientNTC.median(),
@@ -234,6 +240,7 @@ void CoolerSystem::loop()
                 ambientNTC.temperatureStdevWithoutOutliers(),
                 ntcSampleDuration
             );
+
             return;
         }
         Serial.println("----------------- Cooler Statistics -------------------");

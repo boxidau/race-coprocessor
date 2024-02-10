@@ -9,6 +9,7 @@ struct NTCData {
     uint32_t time;
     uint16_t ntc1;
     uint16_t ntc2;
+    uint16_t ntcDifferential;
     uint16_t ntc3;
     uint16_t ntc4;
     uint16_t ambient;
@@ -18,7 +19,8 @@ class NTCLogger
 {
 public:
     void setup();
-    void logSamples(uint16_t ntc1, uint16_t ntc2, uint16_t ntc3, uint16_t ntc4, uint16_t ambient);
+    void logSamples(uint16_t ntc1, uint16_t ntc2, uint16_t ntcDifferential, uint16_t ntc3, uint16_t ntc4, uint16_t ambient);
+    uint64_t msSinceStarted() { return time64 / 1000; };
 
 private:
     void flush();
