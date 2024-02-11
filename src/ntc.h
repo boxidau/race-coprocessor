@@ -36,7 +36,7 @@ public:
         : pin { _pin }
         , adcNum { _adcNum }
         , pullupResistance { _pullupResistance }
-        , differentialPin { differentialPin }
+        , differentialPin { _differentialPin }
         , steinhartA { _steinhartA }
         , steinhartB { _steinhartB }
         , steinhartC { _steinhartC }
@@ -51,10 +51,10 @@ public:
     }
     void loop();
     double temperature();
-    double adc();
+    uint16_t adc();
     uint16_t latest();
 
-    double temperatureFor(double temp);
+    double temperatureFor(uint16_t sample);
 
     uint16_t min();
     uint16_t max();

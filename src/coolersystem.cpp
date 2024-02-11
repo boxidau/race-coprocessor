@@ -228,7 +228,16 @@ void CoolerSystem::loop()
 
     if (displayInfoTimer.check()) {
         if (NTC_DEBUG) {
+            Serial.printf(
+                "[%3f s] Ambient Temp: avg %5d (%.3f)    duration %u\n",
+                (double) ntcLogger.msSinceStarted() / 1000,
+                evaporatorInletNTC.adc(),
+                evaporatorInletNTC.temperature(),
+                ntcSampleDuration
+            );
             return;
+            
+            // old debug info
             uint16_t min = ambientNTC.min(), max = ambientNTC.max();
             Serial.printf(
                 "[%3f s] Ambient Temp: avg %5d (%.3f)  median %5d (%.3f)  stdev %5d (%.3f)  range %5d (%.3f)      filtered: avg %5d (%.3f)  stdev %5d (%.3f)      duration %u\n",
@@ -249,6 +258,7 @@ void CoolerSystem::loop()
             );
             return;
         }
+
         Serial.println("----------------- Cooler Statistics -------------------");
         Serial.println("Voltages ----------------------------------------------");
         Serial.printf("  System 12V:                    %.2f V\n", voltageMonitor.get12vMilliVolts() / 1000.0);

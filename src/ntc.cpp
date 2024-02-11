@@ -20,12 +20,12 @@ double NTC::temperature() {
         return 0;
     }
 
-    return temperatureFor(((double) runningSum) / NTC_SAMPLES);
+    return temperatureFor(adc());
 }
 
-double NTC::temperatureFor(double val) {
+double NTC::temperatureFor(uint16_t sample) {
     // note: this may be wrong because noise > 65535 is cut off. look at time domain signal
-    double ntcResistanceApprox = pullupResistance / ((ADC_MAX / val) - 1);
+    double ntcResistanceApprox = pullupResistance / (((double) ADC_MAX / sample) - 1);
     // double fullScaleLeakageOffset = 1 / (1 / ntcResistanceApprox + 1 / pullupResistance) * FULL_SCALE_LEAKAGE_CURRENT / FULL_SCALE_VOLTAGE;
     // double offsetAdjustedVal = val + fullScaleLeakageOffset * val;
     // double ntcResistance = pullupResistance / ((FULL_SCALE_VREF / offsetAdjustedVal) - 1);
@@ -41,8 +41,8 @@ uint16_t NTC::latest() {
     return samples[(idx - 1) % NTC_SAMPLES];
 }
 
-double NTC::adc() {
-    return ((double) runningSum) / NTC_SAMPLES;
+uint16_t NTC::adc() {
+    return round((double) runningSum / NTC_SAMPLES);
 }
 
 uint16_t NTC::min() {

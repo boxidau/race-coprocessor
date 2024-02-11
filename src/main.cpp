@@ -73,9 +73,8 @@ void setup()
     adc->adc0->setResolution(16);
     adc->adc0->setReference(ADC_REFERENCE::REF_EXT);
     adc->adc0->setAveraging(0);
-    adc->adc0->setConversionSpeed(ADC_CONVERSION_SPEED::VERY_LOW_SPEED); // try LOW_SPEED or VERY_LOW_SPEED. HIGH_SPEED_16_BITS is good
+    adc->adc0->setConversionSpeed(ADC_CONVERSION_SPEED::HIGH_SPEED);
     adc->adc0->setSamplingSpeed(ADC_SAMPLING_SPEED::HIGH_SPEED);
-    adc->adc0->recalibrate();
 
     adc->adc1->setResolution(16);
     adc->adc1->setReference(ADC_REFERENCE::REF_EXT);
@@ -92,8 +91,11 @@ void setup()
     CANbus.begin();
     CANLogger::setup();
     ui.setup();
-    LOG_INFO("System Boot OK");
 
+    adc->adc0->recalibrate();
+    adc->adc1->recalibrate();
+
+    LOG_INFO("System Boot OK");
 }
 
 void broadcastMessage(CAN_message_t &message)
