@@ -8,8 +8,9 @@ void NTC::loop() {
         SingletonADC::getADC()->analogReadDifferential(pin, differentialPin, adcNum);
 
     samples[idx % NTC_SAMPLES] = curValue;
-    runningSum += curValue - samples[(idx - 1) % NTC_SAMPLES];
+    runningSum += curValue;
     idx++;
+    runningSum -= samples[idx % NTC_SAMPLES];
     filteredSamples.clear();
     filteredSum = 0;
 }

@@ -40,7 +40,7 @@ void NTCLogger::setup()
     LOG_INFO("Log directory OK", logDir);
 
 
-    sprintf(logFileName, "ntc_%02d%02d%02d.csv", hour(), minute(), second());
+    sprintf(logFileName, "n%02d%02d%02d.csv", hour(), minute(), second());
     if (year() < 1980) // rtc is not set
     {
         File noDateDirectory = SD.open(logDir);
@@ -53,7 +53,7 @@ void NTCLogger::setup()
             }
         }
         noDateDirectory.close();
-        sprintf(logFileName, "ntc_%08d.csv", maxLog + 1);   
+        sprintf(logFileName, "n%05d.csv", maxLog + 1);   
     }
 
     LOG_INFO("Log directory", logDir);
@@ -110,11 +110,10 @@ void NTCLogger::flush()
     int fileWritten = 0;
     for (uint i = 0; i < ntcData.size(); i++) {
         NTCData& data = ntcData[i];
-        bufWritten += snprintf(lineBuf + bufWritten, 64, "%lu,%u,%u,%u,%u,%u,%u\n", data.time, data.ntc1, data.ntc2, data.ntcDifferential, data.ntc3, data.ntc4, data.ambient);
+        bufWritten += snprintf(lineBuf + bufWritten, 64, "%lu,%u,%u,%u,%u,%u,%u\n", (long unsigned int) data.time, data.ntc1, data.ntc2, data.ntcDifferential, data.ntc3, data.ntc4, data.ambient);
         if (bufWritten > LINEBUF_SIZE - 64) {
-            bufWritten += snprintf(lineBuf + bufWritten, 10, ",,,,,,\n");
             fileWritten = logFile.print(lineBuf);
-            if (fileWritten != bufWritten + 2)
+            if (fileWritten != bufWritten)
             {
                 enableLog = false;
                 LOG_ERROR("NTC LOG FLUSH ERROR, buffer bytes written: ", bufWritten, ", file bytes written: ", fileWritten);
@@ -123,9 +122,11 @@ void NTCLogger::flush()
 
             bufWritten = 0;
         }
-
     }
 
+    snprintf(lineBuf, 10, ",,,,,,\n");
+    logFile.print(lineBuf);
+    ntcData.clear();
     logFile.flush();
-    LOG_DEBUG("NTC LOG FLUSHED");
+    LOG_INFO("NTC LOG FLUSHED");
 }

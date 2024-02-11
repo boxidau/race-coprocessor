@@ -40,9 +40,9 @@
 #define COMPRESSOR_RESUME_PID_CONTROL_TEMP 7.0
 #define COMPRESSOR_MIN_SPEED_RATIO 0.5
 #define COMPRESSOR_MAX_SPEED_RATIO 1.0
-#define COMPRESSOR_SPEED_RATIO_TO_ANALOG (9 / (3.3 * 3.717) * 4095)
+#define COMPRESSOR_SPEED_RATIO_TO_ANALOG (9 / (3.3 * 3.717) * ADC_MAX)
 
-#define NTC_DEBUG 0
+#define NTC_DEBUG 1
 #define POLL_TIMER_MS 100
 #define COOLER_LOOP_STARTUP_TIME_MS 200
 
@@ -164,6 +164,7 @@ private:
     Metro msTick = { Metro(1) };
     uint32_t pumpStartTime = { 0 };
     NTCLogger ntcLogger;
+    unsigned long prevLoopStartTime = { 0 };
 
     // sensor values
     CompressorFaultCode compressorFaultCode { CompressorFaultCode::OK };

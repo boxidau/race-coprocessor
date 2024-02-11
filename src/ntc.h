@@ -15,7 +15,7 @@ class NTC
 private:
     const uint8_t pin, adcNum;
     const double pullupResistance;
-    const uint8_t differentialPin;
+    const uint8_t differentialPin { 0 };
     double steinhartA, steinhartB, steinhartC;
     uint16_t samples[NTC_SAMPLES];
     uint32_t runningSum { 0 };

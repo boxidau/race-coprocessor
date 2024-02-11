@@ -84,12 +84,12 @@ void setup()
     adc->adc1->setSamplingSpeed(ADC_SAMPLING_SPEED::HIGH_SPEED);
     adc->adc1->recalibrate();
 
-    analogWriteRes(12);
+    analogWriteRes(16);
 
-    cooler.setup();
-    CANbus.begin();
     Serial.begin(115200);
     ClockTime::setup();
+    cooler.setup();
+    CANbus.begin();
     CANLogger::setup();
     ui.setup();
     LOG_INFO("System Boot OK");
@@ -119,7 +119,7 @@ void loop()
     ui.loop();
     // end tick functions
 
-    if (canBroadcastTimer.check()) {
+    if (false && canBroadcastTimer.check()) {
         cooler.getCANMessage(coolerSystemMessage);
         broadcastMessage(coolerSystemMessage);
     }

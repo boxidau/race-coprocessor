@@ -138,7 +138,7 @@ void CoolerSystem::runCompressor()
     } else {
         systemEnableOutput.setBoolean(true);
         // compressorPID.SetMode(AUTOMATIC);
-        // analogWrite(compressorSpeedPin, 1 * COMPRESSOR_SPEED_RATIO_TO_ANALOG); // 9V = 100%, 4.5V = 50%.
+        analogWrite(compressorSpeedPin, 1 * COMPRESSOR_SPEED_RATIO_TO_ANALOG); // 9V = 100%, 4.5V = 50%.
         // LOG_DEBUG("Compressor input temp:", compressorInputTemp, "target temp:", compressorTempTarget, "output value", compressorSpeed);
     }
 }
@@ -167,17 +167,19 @@ void CoolerSystem::check(bool checkResult, SystemFault fault)
 
 void CoolerSystem::loop()
 {
-    double ntcSampleDuration = micros();
+    unsigned long ntcSampleDuration = 0;
     loopStartTime = loopStartTime || micros();
 
-    if (msTick.check()) {
+    unsigned long thisLoopStartTime = micros();
+    if (thisLoopStartTime / 1000 != prevLoopStartTime / 1000) { //msTick.check()) {
+        ntcSampleDuration = micros();
         evaporatorInletNTC.loop();
         evaporatorOutletNTC.loop();
         evaporatorDifferentialNTC.loop();
         condenserInletNTC.loop();
         condenserOutletNTC.loop();
         ambientNTC.loop();
-        ntcSampleDuration = ntcSampleDuration - micros();
+        ntcSampleDuration = micros() - ntcSampleDuration;
 
         pressureSensor.loop();
         currentSensor.loop();
@@ -190,6 +192,7 @@ void CoolerSystem::loop()
             ntcLogger.logSamples(evaporatorInletNTC.latest(), evaporatorOutletNTC.latest(), evaporatorDifferentialNTC.latest(), condenserInletNTC.latest(), condenserOutletNTC.latest(), ambientNTC.latest());
         }
     }
+    prevLoopStartTime = thisLoopStartTime;
     //flowSensor.loop();
 
     // give time for samples to populate
@@ -225,9 +228,10 @@ void CoolerSystem::loop()
 
     if (displayInfoTimer.check()) {
         if (NTC_DEBUG) {
+            return;
             uint16_t min = ambientNTC.min(), max = ambientNTC.max();
             Serial.printf(
-                "[%3f s] Ambient Temp: avg %5d (%.3f)  median %5d (%.3f)  stdev %5d (%.3f)  range %5d (%.3f)      filtered: avg %5d (%.3f)  stdev %5d (%.3f)      duration %5d\n",
+                "[%3f s] Ambient Temp: avg %5d (%.3f)  median %5d (%.3f)  stdev %5d (%.3f)  range %5d (%.3f)      filtered: avg %5d (%.3f)  stdev %5d (%.3f)      duration %u\n",
                 (double) ntcLogger.msSinceStarted() / 1000,
                 ambientNTC.adc(),
                 ambientNTC.temperature(),
@@ -236,13 +240,13 @@ void CoolerSystem::loop()
                 ambientNTC.stdev(),
                 ambientNTC.temperatureStdev(),
                 max - min,
+                ambientNTC.temperatureFor(max) - ambientNTC.temperatureFor(min),
                 ambientNTC.averageWithoutOutliers(),
                 ambientNTC.temperatureFor(ambientNTC.averageWithoutOutliers()),
                 ambientNTC.stdevWithoutOutliers(),
                 ambientNTC.temperatureStdevWithoutOutliers(),
                 ntcSampleDuration
             );
-
             return;
         }
         Serial.println("----------------- Cooler Statistics -------------------");
@@ -252,11 +256,11 @@ void CoolerSystem::loop()
         Serial.printf("  System 3.3V:                   %.2f V\n", voltageMonitor.get3v3MilliVolts() / 1000.0);
         Serial.printf("  System P3.3V:                  %.2f V\n", voltageMonitor.getp3v3MilliVolts() / 1000.0);
         Serial.println("Inputs ------------------------------------------------");
-        Serial.printf("  Evaporator Inlet:              %.2f °C ( %d )\n", evaporatorInletTemp, evaporatorInletNTC.adc());
-        Serial.printf("  Evaporator Outlet:             %.2f °C ( %d )\n", evaporatorOutletTemp, evaporatorOutletNTC.adc());
-        Serial.printf("  Condenser Inlet:               %.2f °C ( %d )\n", condenserInletTemp, condenserInletNTC.adc());
-        Serial.printf("  Condenser Outlet:              %.2f °C ( %d )\n", condenserOutletTemp, condenserOutletNTC.adc());
-        Serial.printf("  Ambient Temp:                  %.2f °C ( %d )\n", ambientTemp, ambientNTC.adc());
+        Serial.printf("  Evaporator Inlet:              %.2f °C ( %d )\n", evaporatorInletTemp, (int) evaporatorInletNTC.adc());
+        Serial.printf("  Evaporator Outlet:             %.2f °C ( %d )\n", evaporatorOutletTemp, (int) evaporatorOutletNTC.adc());
+        Serial.printf("  Condenser Inlet:               %.2f °C ( %d )\n", condenserInletTemp, (int) condenserInletNTC.adc());
+        Serial.printf("  Condenser Outlet:              %.2f °C ( %d )\n", condenserOutletTemp, (int) condenserOutletNTC.adc());
+        Serial.printf("  Ambient Temp:                  %.2f °C ( %d )\n", ambientTemp, (int) ambientNTC.adc());
         Serial.printf("  Cooling Power:                 %.2f W\n", coolingPower);
         Serial.printf("  System Pressure:               %d kPa ( %d )\n", systemPressure, pressureSensor.adc());
         Serial.printf("  Coolant Level:                 %s\n", coolantLevel ? "OK" : "LOW");
@@ -313,7 +317,7 @@ uint8_t clampAndScale(double val, int minVal, int scale) {
 void CoolerSystem::getCANMessage(CAN_message_t &msg)
 {
     msg.id = CANID_COOLER_SYSTEM;
-    msg.len = 9;
+    msg.len = 8;
     // msg.flags = {};
 
     // byte | purpose
@@ -351,6 +355,6 @@ void CoolerSystem::getCANMessage(CAN_message_t &msg)
     if (coolantLevel) msg.buf[7] |= 0x10;
     if (undertempCutoff) msg.buf[7] |= 0x08;
     msg.buf[7] |= (0x07 & (uint8_t)systemStatus);
-    msg.buf[8] = (uint8_t)_systemFault;
-    msg.buf[9] = (uint8_t)compressorFault.getCode();
+    //msg.buf[8] = (uint8_t)_systemFault;
+    //msg.buf[9] = (uint8_t)compressorFault.getCode();
 };
