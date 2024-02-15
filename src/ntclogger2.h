@@ -1,23 +1,11 @@
 #include "Arduino.h"
-#include <SD.h>
+#include <SdFat.h>
 #include <Array.h>
 
 #define NTC_ARRAY_SIZE 20000
 #define LINEBUF_SIZE 8000
 
-struct NTCData {
-    uint32_t time;
-    /*
-    uint16_t ntc1;
-    uint16_t ntc2;
-    uint16_t ntcDifferential;
-    uint16_t ntc3;
-    uint16_t ntc4;
-    */
-    uint16_t ambient;
-};
-
-class NTCLogger
+class NTCLogger2
 {
 public:
     void setup();
@@ -27,7 +15,7 @@ public:
 private:
     void flush();
 
-    File logFile;
+    File32 logFile;
     unsigned long prevTime { 0 };
     int bufWritten { 0 };
     uint64_t time64 { 0 };

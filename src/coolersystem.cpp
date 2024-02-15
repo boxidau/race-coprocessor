@@ -24,6 +24,7 @@ void CoolerSystem::setup()
 
     evaporatorInletNTC.setup();
     evaporatorOutletNTC.setup();
+    evaporatorDifferentialNTC.setup();
     condenserInletNTC.setup();
     condenserOutletNTC.setup();
     ambientNTC.setup();
@@ -167,44 +168,44 @@ void CoolerSystem::check(bool checkResult, SystemFault fault)
 
 void CoolerSystem::loop()
 {
-    unsigned long ntcSampleDuration = 0;
-    loopStartTime = loopStartTime || micros();
-
-    unsigned long thisLoopStartTime = micros();
-    if (thisLoopStartTime / 1000 != prevLoopStartTime / 1000) { //msTick.check()) {
-        ntcSampleDuration = micros();
-        evaporatorInletNTC.loop();
-        evaporatorOutletNTC.loop();
-        evaporatorDifferentialNTC.loop();
-        condenserInletNTC.loop();
-        condenserOutletNTC.loop();
-        ambientNTC.loop();
-        ntcSampleDuration = micros() - ntcSampleDuration;
-
-        pressureSensor.loop();
-        currentSensor.loop();
-        compressorFault.loop();
-        _pollCoolantLevel();
-        switchADC.loop();
-        voltageMonitor.loop();
-
-        if (NTC_DEBUG && startupDone) {
-            ntcLogger.logSamples(evaporatorInletNTC.latest(), evaporatorOutletNTC.latest(), evaporatorDifferentialNTC.latest(), condenserInletNTC.latest(), condenserOutletNTC.latest(), ambientNTC.latest());
-        }
+    if (firstLoop) {
+        // reset the timers so they're in sync with when the first sample was taken
+        pollTimer.reset();
+        displayInfoTimer.reset();
+        firstLoop = false;
+        startTimeIndex = micros();
     }
-    prevLoopStartTime = thisLoopStartTime;
-    //flowSensor.loop();
 
-    // give time for samples to populate
-    if (!startupDone && micros() - loopStartTime < COOLER_LOOP_STARTUP_TIME_MS * 1000) {
+    if (!msTick.check()) {
         return;
     }
-    startupDone = true;
+
+    unsigned long ntcSampleDuration = micros();
+    unsigned long loopStart = ntcSampleDuration;
+    evaporatorInletNTC.loop();
+    evaporatorOutletNTC.loop();
+    evaporatorDifferentialNTC.loop();
+    condenserInletNTC.loop();
+    condenserOutletNTC.loop();
+    ambientNTC.loop();
+    ntcSampleDuration = micros() - ntcSampleDuration;
+
+    pressureSensor.loop();
+    currentSensor.loop();
+    compressorFault.loop();
+    _pollCoolantLevel();
+    switchADC.loop();
+    voltageMonitor.loop();
+
+    if (NTC_DEBUG) {
+        ntcLogger.logSamples(evaporatorInletNTC.latest(), evaporatorOutletNTC.latest(), evaporatorDifferentialNTC.latest(), condenserInletNTC.latest(), condenserOutletNTC.latest(), ambientNTC.latest());
+    }
+    //flowSensor.loop();
 
     if (pollTimer.check()) {
         flowRate = flowSensor.flowRate();
-        systemPressure = pressureSensor.calibratedValue() * voltageMonitor.get5vMilliVolts() / 5000;
-        compressorCurrent = currentSensor.calibratedValue() * voltageMonitor.get5vMilliVolts() / 5000;
+        systemPressure = pressureSensor.calibratedValue();
+        compressorCurrent = currentSensor.calibratedValue();
         evaporatorInletTemp = evaporatorInletNTC.temperature();
         evaporatorOutletTemp = evaporatorOutletNTC.temperature();
         evaporatorDifferentialTemp = evaporatorInletTemp + evaporatorInletNTC.temperatureFor(evaporatorInletNTC.adc() + evaporatorDifferentialNTC.adc());
@@ -229,31 +230,10 @@ void CoolerSystem::loop()
     if (displayInfoTimer.check()) {
         if (NTC_DEBUG) {
             Serial.printf(
-                "[%3f s] Ambient Temp: avg %5d (%.3f)    duration %u\n",
-                (double) ntcLogger.msSinceStarted() / 1000,
-                evaporatorInletNTC.adc(),
-                evaporatorInletNTC.temperature(),
-                ntcSampleDuration
-            );
-            return;
-            
-            // old debug info
-            uint16_t min = ambientNTC.min(), max = ambientNTC.max();
-            Serial.printf(
-                "[%3f s] Ambient Temp: avg %5d (%.3f)  median %5d (%.3f)  stdev %5d (%.3f)  range %5d (%.3f)      filtered: avg %5d (%.3f)  stdev %5d (%.3f)      duration %u\n",
+                "[%.3f s] Ambient Temp: avg %5d (%.3f C)    duration %u us\n",
                 (double) ntcLogger.msSinceStarted() / 1000,
                 ambientNTC.adc(),
                 ambientNTC.temperature(),
-                ambientNTC.median(),
-                ambientNTC.temperatureFor(ambientNTC.median()),
-                ambientNTC.stdev(),
-                ambientNTC.temperatureStdev(),
-                max - min,
-                ambientNTC.temperatureFor(max) - ambientNTC.temperatureFor(min),
-                ambientNTC.averageWithoutOutliers(),
-                ambientNTC.temperatureFor(ambientNTC.averageWithoutOutliers()),
-                ambientNTC.stdevWithoutOutliers(),
-                ambientNTC.temperatureStdevWithoutOutliers(),
                 ntcSampleDuration
             );
             return;
@@ -367,4 +347,24 @@ void CoolerSystem::getCANMessage(CAN_message_t &msg)
     msg.buf[7] |= (0x07 & (uint8_t)systemStatus);
     //msg.buf[8] = (uint8_t)_systemFault;
     //msg.buf[9] = (uint8_t)compressorFault.getCode();
+};
+
+void CoolerSystem::getLogMessage(char* message)
+{
+    sprintf(message, "%.3f,%.3f,%.3f,%u,%u,%.3f,%u,%s,%s,%s,%s,%u,%s",
+        (double)(micros() - startTimeIndex) / 1e6,
+        evaporatorInletTemp,
+        evaporatorOutletTemp,
+        evaporatorInletNTC.adc(),
+        evaporatorOutletNTC.adc(),
+        ambientTemp,
+        flowRate,
+        CoolerSwitchPositionToString(switchADC.position()),
+        CoolerSystemStatusToString(systemStatus),
+        systemEnableOutput.value() ? "ON" : "OFF",
+        chillerPumpPWM.value() ? "ON" : "OFF",
+        coolshirtPWM.percent(),
+        undertempCutoff ? "CUTOFF" : "OK"
+    );
+    LOG_INFO(message);
 };

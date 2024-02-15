@@ -2,29 +2,27 @@
 #include "constants.h"
 #include "singletonadc.h"
 #include <math.h>
-#include <DebugLog.h>
 #include <Array.h>
 
-#define NTC_SAMPLES 101 // odd number so median is an integer
+#define NTC_DEFAULT_SAMPLES 100
+#define NTC_PRECISION_SAMPLES 1000
 #define FULL_SCALE_LEAKAGE_CURRENT 0.0307e-6 // Amps @ FS (65535), assume this scales linearly with input voltage
 #define FULL_SCALE_VOLTAGE 3.3 // Volts
 #define FULL_SCALE_VREF 65516 // FS reading @ 3.3V @ zero leakage
 
-class NTC
+template <int NTC_SAMPLES> class BaseNTC
 {
 private:
     const uint8_t pin, adcNum;
     const double pullupResistance;
     const uint8_t differentialPin { 0 };
     double steinhartA, steinhartB, steinhartC;
-    uint16_t samples[NTC_SAMPLES];
+    Array<uint16_t, NTC_SAMPLES> samples;
     uint32_t runningSum { 0 };
-    uint8_t idx { 0 };
-    Array<uint16_t, NTC_SAMPLES> filteredSamples;
-    uint32_t filteredSum { 0 };
+    uint16_t idx { 0 };
 
 public:
-    NTC(
+    BaseNTC(
         const uint8_t _pin,
         const uint8_t _adcNum,
         const double _pullupResistance,
@@ -49,23 +47,53 @@ public:
             pinMode(differentialPin, INPUT);
         }
     }
-    void loop();
-    double temperature();
-    uint16_t adc();
-    uint16_t latest();
 
-    double temperatureFor(uint16_t sample);
+    void acquireAndDiscardSample() {
+        uint16_t curValue = !differentialPin ? 
+            SingletonADC::getADC()->analogRead(pin, adcNum) :
+            SingletonADC::getADC()->analogReadDifferential(pin, differentialPin, adcNum);
+    }
+    
+    void loop() {
+        uint16_t curValue = !differentialPin ? 
+            SingletonADC::getADC()->analogRead(pin, adcNum) :
+            SingletonADC::getADC()->analogReadDifferential(pin, differentialPin, adcNum);
 
-    uint16_t min();
-    uint16_t max();
-    uint16_t median();
-    double stdev();
-    double temperatureStdev();
+        if (!samples.full()) {
+            samples.push_back(curValue);
+        } else {
+            runningSum -= samples[idx % NTC_SAMPLES];
+            samples[idx % NTC_SAMPLES] = curValue;
+        }
+        idx++;
+        runningSum += curValue;
+    }
 
-    double averageWithoutOutliers();
-    double stdevWithoutOutliers();
-    double temperatureStdevWithoutOutliers();
+    double temperature() {
+        if (differentialPin) {
+            return 0;
+        }
 
-private:
-    void memoizeFilteredSamples();
+        return temperatureFor(adc());        
+    }
+
+    uint16_t adc() {
+        return !samples.empty() ? round((double) runningSum / samples.size()) : 0;
+    }
+
+    uint16_t latest() {
+        return !samples.empty() ? samples[(idx - 1) % NTC_SAMPLES] : 0;
+    };
+
+    double temperatureFor(uint16_t sample) {
+        double ntcResistanceApprox = pullupResistance / (((double) ADC_MAX / sample) - 1);
+        // double fullScaleLeakageOffset = 1 / (1 / ntcResistanceApprox + 1 / pullupResistance) * FULL_SCALE_LEAKAGE_CURRENT / FULL_SCALE_VOLTAGE;
+        // double offsetAdjustedVal = val + fullScaleLeakageOffset * val;
+        // double ntcResistance = pullupResistance / ((FULL_SCALE_VREF / offsetAdjustedVal) - 1);
+        double lnR = log(ntcResistanceApprox);
+        return  1 / (steinhartA + (steinhartB * lnR) + (steinhartC * pow(lnR, 3))) - 273.15;
+    }
 };
+
+typedef BaseNTC<NTC_DEFAULT_SAMPLES> NTC;
+typedef BaseNTC<NTC_PRECISION_SAMPLES> PrecisionNTC;

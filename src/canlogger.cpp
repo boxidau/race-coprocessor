@@ -51,7 +51,7 @@ void CANLogger::setup()
     LOG_INFO("Log directory OK", logDir);
 
 
-    sprintf(logFileName, "%02d%02d%02d.crd", hour(), minute(), second());
+    sprintf(logFileName, "%02d%02d%02d.csv", hour(), minute(), second());
     if (year() < 1980) // rtc is not set
     {
         File noDateDirectory = SD.open(logDir);
@@ -59,12 +59,12 @@ void CANLogger::setup()
         int maxLog = 0;
         while (existingLogFile = noDateDirectory.openNextFile()) {
             int curLog = 0;
-            if(sscanf(existingLogFile.name(), "%d.crd", &curLog) && curLog > maxLog) {
+            if(sscanf(existingLogFile.name(), "%d.csv", &curLog) && curLog > maxLog) {
                 maxLog = curLog;
             }
         }
         noDateDirectory.close();
-        sprintf(logFileName, "%08d.crd", maxLog + 1);   
+        sprintf(logFileName, "%08d.csv", maxLog + 1);   
     }
 
     LOG_INFO("Log directory", logDir);
@@ -79,6 +79,7 @@ void CANLogger::setup()
     }
 
     logFile = SD.open(fullLogFilePath, FILE_WRITE);
+    logFile.println("time,evapInletTemp,evapOutletTemp,inletADC,outletADC,ambientTemp,flowRate,switchPos,status,systemEnable,chillerPump,coolshirtPWM,underTempCutoff");
     enableLog = true;
 }
 
@@ -113,6 +114,12 @@ void CANLogger::stringify(char output[255], const CAN_message_t &message, bool r
 void CANLogger::logCANMessage(const CAN_message_t &message, bool rx)
 {
     stringify(lineBuffer, message, rx);
+    write();
+}
+
+void CANLogger::logMessage(const char* message)
+{
+    strcpy(lineBuffer, message);
     write();
 }
 

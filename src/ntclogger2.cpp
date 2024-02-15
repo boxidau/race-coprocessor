@@ -1,23 +1,46 @@
-#include "ntclogger.h"
+#include "ntclogger2.h"
 
 #include "clocktime.h"
 
 #include <DebugLog.h>
 #include <Metro.h>
 #include <TimeLib.h>
-#include <SD.h>
+#include <SdFat.h>
 
-void NTCLogger::setup()
+SdFat32 sd;
+File32 file;
+
+#ifndef SDCARD_SS_PIN
+const uint8_t SD_CS_PIN = SS;
+#else   // SDCARD_SS_PIN
+// Assume built-in SD is used.
+const uint8_t SD_CS_PIN = SDCARD_SS_PIN;
+#endif  // SDCARD_SS_PIN
+
+void NTCLogger2::setup()
 {
+    if (!sd.begin(SdioConfig(FIFO_SDIO))) {
+        if (sd.sdErrorCode()) {
+            if (sd.sdErrorCode() == SD_CARD_ERROR_ACMD41) {
+            Serial.println("Try power cycling the SD card.");
+            }
+            printSdErrorSymbol(&Serial, sd.sdErrorCode());
+            Serial.print(", ErrorData: 0X");
+            Serial.println(sd.sdErrorData(), HEX);
+        }
+    }
+    Serial.println("\nDedicated SPI mode.");
+
     lineBuf = new char[LINEBUF_SIZE];
 
     LOG_DEBUG("Initializing SD card");
-    if (!SD.begin(BUILTIN_SDCARD))
+/*
+    if (!.begin(BUILTIN_SDCARD))
     {
         LOG_WARN("SD card initialization failed, is a card inserted?");
         return;
     }
-
+*/
     LOG_DEBUG("An SD card is present");
 
     char logDir[10];
@@ -29,9 +52,9 @@ void NTCLogger::setup()
     {
         sprintf(logDir, "%s", "NODATE");
     }
-    if (!SD.exists(logDir))
+    if (!sd.exists(logDir))
     {
-        if (!SD.mkdir(logDir))
+        if (!sd.mkdir(logDir))
         {
             LOG_ERROR("Unable to make log directory", logDir);
             return;
@@ -43,12 +66,14 @@ void NTCLogger::setup()
     sprintf(logFileName, "n%02d%02d%02d.csv", hour(), minute(), second());
     if (year() < 1980) // rtc is not set
     {
-        File noDateDirectory = SD.open(logDir);
-        File existingLogFile;
+        File32 noDateDirectory = sd.open(logDir);
+        File32 existingLogFile;
         int maxLog = 0;
         while (existingLogFile = noDateDirectory.openNextFile()) {
             int curLog = 0;
-            if(sscanf(existingLogFile.name(), "ntc_%d.csv", &curLog) && curLog > maxLog) {
+            char existingLogFileName[32];
+            existingLogFile.getName(existingLogFileName, 32);
+            if(sscanf(existingLogFileName, "n%d.csv", &curLog) && curLog > maxLog) {
                 maxLog = curLog;
             }
         }
@@ -62,16 +87,16 @@ void NTCLogger::setup()
     LOG_INFO("Log file full path", fullLogFilePath);
 
 
-    if (SD.exists(fullLogFilePath))
+    if (sd.exists(fullLogFilePath))
     {
         LOG_ERROR("Log file already exists, overwriting");
     }
 
-    logFile = SD.open(fullLogFilePath, FILE_WRITE);
+    logFile = sd.open(fullLogFilePath, FILE_WRITE);
     enableLog = true;
 }
 
-void NTCLogger::logSamples(uint16_t ntc1, uint16_t ntc2, uint16_t ntcDifferential, uint16_t ntc3, uint16_t ntc4, uint16_t ambient) {
+void NTCLogger2::logSamples(uint16_t ntc1, uint16_t ntc2, uint16_t ntcDifferential, uint16_t ntc3, uint16_t ntc4, uint16_t ambient) {
     // 4 digits + 5 * 5 + commas + newline = 35 chars per line
     unsigned long time = micros();
     prevTime = started ? prevTime : time;
@@ -94,7 +119,7 @@ void NTCLogger::logSamples(uint16_t ntc1, uint16_t ntc2, uint16_t ntcDifferentia
     }
 }
 
-void NTCLogger::flush()
+void NTCLogger2::flush()
 {
     if (!enableLog) {
         return;

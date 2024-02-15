@@ -42,9 +42,8 @@
 #define COMPRESSOR_MAX_SPEED_RATIO 1.0
 #define COMPRESSOR_SPEED_RATIO_TO_ANALOG (9 / (3.3 * 3.717) * ADC_MAX)
 
-#define NTC_DEBUG 1
+#define NTC_DEBUG 0
 #define POLL_TIMER_MS 100
-#define COOLER_LOOP_STARTUP_TIME_MS 200
 
 enum class CoolerSystemStatus {
     REQUIRES_RESET = 0,
@@ -147,7 +146,9 @@ private:
     uint8_t coolantLevelPin;
     uint8_t compressorSpeedPin;
     FlowSensor flowSensor;
-    NTC evaporatorInletNTC, evaporatorOutletNTC, evaporatorDifferentialNTC, condenserInletNTC, condenserOutletNTC, ambientNTC;
+    PrecisionNTC evaporatorInletNTC, evaporatorOutletNTC;
+    NTC evaporatorDifferentialNTC, condenserInletNTC, condenserOutletNTC;
+    PrecisionNTC ambientNTC;
 
     // outputs
     PWMOutput coolshirtPWM, chillerPumpPWM, systemEnableOutput;
@@ -159,12 +160,13 @@ private:
     CoolerSystemStatus systemStatus { CoolerSystemStatus::REQUIRES_RESET };
     CoolerSwitchPosition switchPosition { CoolerSwitchPosition::UNKNOWN };
 
-    Metro pollTimer { Metro(POLL_TIMER_MS) };
-    Metro displayInfoTimer { Metro(NTC_DEBUG ? 500 : 2000) };
-    Metro msTick = { Metro(1) };
+    Metro pollTimer { Metro(POLL_TIMER_MS, 1) };
+    Metro displayInfoTimer { Metro(NTC_DEBUG ? 500 : 2000, 1) };
+    Metro msTick = { Metro(1, 1) };
     uint32_t pumpStartTime = { 0 };
     NTCLogger ntcLogger;
-    unsigned long prevLoopStartTime = { 0 };
+    bool firstLoop { true };
+    unsigned long startTimeIndex { 0 };
 
     // sensor values
     CompressorFaultCode compressorFaultCode { CompressorFaultCode::OK };
@@ -180,8 +182,6 @@ private:
     double ambientTemp { -100.0 };
     double coolingPower { 0 };
     bool chillerPumpRunning { false };
-    unsigned long loopStartTime { 0 };
-    bool startupDone { false };
 
     // output states
     // for logging/canbus output
@@ -245,12 +245,12 @@ public:
         , coolantLevelPin { _coolantLevelPin }
         , compressorSpeedPin { _compressorSpeedPin }
         , flowSensor { FlowSensor(_flowRatePin, FLOW_SENSOR_PULSES_PER_SECOND) }
-        , evaporatorInletNTC { NTC(_evaporatorInletNtcPin, _ntcADCNum, 15000) }
-        , evaporatorOutletNTC { NTC(_evaporatorOutletNtcPin, _ntcADCNum, 15000) }
+        , evaporatorInletNTC { PrecisionNTC(_evaporatorInletNtcPin, _ntcADCNum, 15000) }
+        , evaporatorOutletNTC { PrecisionNTC(_evaporatorOutletNtcPin, _ntcADCNum, 15000) }
         , evaporatorDifferentialNTC { NTC(_evaporatorDifferentialNtcPin1, _ntcADCNum, 15000, _evaporatorDifferentialNtcPin2) }
         , condenserInletNTC { NTC(_condenserInletNtcPin, _ntcADCNum, 6800) }
         , condenserOutletNTC { NTC(_condenserOutletNtcPin, _ntcADCNum, 6800) }
-        , ambientNTC { NTC(_ambientNtcPin, _ntcADCNum, 6800) }
+        , ambientNTC { PrecisionNTC(_ambientNtcPin, _ntcADCNum, 6800) }
         , coolshirtPWM { PWMOutput(_coolshirtPumpPin) }
         , chillerPumpPWM { PWMOutput(_chillerPumpPin) }
         , systemEnableOutput { PWMOutput(_systemEnablePin) }
@@ -261,6 +261,7 @@ public:
     void setup();
     void loop();
     void getCANMessage(CAN_message_t &msg);
+    void getLogMessage(char* message);
     byte systemFault();
     void getSystemData(CoolerSystemData &data);
     unsigned long lastFlowPulseMicros();

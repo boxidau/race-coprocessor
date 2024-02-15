@@ -121,9 +121,12 @@ void loop()
     ui.loop();
     // end tick functions
 
-    if (false && canBroadcastTimer.check()) {
-        cooler.getCANMessage(coolerSystemMessage);
-        broadcastMessage(coolerSystemMessage);
+    if (canBroadcastTimer.check()) {
+        char message[256];
+        //cooler.getCANMessage(coolerSystemMessage);
+        cooler.getLogMessage(message);
+        CANLogger::logMessage(message);
+        //broadcastMessage(coolerSystemMessage);
     }
 
     // // read canbus data if message is available
@@ -137,7 +140,7 @@ void loop()
         CANLogger::logComment("loop_time=" + (String)loopTime + "uS");
     }
 
-    if (loopTime > 2000) {
-        LOG_INFO("SLOW LOOP loop_time=" + (String)loopTime + "uS");
+    if (loopTime > 1000) {
+        LOG_INFO("SLOW LOOP:", loopTime, "us");
     }
 }

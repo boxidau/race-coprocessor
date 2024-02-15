@@ -12,7 +12,11 @@
         "streambuf": "cpp",
         "cmath": "cpp",
         "algorithm": "cpp",
-        "string_view": "cpp"
+        "string_view": "cpp",
+        "deque": "cpp",
+        "vector": "cpp",
+        "system_error": "cpp",
+        "array": "cpp"
     },
     "C_Cpp.errorSquiggles": "Enabled"
 }

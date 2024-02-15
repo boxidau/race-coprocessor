@@ -57,7 +57,7 @@ public:
 
     void loop() {
         bounce.update();
-        if (!(millis() % 100)) LOG_INFO("100ms value ", analogRead(pin));
+        //if (!(millis() % 100)) LOG_INFO("100ms value ", analogRead(pin));
         if (!recordingFault && bounce.fallingEdge()) {
             LOG_INFO("first falling edge, ", millis(), analogRead(pin));
             recordingFault = true;

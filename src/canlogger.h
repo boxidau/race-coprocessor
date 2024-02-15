@@ -13,6 +13,8 @@ public:
     static void logCANMessage(const CAN_message_t &message, bool rx);
     static void stringify(char *output, const CAN_message_t &message, bool rx);
     static bool error;
+
+    static void logMessage(const char* message);
 private:
     static void write();
 };
