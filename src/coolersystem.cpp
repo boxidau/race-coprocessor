@@ -106,7 +106,7 @@ void CoolerSystem::runChillerPump()
 
     if (chillerPumpPWM.value() == 0) {
         pumpStartTime = millis();
-        chillerPumpPWM.setPercent(66);
+        chillerPumpPWM.setPercent(100);//was 66
     }
     uint32_t pumpRunTime = millis() - pumpStartTime;
     // we haven't seen enough flow after some amount of time
@@ -182,6 +182,7 @@ void CoolerSystem::loop()
 
     unsigned long ntcSampleDuration = micros();
     unsigned long loopStart = ntcSampleDuration;
+    uint16_t inletSample = evaporatorInletNTC.acquireAndDiscardSample();
     evaporatorInletNTC.loop();
     evaporatorOutletNTC.loop();
     evaporatorDifferentialNTC.loop();
@@ -198,7 +199,7 @@ void CoolerSystem::loop()
     voltageMonitor.loop();
 
     if (NTC_DEBUG) {
-        ntcLogger.logSamples(evaporatorInletNTC.latest(), evaporatorOutletNTC.latest(), evaporatorDifferentialNTC.latest(), condenserInletNTC.latest(), condenserOutletNTC.latest(), ambientNTC.latest());
+        ntcLogger.logSamples(inletSample, evaporatorInletNTC.latest(), evaporatorOutletNTC.latest(), evaporatorDifferentialNTC.latest(), condenserInletNTC.latest(), condenserOutletNTC.latest(), ambientNTC.latest());
     }
     //flowSensor.loop();
 
@@ -366,5 +367,5 @@ void CoolerSystem::getLogMessage(char* message)
         coolshirtPWM.percent(),
         undertempCutoff ? "CUTOFF" : "OK"
     );
-    LOG_INFO(message);
+    //LOG_INFO(message);
 };

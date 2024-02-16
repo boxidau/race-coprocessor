@@ -48,8 +48,8 @@ public:
         }
     }
 
-    void acquireAndDiscardSample() {
-        uint16_t curValue = !differentialPin ? 
+    uint16_t acquireAndDiscardSample() {
+        return !differentialPin ? 
             SingletonADC::getADC()->analogRead(pin, adcNum) :
             SingletonADC::getADC()->analogReadDifferential(pin, differentialPin, adcNum);
     }
