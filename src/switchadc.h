@@ -1,8 +1,9 @@
 #pragma once
 
 #include "Arduino.h"
-#include "constants.h"
 #include <DebugLog.h>
+#include <Array.h>
+#include "constants.h"
 #include "singletonadc.h"
 
 #define SWITCH_ADC_SAMPLES 10
@@ -21,7 +22,7 @@ class SwitchADC
 private:
     const uint8_t pin;
     uint8_t idx = { 0 };
-    uint16_t samples[SWITCH_ADC_SAMPLES];
+    Array<uint16_t, SWITCH_ADC_SAMPLES> samples;
     uint8_t adcNum;
 
 public:

@@ -13,11 +13,13 @@
 #include "ui.h"
 #include "voltagemonitor.h"
 #include "singletonadc.h"
+#include "looptimer.h"
 
 #define HSR_LOGGER
 
 Metro statsTimer = Metro(10000);
 Metro canBroadcastTimer = Metro(100);
+LoopTimer loopTimer = LoopTimer();
 
 FlexCAN CANbus = FlexCAN(500000, 0, true, true);
 
@@ -46,8 +48,6 @@ CoolerSystem cooler = CoolerSystem(
     ADC_COMPRESSOR_LDR, // compressorLDRPin,
     NTC_EVAPORATOR_1, // _ntc1Pin,
     NTC_EVAPORATOR_2, // _ntc2Pin,
-    NTC_EVAPORATOR_DIFF_1,
-    NTC_EVAPORATOR_DIFF_2,
     NTC_CONDENSER_1, // condenser inlet
     NTC_CONDENSER_2, // condenser outlet
     NTC_AMBIENT,
@@ -61,11 +61,12 @@ CoolerSystem cooler = CoolerSystem(
 
 CoolerUI ui = CoolerUI(cooler, SPI_DISPLAY_CS, UI_BUTTON);
 
-unsigned long previousLoop, loopStart;
-
 void setup()
 {
     // LOG_SET_LEVEL(DebugLogLevel::LVL_DEBUG);
+
+    // initialize pin inputs/outputs first thing so they stabilize
+    cooler.setup();
 
     // Set up and calibrate ADCs, see https://forum.pjrc.com/index.php?threads/adc-library-with-support-for-teensy-4-3-x-and-lc.25532/
     // adc0 is for NTCs, adc1 everything else
@@ -81,13 +82,11 @@ void setup()
     adc->adc1->setAveraging(0);
     adc->adc1->setConversionSpeed(ADC_CONVERSION_SPEED::HIGH_SPEED);
     adc->adc1->setSamplingSpeed(ADC_SAMPLING_SPEED::HIGH_SPEED);
-    adc->adc1->recalibrate();
 
     analogWriteRes(16);
 
     Serial.begin(115200);
     ClockTime::setup();
-    cooler.setup();
     CANbus.begin();
     CANLogger::setup();
     ui.setup();
@@ -109,23 +108,23 @@ void processRXCANMessage()
     CANLogger::logCANMessage(rxMessage, CAN_RX);
 }
 
+uint32_t slowLoopTime = 0;
+
 void loop()
 {
-    loopStart = micros();
-    // handle overflow
-    unsigned long loopTime = loopStart > previousLoop ? loopStart - previousLoop : loopStart + (UINT32_MAX - previousLoop);
-    previousLoop = loopStart;
+    uint32_t loopTime = loopTimer.start();
 
     // tick functions for all modules
     cooler.loop();
-    ui.loop();
+    bool didUIUpdate = ui.loop();
     // end tick functions
 
     if (canBroadcastTimer.check()) {
-        char message[256];
+        char message[512];
         //cooler.getCANMessage(coolerSystemMessage);
-        cooler.getLogMessage(message);
+        cooler.getLogMessage(message, slowLoopTime, didUIUpdate);
         CANLogger::logMessage(message);
+        slowLoopTime = 0;
         //broadcastMessage(coolerSystemMessage);
     }
 
@@ -137,10 +136,11 @@ void loop()
 
     if (statsTimer.check())
     {
-        CANLogger::logComment("loop_time=" + (String)loopTime + "uS");
+        //CANLogger::logComment("loop_time=" + (String)loopTime + "uS");
     }
 
     if (loopTime > 1000) {
         LOG_INFO("SLOW LOOP:", loopTime, "us");
+        slowLoopTime += loopTime;
     }
 }

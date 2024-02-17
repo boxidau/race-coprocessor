@@ -18,6 +18,7 @@
 #include "flowsensor.h"
 #include "compressorfault.h"
 #include "ntclogger.h"
+#include "looptimer.h"
 
 #define OVERPRESSURE_THRESHOLD_KPA 230
 #define PRESSURE_SENSOR_CALIBRATION_LOW_ADC 5674 // 0.5V = 0psig = 101kPa
@@ -31,8 +32,9 @@
 #define CURRENT_SENSOR_CALIBRATION_HIGH_AMPS 50
 
 #define FLOW_SENSOR_PULSES_PER_SECOND 7.5
-#define FLOW_RATE_MIN_THRESHOLD 1000
-#define FLOW_RATE_MIN_TIME_MS_THRESHOLD 5000
+#define FLOW_RATE_MIN_THRESHOLD 1000 // mL/min
+#define FLOW_RATE_STARTUP_TIME 5000 // ms allowed until the flow rate must be above threshold
+#define FLOW_RATE_MISSING_PULSE_TIME 1000 // ms allowed since the last pulse seen
 #define SPECIFIC_HEAT 4033 // J/kgK of chiller fluid (90% water / 10% IPA @ 3C)
 
 #define DESIRED_TEMP 5.0
@@ -147,7 +149,7 @@ private:
     uint8_t compressorSpeedPin;
     FlowSensor flowSensor;
     PrecisionNTC evaporatorInletNTC, evaporatorOutletNTC;
-    NTC evaporatorDifferentialNTC, condenserInletNTC, condenserOutletNTC;
+    NTC condenserInletNTC, condenserOutletNTC;
     PrecisionNTC ambientNTC;
 
     // outputs
@@ -160,6 +162,7 @@ private:
     CoolerSystemStatus systemStatus { CoolerSystemStatus::REQUIRES_RESET };
     CoolerSwitchPosition switchPosition { CoolerSwitchPosition::UNKNOWN };
 
+    LoopTimer loopTimer;
     Metro pollTimer { Metro(POLL_TIMER_MS, 1) };
     Metro displayInfoTimer { Metro(NTC_DEBUG ? 500 : 2000, 1) };
     Metro msTick = { Metro(1, 1) };
@@ -176,7 +179,6 @@ private:
     double compressorCurrent { 0 };
     double evaporatorInletTemp { -100.0 };
     double evaporatorOutletTemp { -100.0 };
-    double evaporatorDifferentialTemp { -100.0 };
     double condenserInletTemp { -100.0 };
     double condenserOutletTemp { -100.0 };
     double ambientTemp { -100.0 };
@@ -192,7 +194,7 @@ private:
     double compressorSpeed { 0 };
     double compressorTempTarget { DESIRED_TEMP };
     bool undertempCutoff { false };
-    const double Kp=1.5e-1, Ki=1e-3, Kd=0;
+    const double Kp=1.5e-1, Ki=0/*1e-3*/, Kd=0;
     PID compressorPID { PID(
         &evaporatorOutletTemp, &compressorSpeed, &compressorTempTarget,
         Kp, Ki, Kd, P_ON_M, REVERSE
@@ -226,8 +228,6 @@ public:
         uint8_t _compressorLDRPin,
         uint8_t _evaporatorInletNtcPin,
         uint8_t _evaporatorOutletNtcPin,
-        uint8_t _evaporatorDifferentialNtcPin1,
-        uint8_t _evaporatorDifferentialNtcPin2,
         uint8_t _condenserInletNtcPin,
         uint8_t _condenserOutletNtcPin,
         uint8_t _ambientNtcPin,
@@ -244,10 +244,9 @@ public:
         , compressorFault { CompressorFault(_compressorLDRPin) }
         , coolantLevelPin { _coolantLevelPin }
         , compressorSpeedPin { _compressorSpeedPin }
-        , flowSensor { FlowSensor(_flowRatePin, FLOW_SENSOR_PULSES_PER_SECOND) }
+        , flowSensor { FlowSensor(_flowRatePin, FLOW_SENSOR_PULSES_PER_SECOND, FLOW_RATE_MISSING_PULSE_TIME) }
         , evaporatorInletNTC { PrecisionNTC(_evaporatorInletNtcPin, _ntcADCNum, 15000) }
         , evaporatorOutletNTC { PrecisionNTC(_evaporatorOutletNtcPin, _ntcADCNum, 15000) }
-        , evaporatorDifferentialNTC { NTC(_evaporatorDifferentialNtcPin1, _ntcADCNum, 15000, _evaporatorDifferentialNtcPin2) }
         , condenserInletNTC { NTC(_condenserInletNtcPin, _ntcADCNum, 6800) }
         , condenserOutletNTC { NTC(_condenserOutletNtcPin, _ntcADCNum, 6800) }
         , ambientNTC { PrecisionNTC(_ambientNtcPin, _ntcADCNum, 6800) }
@@ -261,7 +260,7 @@ public:
     void setup();
     void loop();
     void getCANMessage(CAN_message_t &msg);
-    void getLogMessage(char* message);
+    void getLogMessage(char* message, uint32_t totalLoopTime, bool didUIUpdate);
     byte systemFault();
     void getSystemData(CoolerSystemData &data);
     unsigned long lastFlowPulseMicros();

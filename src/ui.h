@@ -32,7 +32,7 @@ public:
     };
     void setup();
 
-    void loop();
+    bool loop();
     bool shouldDisplayName();
     const CoolerSystemData& getCSData();
 };

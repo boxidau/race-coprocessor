@@ -10,7 +10,7 @@ https://docs.openvehicles.com/en/latest/crtd
 #include <Metro.h>
 #include <TimeLib.h>
 
-static char lineBuffer[255];
+static char lineBuffer[512];
 static int linesWritten;
 static File logFile;
 static bool enableLog;
@@ -79,7 +79,7 @@ void CANLogger::setup()
     }
 
     logFile = SD.open(fullLogFilePath, FILE_WRITE);
-    logFile.println("time,evapInletTemp,evapOutletTemp,inletADC,outletADC,ambientTemp,flowRate,switchPos,status,systemEnable,chillerPump,coolshirtPWM,underTempCutoff");
+    logFile.println("time,evapInletTemp,evapOutletTemp,ambientTemp,flowRate,pressure,system12V,system5V,system3V3,systemP3V3,coolingPower,switchPos,status,systemEnable,chillerPump,coolshirtPWM,compressorSpeed,underTempCutoff,systemFault,slowLoopTime,didUIUpdate,didSDFlush");
     enableLog = true;
 }
 
@@ -125,16 +125,18 @@ void CANLogger::logMessage(const char* message)
 
 void CANLogger::write()
 {
+    bool tick = retrySDTimer.check();
     if (!enableLog)
     {
-        if (retrySDTimer.check())
+        if (tick)
         {
             CANLogger::setup();
         }
         return;
     }
 
-    LOG_DEBUG("LOG WRITE:", + lineBuffer);
+    //LOG_DEBUG("LOG WRITE:", + lineBuffer);
+    sprintf(lineBuffer + strlen(lineBuffer), ",%u", tick);
     if (logFile.println(lineBuffer) != strlen(lineBuffer) + 2)
     {
         enableLog = false;
@@ -145,7 +147,7 @@ void CANLogger::write()
     ++linesWritten;
     error = false;
     
-    if (retrySDTimer.check())
+    if (tick)
     {
         LOG_DEBUG("LOG FLUSH, written lines: ", linesWritten );
         logFile.flush();

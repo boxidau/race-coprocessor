@@ -5,7 +5,8 @@
 #include <Array.h>
 
 #define NTC_DEFAULT_SAMPLES 100
-#define NTC_PRECISION_SAMPLES 1000
+#define NTC_PRECISION_SAMPLES 100
+
 #define FULL_SCALE_LEAKAGE_CURRENT 0.0307e-6 // Amps @ FS (65535), assume this scales linearly with input voltage
 #define FULL_SCALE_VOLTAGE 3.3 // Volts
 #define FULL_SCALE_VREF 65516 // FS reading @ 3.3V @ zero leakage
@@ -15,7 +16,6 @@ template <int NTC_SAMPLES> class BaseNTC
 private:
     const uint8_t pin, adcNum;
     const double pullupResistance;
-    const uint8_t differentialPin { 0 };
     double steinhartA, steinhartB, steinhartC;
     Array<uint16_t, NTC_SAMPLES> samples;
     uint32_t runningSum { 0 };
@@ -26,7 +26,6 @@ public:
         const uint8_t _pin,
         const uint8_t _adcNum,
         const double _pullupResistance,
-        const uint8_t _differentialPin = 0,
         const double _steinhartA = 0.00112865375,
         const double _steinhartB = 0.0002342041378,
         const double _steinhartC = 0.00000008737724626
@@ -34,7 +33,6 @@ public:
         : pin { _pin }
         , adcNum { _adcNum }
         , pullupResistance { _pullupResistance }
-        , differentialPin { _differentialPin }
         , steinhartA { _steinhartA }
         , steinhartB { _steinhartB }
         , steinhartC { _steinhartC }
@@ -43,22 +41,14 @@ public:
     
     void setup() {
         pinMode(pin, INPUT);
-        if (differentialPin) {
-            pinMode(differentialPin, INPUT);
-        }
     }
 
     uint16_t acquireAndDiscardSample() {
-        return !differentialPin ? 
-            SingletonADC::getADC()->analogRead(pin, adcNum) :
-            SingletonADC::getADC()->analogReadDifferential(pin, differentialPin, adcNum);
+        return SingletonADC::getADC()->analogRead(pin, adcNum);
     }
     
     void loop() {
-        uint16_t curValue = !differentialPin ? 
-            SingletonADC::getADC()->analogRead(pin, adcNum) :
-            SingletonADC::getADC()->analogReadDifferential(pin, differentialPin, adcNum);
-
+        uint16_t curValue = SingletonADC::getADC()->analogRead(pin, adcNum);
         if (!samples.full()) {
             samples.push_back(curValue);
         } else {
@@ -70,10 +60,6 @@ public:
     }
 
     double temperature() {
-        if (differentialPin) {
-            return 0;
-        }
-
         return temperatureFor(adc());        
     }
 

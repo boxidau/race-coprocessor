@@ -68,11 +68,11 @@ void NTCLogger::setup()
     }
 
     logFile = SD.open(fullLogFilePath, FILE_WRITE);
-    logFile.print("time,ntc1a,ntc1b,ntc2,differential,ntc3,ntc4,ambient\n");
+    logFile.print("time,ntc1a,ntc1b,ntc2,ntc3,ntc4,ambient\n");
     enableLog = true;
 }
 
-void NTCLogger::logSamples(uint16_t ntc1a, uint16_t ntc1b, uint16_t ntc2, uint16_t ntcDifferential, uint16_t ntc3, uint16_t ntc4, uint16_t ambient) {
+void NTCLogger::logSamples(uint16_t ntc1a, uint16_t ntc1b, uint16_t ntc2, uint16_t ntc3, uint16_t ntc4, uint16_t ambient) {
     // 4 digits + 5 * 5 + commas + newline = 35 chars per line
     unsigned long time = micros();
     prevTime = started ? prevTime : time;
@@ -90,7 +90,6 @@ void NTCLogger::logSamples(uint16_t ntc1a, uint16_t ntc1b, uint16_t ntc2, uint16
     data.ntc1a = ntc1a;
     data.ntc1b = ntc1b;
     data.ntc2 = ntc2;
-    data.ntcDifferential = ntcDifferential;
     data.ntc3 = ntc3;
     data.ntc4 = ntc4;
     data.ambient = ambient;
@@ -123,7 +122,7 @@ void NTCLogger::flush()
     unsigned long micro = micros();
     for (uint i = 0; i < ntcData.size(); i++) {
         NTCData& data = ntcData[i];
-        logFile.printf("%lu,%u,%u,%u,%u,%u,%u,%u\n", (long unsigned int) data.time, data.ntc1a, data.ntc1b, data.ntc2, data.ntcDifferential, data.ntc3, data.ntc4, data.ambient);
+        logFile.printf("%lu,%u,%u,%u,%u,%u,%u\n", (long unsigned int) data.time, data.ntc1a, data.ntc1b, data.ntc2, data.ntc3, data.ntc4, data.ambient);
     }
 /*
     int bufWritten = 0;

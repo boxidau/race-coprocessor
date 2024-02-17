@@ -24,13 +24,13 @@ void VoltageMonitor::loop() {
 
 const bool VoltageMonitor::underVoltage() {
     return (get3v3MilliVolts() < UNDERVOLT_3V3)
-        || (getp3v3MilliVolts() < UNDERVOLT_P3V3)
+//        || (getp3v3MilliVolts() < UNDERVOLT_P3V3)
         || (get5vMilliVolts() < UNDERVOLT_5V)
         || (get12vMilliVolts() < UNDERVOLT_12V);
 };
 const bool VoltageMonitor::overVoltage() {
     return (get3v3MilliVolts() > OVERVOLT_3V3)
-        || (getp3v3MilliVolts() > OVERVOLT_P3V3)
+//        || (getp3v3MilliVolts() > OVERVOLT_P3V3)
         || (get5vMilliVolts() > OVERVOLT_5V)
         || (get12vMilliVolts() > OVERVOLT_12V);
 };

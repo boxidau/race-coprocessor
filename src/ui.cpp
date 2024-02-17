@@ -16,13 +16,13 @@ bool CoolerUI::shouldDisplayName() {
     return millis() < displayPageNameUntil;
 }
 
-void CoolerUI::loop() {
+bool CoolerUI::loop() {
     if (millis() < STARTUP_MILLIS) {
         display.setString("888");
         display.setLED(ScreenLED::RED, true);
         display.setLED(ScreenLED::YELLOW, true);
         display.setLED(ScreenLED::GREEN, true);
-        return;
+        return false;
     }
     if (startup) {
         startup = false;
@@ -56,7 +56,7 @@ void CoolerUI::loop() {
     }
 
     if (!displayUpdate.check()) {
-        return;
+        return false;
     }
 
     coolerSystem.getSystemData(rtData);
@@ -64,28 +64,30 @@ void CoolerUI::loop() {
     if (shouldDisplayName()) {
         switch (page) {
             // evap inlet temp
-            case 0: return display.setString("EIT");
+            case 0: display.setString("EIT"); break;
             // evap outlet temp
-            case 1: return display.setString("EOT");
+            case 1: display.setString("EOT"); break;
             // pwm
-            case 2: return display.setString("PWM");
+            case 2: display.setString("PWM"); break;
             // flow rate L/min
-            case 3: return display.setString("FLO");
+            case 3: display.setString("FLO"); break;
             // system pressure
-            case 4: return display.setString("PRE");
+            case 4: display.setString("PRE"); break;
             // error code
-            case 5: return display.setString("ERR");
+            case 5: display.setString("ERR"); break;
             // condenser inlet temp
-            case 6: return display.setString("CIT");
+            case 6: display.setString("CIT"); break;
             // condenser outlet temp
-            case 7: return display.setString("COT");
+            case 7: display.setString("COT"); break;
             // ambient temp
-            case 8: return display.setString("AMT");
+            case 8: display.setString("AMT"); break;
         }
+        return true;
     }
         
     if (page == 5) {
-        return display.displayError(rtData.fault);
+        display.displayError(rtData.fault);
+        return false;
     }
 
     // output buffer size is 5 screen size is 3, why?
@@ -119,6 +121,7 @@ void CoolerUI::loop() {
             break;
     }
     display.setString(buf);
+    return false;
 };
 
 

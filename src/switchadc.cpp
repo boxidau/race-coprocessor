@@ -1,8 +1,15 @@
 #include "switchadc.h"
 #include <ADC.h>
 
+unsigned long start;
+
 void SwitchADC::loop() {
-    samples[idx % SWITCH_ADC_SAMPLES] = SingletonADC::getADC()->analogRead(pin, adcNum);
+    uint16_t curValue = SingletonADC::getADC()->analogRead(pin, adcNum);
+    if (!samples.full()) {
+        samples.push_back(curValue);
+    } else {
+        samples[idx % samples.max_size()] = curValue;
+    }
     idx++;
 }
 
@@ -19,20 +26,29 @@ CoolerSwitchPosition _getSwitchPosition(uint16_t switchADCValue)
 
 CoolerSwitchPosition SwitchADC::position()
 {
+    if (samples.size() < samples.max_size()) {
+        return CoolerSwitchPosition::UNKNOWN;
+    }
+
     // check every sample agrees, if not then the switch is likely in a bounce state
-    for (uint i = 1; i < SWITCH_ADC_SAMPLES; i++) {
-        if (_getSwitchPosition(samples[i]) != _getSwitchPosition(samples[i-1])) {
-            LOG_INFO("Switch position samples disagree, returning UNKNOWN position", samples[i], samples[i-1]);
+    for (uint i = 1; i < samples.size(); i++) {
+        if (_getSwitchPosition(samples[i]) != _getSwitchPosition(samples[i - 1])) {
+            LOG_INFO("Switch position samples disagree, returning UNKNOWN position", samples[i], samples[i - 1]);
             return CoolerSwitchPosition::UNKNOWN;
         }
     }
+
     return _getSwitchPosition(samples[0]);
 }
 
 uint16_t SwitchADC::adc() {
+    if (samples.empty()) {
+        return 0;
+    }
+
     uint32_t sum = 0;
-    for (uint i = 0; i < SWITCH_ADC_SAMPLES; i++) {
+    for (int i = 0; i < samples.size(); i++) {
         sum += samples[i];
     }
-    return uint16_t(sum / SWITCH_ADC_SAMPLES);
+    return sum / samples.size();
 }
