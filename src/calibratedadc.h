@@ -24,7 +24,7 @@ public:
     CalibratedADC(const uint8_t _pin, const uint8_t _adcNum) : pin { _pin }, adcNum { _adcNum } {};
     
     void setup() {
-        pinMode(pin, INPUT);
+        pinMode(pin, INPUT_DISABLE);
 
     }
     void setCalibration(

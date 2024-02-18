@@ -40,7 +40,7 @@ public:
     };
     
     void setup() {
-        pinMode(pin, INPUT);
+        pinMode(pin, INPUT_DISABLE);
     }
 
     uint16_t acquireAndDiscardSample() {

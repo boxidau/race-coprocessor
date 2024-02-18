@@ -30,7 +30,7 @@ public:
     };
     
     void setup() {
-        pinMode(pin, INPUT);
+        pinMode(pin, INPUT_DISABLE);
     }
 
     void loop();

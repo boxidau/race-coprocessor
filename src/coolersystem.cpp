@@ -179,7 +179,7 @@ void CoolerSystem::loop()
 
     unsigned long ntcSampleDuration = micros();
     unsigned long loopStart = ntcSampleDuration;
-    uint16_t inletSample = evaporatorInletNTC.acquireAndDiscardSample();
+    uint16_t inletSample = 0;//evaporatorInletNTC.acquireAndDiscardSample();
     evaporatorInletNTC.loop();
     evaporatorOutletNTC.loop();
     condenserInletNTC.loop();
@@ -357,10 +357,12 @@ void CoolerSystem::getCANMessage(CAN_message_t &msg)
 
 void CoolerSystem::getLogMessage(char* message, uint32_t slowLoopTime, bool didUIUpdate)
 {
-    sprintf(message, "%.3f,%.3f,%.3f,%.3f,%u,%u,%.3f,%.3f,%.3f,%.3f,%.3f,%s,%s,%s,%s,%u,%.3f,%s,"BYTE_TO_BINARY_PATTERN",%lu,%u",
+    sprintf(message, "%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%u,%u,%.3f,%.3f,%.3f,%.3f,%.3f,%s,%s,%s,%s,%u,%.3f,%s,"BYTE_TO_BINARY_PATTERN",%lu,%u",
         (double)(micros() - startTimeIndex) / 1e6,
         evaporatorInletTemp,
         evaporatorOutletTemp,
+        condenserInletTemp,
+        condenserOutletTemp,
         ambientTemp,
         flowRate,
         systemPressure,

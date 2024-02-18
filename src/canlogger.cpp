@@ -79,7 +79,7 @@ void CANLogger::setup()
     }
 
     logFile = SD.open(fullLogFilePath, FILE_WRITE);
-    logFile.println("time,evapInletTemp,evapOutletTemp,ambientTemp,flowRate,pressure,system12V,system5V,system3V3,systemP3V3,coolingPower,switchPos,status,systemEnable,chillerPump,coolshirtPWM,compressorSpeed,underTempCutoff,systemFault,slowLoopTime,didUIUpdate,didSDFlush");
+    logFile.println("time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,flowRate,pressure,system12V,system5V,system3V3,systemP3V3,coolingPower,switchPos,status,systemEnable,chillerPump,coolshirtPWM,compressorSpeed,underTempCutoff,systemFault,slowLoopTime,didUIUpdate,didSDFlush");
     enableLog = true;
 }
 

@@ -66,7 +66,7 @@ void setup()
     // LOG_SET_LEVEL(DebugLogLevel::LVL_DEBUG);
 
     // initialize pin inputs/outputs first thing so they stabilize
-    cooler.setup();
+    //cooler.setup();
 
     // Set up and calibrate ADCs, see https://forum.pjrc.com/index.php?threads/adc-library-with-support-for-teensy-4-3-x-and-lc.25532/
     // adc0 is for NTCs, adc1 everything else
@@ -75,7 +75,7 @@ void setup()
     adc->adc0->setReference(ADC_REFERENCE::REF_EXT);
     adc->adc0->setAveraging(0);
     adc->adc0->setConversionSpeed(ADC_CONVERSION_SPEED::HIGH_SPEED);
-    adc->adc0->setSamplingSpeed(ADC_SAMPLING_SPEED::HIGH_SPEED);
+    adc->adc0->setSamplingSpeed(ADC_SAMPLING_SPEED::VERY_LOW_SPEED);
 
     adc->adc1->setResolution(16);
     adc->adc1->setReference(ADC_REFERENCE::REF_EXT);
@@ -87,6 +87,7 @@ void setup()
 
     Serial.begin(115200);
     ClockTime::setup();
+    cooler.setup();
     CANbus.begin();
     CANLogger::setup();
     ui.setup();
