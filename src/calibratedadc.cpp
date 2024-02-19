@@ -27,7 +27,7 @@ void CalibratedADC::setCalibration(
 }
 
 const uint16_t CalibratedADC::adc() {
-    return !samples.empty() ? round((double) runningSum / samples.size()) : 0;
+    return !samples.empty() ? round((float) runningSum / samples.size()) : 0;
 }
 
 const uint16_t CalibratedADC::calibratedValue() {

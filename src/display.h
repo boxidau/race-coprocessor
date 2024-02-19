@@ -5,8 +5,9 @@
 
 #define DISPLAY_SIZE 3
 #define SCREEN_BUF_LED_IDX 3
+#define SPI_CLOCK_HZ 20e6 // 20 MHz
 
-const SPISettings MAX6950CEESettings(200000, MSBFIRST, SPI_MODE0);
+const SPISettings MAX6950CEESettings(SPI_CLOCK_HZ, MSBFIRST, SPI_MODE0);
 const byte SCREEN_CHAR0 = 0x60;
 const byte SCREEN_CHAR1 = 0x61;
 const byte SCREEN_CHAR2 = 0x62;

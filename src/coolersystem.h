@@ -128,14 +128,14 @@ struct CoolerSystemData {
     byte fault;
     bool coolantLevel;
     uint16_t systemPressure;
-    double compressorCurrent;
-    double evaporatorInletTemp;
-    double evaporatorOutletTemp;
-    double condenserInletTemp;
-    double condenserOutletTemp;
-    double ambientTemp;
+    float compressorCurrent;
+    float evaporatorInletTemp;
+    float evaporatorOutletTemp;
+    float condenserInletTemp;
+    float condenserOutletTemp;
+    float ambientTemp;
     uint16_t flowRate;
-    double compressorSpeed;
+    float compressorSpeed;
 };
 
 class CoolerSystem {
@@ -150,7 +150,7 @@ private:
     FlowSensor flowSensor;
     PrecisionNTC evaporatorInletNTC, evaporatorOutletNTC;
     NTC condenserInletNTC, condenserOutletNTC;
-    PrecisionNTC ambientNTC;
+    NTC ambientNTC;
 
     // outputs
     PWMOutput coolshirtPWM, chillerPumpPWM, systemEnableOutput;
@@ -176,13 +176,12 @@ private:
     uint16_t flowRate { 0 };
     bool coolantLevel { false };
     uint16_t systemPressure { 0 };
-    double compressorCurrent { 0 };
-    double evaporatorInletTemp { -100.0 };
-    double evaporatorOutletTemp { -100.0 };
-    double condenserInletTemp { -100.0 };
-    double condenserOutletTemp { -100.0 };
-    double ambientTemp { -100.0 };
-    double coolingPower { 0 };
+    float compressorCurrent { 0 };
+    float evaporatorOutletTemp { -100.0 };
+    float condenserInletTemp { -100.0 };
+    float condenserOutletTemp { -100.0 };
+    float ambientTemp { -100.0 };
+    float coolingPower { 0 };
     bool chillerPumpRunning { false };
 
     // output states
@@ -191,12 +190,13 @@ private:
     uint16_t coolshirtPumpValue { 0 };
     uint16_t compressorValue { 0 };
 
+    double evaporatorInletTemp { -100.0 };
     double compressorSpeed { 0 };
     double compressorTempTarget { DESIRED_TEMP };
     bool undertempCutoff { false };
     const double Kp=1.5e-1, Ki=0/*1e-3*/, Kd=0;
     PID compressorPID { PID(
-        &evaporatorOutletTemp, &compressorSpeed, &compressorTempTarget,
+        &evaporatorInletTemp, &compressorSpeed, &compressorTempTarget,
         Kp, Ki, Kd, P_ON_M, REVERSE
     )};
 
@@ -260,7 +260,7 @@ public:
     void setup();
     void loop();
     void getCANMessage(CAN_message_t &msg);
-    void getLogMessage(char* message, uint32_t totalLoopTime, bool didUIUpdate);
+    void getLogMessage(char* message, uint32_t n);
     byte systemFault();
     void getSystemData(CoolerSystemData &data);
     unsigned long lastFlowPulseMicros();

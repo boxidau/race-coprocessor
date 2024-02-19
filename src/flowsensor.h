@@ -14,13 +14,13 @@ private:
 public:
     FlowSensor(
         uint flowSensorPin,
-        double pulsesPerLiter,
+        float pulsesPerLiter,
         uint timeoutMilliseconds = 1000,
         uint debounceMs = 1
     )
         : _flowRateInput { Bounce(flowSensorPin, debounceMs) }
         , _flowSensorPin { flowSensorPin }
-        , _pulsePeriodMicros { (uint32_t)(1000000000 / pulsesPerLiter) }
+        , _pulsePeriodMicros { uint32_t(1e9 / pulsesPerLiter) }
         , _timeoutMilliseconds { timeoutMilliseconds }
     {
     };

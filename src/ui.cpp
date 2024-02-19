@@ -3,7 +3,7 @@
 #define STARTUP_MILLIS 2000
 const uint PAGES = 9;
 
-Metro pageTurner = Metro(10000);
+Metro pageTurner = Metro(5000);
 bool startup = true;
 
 void CoolerUI::setup() {

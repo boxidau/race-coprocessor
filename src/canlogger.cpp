@@ -14,18 +14,23 @@ static char lineBuffer[512];
 static int linesWritten;
 static File logFile;
 static bool enableLog;
+static int retries;
 static Metro retrySDTimer = Metro(15000);
 
 bool CANLogger::error = false;
 
 void CANLogger::setup()
 {
+    if (retries++ == 3) {
+        return;
+    }
+
     linesWritten = 0;
 
     LOG_DEBUG("Initializing SD card");
     if (!SD.begin(BUILTIN_SDCARD))
     {
-        LOG_WARN("SD card initialization failed, is a card inserted?");
+        LOG_WARN("SD card initialization failed, is a card inserted? Retries:", retries);
         return;
     }
 
@@ -79,7 +84,7 @@ void CANLogger::setup()
     }
 
     logFile = SD.open(fullLogFilePath, FILE_WRITE);
-    logFile.println("time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,flowRate,pressure,system12V,system5V,system3V3,systemP3V3,coolingPower,switchPos,status,systemEnable,chillerPump,coolshirtPWM,compressorSpeed,underTempCutoff,systemFault,slowLoopTime,didUIUpdate,didSDFlush");
+    logFile.println("time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,flowRate,pressure,12v,5v,3v3,p3v3,coolingPower,switchPos,status,systemEnable,chillerPumpEnable,coolshirtPWM,compressorSpeed,underTempCutoff,systemFault");
     enableLog = true;
 }
 
@@ -136,7 +141,6 @@ void CANLogger::write()
     }
 
     //LOG_DEBUG("LOG WRITE:", + lineBuffer);
-    sprintf(lineBuffer + strlen(lineBuffer), ",%u", tick);
     if (logFile.println(lineBuffer) != strlen(lineBuffer) + 2)
     {
         enableLog = false;

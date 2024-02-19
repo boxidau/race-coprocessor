@@ -1,4 +1,5 @@
 #include "coolersystem.h"
+#include "stringformat.h"
 
 void printFaultLine(SystemFault f, byte systemFault) {
     const char* faultName = SystemFaultToString(f);
@@ -207,7 +208,7 @@ void CoolerSystem::loop()
         condenserInletTemp = condenserInletNTC.temperature();
         condenserOutletTemp = condenserOutletNTC.temperature();
         ambientTemp = ambientNTC.temperature();
-        coolingPower = (evaporatorInletTemp - evaporatorOutletTemp) * SPECIFIC_HEAT * (double) flowRate / 60000; // Watts
+        coolingPower = (evaporatorInletTemp - evaporatorOutletTemp) * SPECIFIC_HEAT * flowRate / 60000; // Watts
         compressorFaultCode = compressorFault.getCode();
         _pollSystemStatus();
         check(systemPressure < OVERPRESSURE_THRESHOLD_KPA, SystemFault::SYSTEM_OVER_PRESSURE);
@@ -226,7 +227,7 @@ void CoolerSystem::loop()
         if (NTC_DEBUG) {
             Serial.printf(
                 "[%.3f s] Ambient Temp: avg %5d (%.3f C)    duration %u us\n",
-                (double) ntcLogger.msSinceStarted() / 1000,
+                (float) ntcLogger.msSinceStarted() / 1000,
                 ambientNTC.adc(),
                 ambientNTC.temperature(),
                 ntcSampleDuration
@@ -295,7 +296,7 @@ byte CoolerSystem::systemFault() {
     return _systemFault;
 }
 
-uint8_t clampAndScale(double val, int minVal, int scale) {
+uint8_t clampAndScale(float val, int minVal, int scale) {
     return max(255, (uint8_t)(max(minVal, val)) - minVal) / scale;
 }
 
@@ -344,43 +345,31 @@ void CoolerSystem::getCANMessage(CAN_message_t &msg)
     //msg.buf[9] = (uint8_t)compressorFault.getCode();
 };
 
-#define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
-#define BYTE_TO_BINARY(byte)  \
-  ((byte) & 0x80 ? '1' : '0'), \
-  ((byte) & 0x40 ? '1' : '0'), \
-  ((byte) & 0x20 ? '1' : '0'), \
-  ((byte) & 0x10 ? '1' : '0'), \
-  ((byte) & 0x08 ? '1' : '0'), \
-  ((byte) & 0x04 ? '1' : '0'), \
-  ((byte) & 0x02 ? '1' : '0'), \
-  ((byte) & 0x01 ? '1' : '0') 
-
-void CoolerSystem::getLogMessage(char* message, uint32_t slowLoopTime, bool didUIUpdate)
+void CoolerSystem::getLogMessage(char* message, uint32_t n)
 {
-    sprintf(message, "%.3f,%.3f,%.3f,%.3f,%.3f,%.3f,%u,%u,%.3f,%.3f,%.3f,%.3f,%.3f,%s,%s,%s,%s,%u,%.3f,%s,"BYTE_TO_BINARY_PATTERN",%lu,%u",
-        (double)(micros() - startTimeIndex) / 1e6,
-        evaporatorInletTemp,
-        evaporatorOutletTemp,
-        condenserInletTemp,
-        condenserOutletTemp,
-        ambientTemp,
-        flowRate,
-        systemPressure,
-        (double) voltageMonitor.get12vMilliVolts() / 1000,
-        (double) voltageMonitor.get5vMilliVolts() / 1000,
-        (double) voltageMonitor.get3v3MilliVolts() / 1000,
-        (double) voltageMonitor.getp3v3MilliVolts() / 1000,
-        coolingPower,
-        CoolerSwitchPositionToString(switchADC.position()),
-        CoolerSystemStatusToString(systemStatus),
-        systemEnableOutput.value() ? "ON" : "OFF",
-        chillerPumpPWM.value() ? "ON" : "OFF",
-        coolshirtPWM.percent(),
-        compressorSpeed,
-        undertempCutoff ? "CUTOFF" : "OK",
-        BYTE_TO_BINARY(_systemFault),
-        slowLoopTime,
-        didUIUpdate
-    );
-    //LOG_INFO(message);
+    unsigned long stamp = micros() - startTimeIndex;
+    StringFormatCSV format = StringFormatCSV(message, n);
+    format.formatFloat3DP((float) stamp / 1000000);
+    format.formatFloat3DP(evaporatorInletTemp);
+    format.formatFloat3DP(evaporatorOutletTemp);
+    format.formatFloat3DP(condenserInletTemp);
+    format.formatFloat3DP(condenserOutletTemp);
+    format.formatFloat3DP(ambientTemp);
+    format.formatUnsignedInt(flowRate);
+    format.formatUnsignedInt(systemPressure);
+    format.formatFloat3DP((float) voltageMonitor.get12vMilliVolts() / 1000);
+    format.formatFloat3DP((float) voltageMonitor.get5vMilliVolts() / 1000);
+    format.formatFloat3DP((float) voltageMonitor.get3v3MilliVolts() / 1000);
+    format.formatFloat3DP((float) voltageMonitor.getp3v3MilliVolts() / 1000);
+    format.formatInt(coolingPower);
+    format.formatString(CoolerSwitchPositionToString(switchADC.position()));
+    format.formatString(CoolerSystemStatusToString(systemStatus));
+    format.formatBool(systemEnableOutput.value());
+    format.formatBool(chillerPumpPWM.value());
+    format.formatUnsignedInt(coolshirtPWM.percent());
+    format.formatUnsignedInt(compressorSpeed);
+    format.formatBool(undertempCutoff);
+    format.formatBinary(_systemFault);
+    format.finish();
+    LOG_INFO(message);
 };

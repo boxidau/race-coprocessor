@@ -31,7 +31,7 @@ CoolerSwitchPosition SwitchADC::position()
     }
 
     // check every sample agrees, if not then the switch is likely in a bounce state
-    for (uint i = 1; i < samples.size(); i++) {
+    for (size_t i = 1; i < samples.size(); i++) {
         if (_getSwitchPosition(samples[i]) != _getSwitchPosition(samples[i - 1])) {
             LOG_INFO("Switch position samples disagree, returning UNKNOWN position", samples[i], samples[i - 1]);
             return CoolerSwitchPosition::UNKNOWN;
@@ -47,7 +47,7 @@ uint16_t SwitchADC::adc() {
     }
 
     uint32_t sum = 0;
-    for (int i = 0; i < samples.size(); i++) {
+    for (size_t i = 0; i < samples.size(); i++) {
         sum += samples[i];
     }
     return sum / samples.size();

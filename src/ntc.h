@@ -15,8 +15,8 @@ template <int NTC_SAMPLES> class BaseNTC
 {
 private:
     const uint8_t pin, adcNum;
-    const double pullupResistance;
-    double steinhartA, steinhartB, steinhartC;
+    const uint32_t pullupResistance;
+    const float steinhartA, steinhartB, steinhartC;
     Array<uint16_t, NTC_SAMPLES> samples;
     uint32_t runningSum { 0 };
     uint16_t idx { 0 };
@@ -25,10 +25,10 @@ public:
     BaseNTC(
         const uint8_t _pin,
         const uint8_t _adcNum,
-        const double _pullupResistance,
-        const double _steinhartA = 0.00112865375,
-        const double _steinhartB = 0.0002342041378,
-        const double _steinhartC = 0.00000008737724626
+        const uint32_t _pullupResistance,
+        const float _steinhartA = 1.12865375e-3,
+        const float _steinhartB = 2.342041378e-4,
+        const float _steinhartC = 8.737724626e-8
     )
         : pin { _pin }
         , adcNum { _adcNum }
@@ -59,25 +59,26 @@ public:
         runningSum += curValue;
     }
 
-    double temperature() {
+    float temperature() {
         return temperatureFor(adc());        
     }
 
     uint16_t adc() {
-        return !samples.empty() ? round((double) runningSum / samples.size()) : 0;
+        return !samples.empty() ? round((float) runningSum / samples.size()) : 0;
     }
 
     uint16_t latest() {
         return !samples.empty() ? samples[(idx - 1) % NTC_SAMPLES] : 0;
     };
 
-    double temperatureFor(uint16_t sample) {
-        double ntcResistanceApprox = pullupResistance / (((double) ADC_MAX / sample) - 1);
+    float temperatureFor(uint16_t sample) {
+        float ntcResistanceApprox = pullupResistance / (((float) ADC_MAX / sample) - 1);
         // double fullScaleLeakageOffset = 1 / (1 / ntcResistanceApprox + 1 / pullupResistance) * FULL_SCALE_LEAKAGE_CURRENT / FULL_SCALE_VOLTAGE;
         // double offsetAdjustedVal = val + fullScaleLeakageOffset * val;
         // double ntcResistance = pullupResistance / ((FULL_SCALE_VREF / offsetAdjustedVal) - 1);
-        double lnR = log(ntcResistanceApprox);
-        return  1 / (steinhartA + (steinhartB * lnR) + (steinhartC * pow(lnR, 3))) - 273.15;
+        float lnR = log(ntcResistanceApprox);
+        // expand out lnR * lnR * lnR, much faster than pow()
+        return 1 / (steinhartA + (steinhartB * lnR) + (steinhartC * lnR * lnR * lnR)) - 273.15;
     }
 };
 

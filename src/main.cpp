@@ -109,23 +109,20 @@ void processRXCANMessage()
     CANLogger::logCANMessage(rxMessage, CAN_RX);
 }
 
-uint32_t slowLoopTime = 0;
-
 void loop()
 {
     uint32_t loopTime = loopTimer.start();
 
     // tick functions for all modules
     cooler.loop();
-    bool didUIUpdate = ui.loop();
+    ui.loop();
     // end tick functions
 
     if (canBroadcastTimer.check()) {
-        char message[512];
-        //cooler.getCANMessage(coolerSystemMessage);
-        cooler.getLogMessage(message, slowLoopTime, didUIUpdate);
+        char message[256];
+        cooler.getLogMessage(message, sizeof(message));
         CANLogger::logMessage(message);
-        slowLoopTime = 0;
+        //cooler.getCANMessage(coolerSystemMessage);
         //broadcastMessage(coolerSystemMessage);
     }
 
@@ -142,6 +139,5 @@ void loop()
 
     if (loopTime > 1000) {
         LOG_INFO("SLOW LOOP:", loopTime, "us");
-        slowLoopTime += loopTime;
     }
 }
