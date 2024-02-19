@@ -116,12 +116,21 @@ void loop()
     // tick functions for all modules
     cooler.loop();
     ui.loop();
+    if (loopTimer.elapsedSinceLoop() > 200) {
+        LOG_INFO("slow cooler/ui loop:", loopTimer.elapsedSinceLoop(), "us");
+    }
     // end tick functions
 
     if (canBroadcastTimer.check()) {
         char message[256];
+        unsigned long startlog = micros();
         cooler.getLogMessage(message, sizeof(message));
         CANLogger::logMessage(message);
+        unsigned long logduration = micros() - startlog;
+        if (logduration > 200) {
+            LOG_INFO("slow log loop:", logduration, "us");
+        }
+
         //cooler.getCANMessage(coolerSystemMessage);
         //broadcastMessage(coolerSystemMessage);
     }

@@ -371,5 +371,4 @@ void CoolerSystem::getLogMessage(char* message, uint32_t n)
     format.formatBool(undertempCutoff);
     format.formatBinary(_systemFault);
     format.finish();
-    LOG_INFO(message);
 };
