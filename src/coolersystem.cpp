@@ -195,7 +195,7 @@ void CoolerSystem::loop()
     voltageMonitor.loop();
 
     if (NTC_DEBUG) {
-        ntcLogger.logSamples(evaporatorInletNTC.latest(), evaporatorInletNTC.adc(), ambientNTC.latest(), ambientNTC.adc());
+        ntcLogger.logSamples(evaporatorInletNTC.latest(), evaporatorInletNTC.adc(), evaporatorOutletNTC.latest(), evaporatorOutletNTC.adc());
     }
 
     if (pollTimer.check()) {

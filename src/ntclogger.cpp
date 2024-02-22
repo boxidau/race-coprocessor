@@ -68,7 +68,7 @@ void NTCLogger::setup()
     }
 
     logFile = SD.open(fullLogFilePath, FILE_WRITE);
-    logFile.print("time,ntc1a,ntc1b,ntc2,ntc3,ntc4,ambient\n");
+    logFile.print("time,ntc1,ntc1avg,ntc2,ntc2avg\n");
     enableLog = true;
 }
 
