@@ -17,7 +17,7 @@
 #include "voltagemonitor.h"
 #include "flowsensor.h"
 #include "compressorfault.h"
-#include "ntclogger.h"
+#include "ntclogger2.h"
 #include "looptimer.h"
 
 #define OVERPRESSURE_THRESHOLD_KPA 230
@@ -44,7 +44,7 @@
 #define COMPRESSOR_MAX_SPEED_RATIO 1.0
 #define COMPRESSOR_SPEED_RATIO_TO_ANALOG (9 / (3.3 * 3.717) * ADC_MAX)
 
-#define NTC_DEBUG 0
+#define NTC_DEBUG 1
 #define POLL_TIMER_MS 100
 
 enum class CoolerSystemStatus {
@@ -167,7 +167,7 @@ private:
     Metro displayInfoTimer { Metro(NTC_DEBUG ? 500 : 2000, 1) };
     Metro msTick = { Metro(1, 1) };
     uint32_t pumpStartTime = { 0 };
-    NTCLogger ntcLogger;
+    NTCLogger2 ntcLogger;
     bool firstLoop { true };
     unsigned long startTimeIndex { 0 };
 
@@ -260,7 +260,7 @@ public:
     void setup();
     void loop();
     void getCANMessage(CAN_message_t &msg);
-    void getLogMessage(char* message, uint32_t n);
+    void getLogMessage(char* message, uint32_t n, uint32_t slowLoopTime);
     byte systemFault();
     void getSystemData(CoolerSystemData &data);
     unsigned long lastFlowPulseMicros();

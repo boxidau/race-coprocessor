@@ -7,8 +7,8 @@
 #include <TimeLib.h>
 #include <SdFat.h>
 
-SdFat32 sd;
-File32 file;
+SdFs sd;
+FsFile file;
 
 #ifndef SDCARD_SS_PIN
 const uint8_t SD_CS_PIN = SS;
@@ -30,8 +30,6 @@ void NTCLogger2::setup()
         }
     }
     Serial.println("\nDedicated SPI mode.");
-
-    lineBuf = new char[LINEBUF_SIZE];
 
     LOG_DEBUG("Initializing SD card");
 /*
@@ -66,8 +64,8 @@ void NTCLogger2::setup()
     sprintf(logFileName, "n%02d%02d%02d.csv", hour(), minute(), second());
     if (year() < 1980) // rtc is not set
     {
-        File32 noDateDirectory = sd.open(logDir);
-        File32 existingLogFile;
+        FsFile noDateDirectory = sd.open(logDir);
+        FsFile existingLogFile;
         int maxLog = 0;
         while (existingLogFile = noDateDirectory.openNextFile()) {
             int curLog = 0;
@@ -92,11 +90,12 @@ void NTCLogger2::setup()
         LOG_ERROR("Log file already exists, overwriting");
     }
 
-    logFile = sd.open(fullLogFilePath, FILE_WRITE);
+    logFile = sd.open(fullLogFilePath, O_WRONLY | O_CREAT | O_TRUNC);
+    LOG_INFO("preallocing", logFile.preAllocate(1e6));
     enableLog = true;
 }
 
-void NTCLogger2::logSamples(uint16_t ntc1, uint16_t ntc2, uint16_t ntcDifferential, uint16_t ntc3, uint16_t ntc4, uint16_t ambient) {
+void NTCLogger2::logSamples(uint16_t ntc1, uint16_t ntc1avg, uint16_t ambient, uint16_t ambientavg) {
     // 4 digits + 5 * 5 + commas + newline = 35 chars per line
     unsigned long time = micros();
     prevTime = started ? prevTime : time;
@@ -108,15 +107,28 @@ void NTCLogger2::logSamples(uint16_t ntc1, uint16_t ntc2, uint16_t ntcDifferenti
     if (!enableLog) {
         return;
     }
+
+    NTCData data;
+    data.time = time64;
+    data.ntc1 = ntc1;
+    data.ntc1avg = ntc1avg;
+    data.ambient = ambient;
+    data.ambientavg = ambientavg;
+    ntcData.push_back(data);
+
+    if (ntcData.full()) {
+        flush();
+    }
+/*
     unsigned long micro = micros();
-    //bufWritten += snprintf(lineBuf + bufWritten, 64, "%lu,%u,%u,%u,%u,%u,%u\n", (long unsigned int) data.time, data.ntc1, data.ntc2, data.ntcDifferential, data.ntc3, data.ntc4, data.ambient);
-    bufWritten += snprintf(lineBuf + bufWritten, 64, "%llu,%u\n", time64 / 1000, ambient);
-    int fileWritten = logFile.print(lineBuf);
+    bufWritten += snprintf(lineBuf + bufWritten, 64, "%lu,%u,%u,%u,%u,%u,%u,%u\n", (long unsigned int) time64/1000, ntc1a, ntc1b, ntc2, ntcDifferential, ntc3, ntc4, ambient);
+    //bufWritten += snprintf(lineBuf + bufWritten, 64, "%llu,%u\n", time64 / 1000, ambient);
     //LOG_INFO("written line ", micros() - micro);
  
     if (bufWritten > LINEBUF_SIZE - 64) {
         flush();
     }
+*/
 }
 
 void NTCLogger2::flush()
@@ -126,6 +138,18 @@ void NTCLogger2::flush()
     }
 
     //LOG_DEBUG("NTC LOG FLUSH, writing lines: ", ntcData.size());
+    int bufWritten = 0;
+    int fileWritten = 0;
+    char buf[1000][40];
+    for (uint i = 0; i < ntcData.size(); i++) {
+        NTCData& data = ntcData[i];
+        sprintf(buf[i], "%lu,%u,%u,%u,%u\n", data.time, data.ntc1, data.ntc1avg, data.ambient, data.ambientavg);
+    }
+    unsigned long micro = micros();
+    for (uint i = 0; i < ntcData.size(); i++) {
+        logFile.print(buf[i]);
+    }
+    unsigned long doneprint = micros();
 /*
     int bufWritten = 0;
     int fileWritten = 0;
@@ -146,7 +170,7 @@ void NTCLogger2::flush()
             bufWritten = 0;
         }
     }
-*/
+
     unsigned long micro = micros();
     int fileWritten = logFile.print(lineBuf);
     if (false && fileWritten != bufWritten)
@@ -155,10 +179,9 @@ void NTCLogger2::flush()
         LOG_ERROR("NTC LOG FLUSH ERROR, buffer bytes written: ", bufWritten, ", file bytes written: ", fileWritten);
         return;
     }
-
+*/
     bufWritten = 0;
-
-    unsigned long doneprint = micros();
+    ntcData.clear();
 
     //ntcData.clear();
     logFile.flush();

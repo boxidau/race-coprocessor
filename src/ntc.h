@@ -67,6 +67,18 @@ public:
         return !samples.empty() ? round((float) runningSum / samples.size()) : 0;
     }
 
+    uint16_t adcCalculateAverage() {
+        if (samples.empty()) {
+            return 0;
+        }
+
+        uint32_t runningSum2 = 0;
+        for (size_t i = 0; i < samples.size(); i++) {
+            runningSum2 += samples[i];
+        }
+        return round((float) runningSum2 / samples.size());
+    }
+
     uint16_t latest() {
         return !samples.empty() ? samples[(idx - 1) % NTC_SAMPLES] : 0;
     };

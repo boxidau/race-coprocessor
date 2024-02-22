@@ -64,9 +64,10 @@ CoolerUI ui = CoolerUI(cooler, SPI_DISPLAY_CS, UI_BUTTON);
 void setup()
 {
     // LOG_SET_LEVEL(DebugLogLevel::LVL_DEBUG);
-
     // initialize pin inputs/outputs first thing so they stabilize
-    //cooler.setup();
+    Serial.begin(115200);
+    ClockTime::setup();
+    cooler.setup();
 
     // Set up and calibrate ADCs, see https://forum.pjrc.com/index.php?threads/adc-library-with-support-for-teensy-4-3-x-and-lc.25532/
     // adc0 is for NTCs, adc1 everything else
@@ -85,9 +86,6 @@ void setup()
 
     analogWriteRes(16);
 
-    Serial.begin(115200);
-    ClockTime::setup();
-    cooler.setup();
     CANbus.begin();
     CANLogger::setup();
     ui.setup();
@@ -109,6 +107,8 @@ void processRXCANMessage()
     CANLogger::logCANMessage(rxMessage, CAN_RX);
 }
 
+uint32_t slowLoopTime = 0;
+
 void loop()
 {
     uint32_t loopTime = loopTimer.start();
@@ -124,8 +124,9 @@ void loop()
     if (canBroadcastTimer.check()) {
         char message[256];
         unsigned long startlog = micros();
-        cooler.getLogMessage(message, sizeof(message));
+        cooler.getLogMessage(message, sizeof(message), slowLoopTime);
         CANLogger::logMessage(message);
+        slowLoopTime = 0;
         unsigned long logduration = micros() - startlog;
         if (logduration > 200) {
             LOG_INFO("slow log loop:", logduration, "us");
@@ -148,5 +149,6 @@ void loop()
 
     if (loopTime > 1000) {
         LOG_INFO("SLOW LOOP:", loopTime, "us");
+        slowLoopTime += loopTime;
     }
 }

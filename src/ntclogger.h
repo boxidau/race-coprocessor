@@ -2,23 +2,21 @@
 #include <SD.h>
 #include <Array.h>
 
-#define NTC_ARRAY_SIZE 10000
+#define NTC_ARRAY_SIZE 8000
 
 struct NTCData {
     uint32_t time;
-    uint16_t ntc1a;
-    uint16_t ntc1b;
-    uint16_t ntc2;
-    uint16_t ntc3;
-    uint16_t ntc4;
+    uint16_t ntc1;
+    uint16_t ntc1avg;
     uint16_t ambient;
+    uint16_t ambientavg;
 };
 
 class NTCLogger
 {
 public:
     void setup();
-    void logSamples(uint16_t ntc1a, uint16_t ntc1b, uint16_t ntc2, uint16_t ntc3, uint16_t ntc4, uint16_t ambient);
+    void logSamples(uint16_t ntc1, uint16_t ntc1avg, uint16_t ambient, uint16_t ambientavg);
     uint64_t msSinceStarted() { return time64 / 1000; };
 
 private:

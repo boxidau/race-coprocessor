@@ -180,7 +180,6 @@ void CoolerSystem::loop()
 
     unsigned long ntcSampleDuration = micros();
     unsigned long loopStart = ntcSampleDuration;
-    uint16_t inletSample = 0;//evaporatorInletNTC.acquireAndDiscardSample();
     evaporatorInletNTC.loop();
     evaporatorOutletNTC.loop();
     condenserInletNTC.loop();
@@ -196,7 +195,7 @@ void CoolerSystem::loop()
     voltageMonitor.loop();
 
     if (NTC_DEBUG) {
-        ntcLogger.logSamples(inletSample, evaporatorInletNTC.latest(), evaporatorOutletNTC.latest(), condenserInletNTC.latest(), condenserOutletNTC.latest(), ambientNTC.latest());
+        ntcLogger.logSamples(evaporatorInletNTC.latest(), evaporatorInletNTC.adc(), ambientNTC.latest(), ambientNTC.adc());
     }
 
     if (pollTimer.check()) {
@@ -222,7 +221,7 @@ void CoolerSystem::loop()
         runCompressor();
         runCoolshirtPump();
     }
-
+//return;
     if (displayInfoTimer.check()) {
         if (NTC_DEBUG) {
             Serial.printf(
@@ -345,16 +344,24 @@ void CoolerSystem::getCANMessage(CAN_message_t &msg)
     //msg.buf[9] = (uint8_t)compressorFault.getCode();
 };
 
-void CoolerSystem::getLogMessage(char* message, uint32_t n)
+void CoolerSystem::getLogMessage(char* message, uint32_t n, uint32_t slowLoopTime)
 {
     unsigned long stamp = micros() - startTimeIndex;
     StringFormatCSV format = StringFormatCSV(message, n);
     format.formatFloat3DP((float) stamp / 1000000);
+    format.formatUnsignedInt(evaporatorInletNTC.adc());
+    format.formatUnsignedInt(evaporatorInletNTC.adcCalculateAverage());
+    format.formatUnsignedInt(evaporatorOutletNTC.adc());
+    format.formatUnsignedInt(condenserInletNTC.adc());
+    format.formatUnsignedInt(condenserOutletNTC.adc());
+    format.formatUnsignedInt(ambientNTC.adc());
+/*
     format.formatFloat3DP(evaporatorInletTemp);
     format.formatFloat3DP(evaporatorOutletTemp);
     format.formatFloat3DP(condenserInletTemp);
     format.formatFloat3DP(condenserOutletTemp);
     format.formatFloat3DP(ambientTemp);
+*/
     format.formatUnsignedInt(flowRate);
     format.formatUnsignedInt(systemPressure);
     format.formatFloat3DP((float) voltageMonitor.get12vMilliVolts() / 1000);
@@ -370,5 +377,6 @@ void CoolerSystem::getLogMessage(char* message, uint32_t n)
     format.formatUnsignedInt(compressorSpeed);
     format.formatBool(undertempCutoff);
     format.formatBinary(_systemFault);
+    format.formatUnsignedInt(slowLoopTime);
     format.finish();
 };

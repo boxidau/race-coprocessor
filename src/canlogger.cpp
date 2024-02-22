@@ -15,12 +15,13 @@ static int linesWritten;
 static File logFile;
 static bool enableLog;
 static int retries;
-static Metro retrySDTimer = Metro(15000);
+static Metro retrySDTimer = Metro(5000);
 
 bool CANLogger::error = false;
 
 void CANLogger::setup()
 {
+    return;
     if (retries++ == 3) {
         return;
     }
@@ -84,7 +85,7 @@ void CANLogger::setup()
     }
 
     logFile = SD.open(fullLogFilePath, FILE_WRITE);
-    logFile.println("time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,flowRate,pressure,12v,5v,3v3,p3v3,coolingPower,switchPos,status,systemEnable,chillerPumpEnable,coolshirtPWM,compressorSpeed,underTempCutoff,systemFault");
+    logFile.println("time,evapInletTemp,evapCalculatedAvg,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,flowRate,pressure,12v,5v,3v3,p3v3,coolingPower,switchPos,status,systemEnable,chillerPumpEnable,coolshirtPWM,compressorSpeed,underTempCutoff,systemFault,slowLoopTime,didSDFlush");
     enableLog = true;
 }
 
@@ -141,12 +142,19 @@ void CANLogger::write()
     }
 
     //LOG_DEBUG("LOG WRITE:", + lineBuffer);
-    if (logFile.println(lineBuffer) != strlen(lineBuffer) + 2)
+    sprintf(lineBuffer + strlen(lineBuffer), ",%u", tick);
+    uint32_t m1 = micros();
+    static uint32_t n = 0;
+    uint32_t m = 0;
+    if ((m = logFile.println(lineBuffer)) != strlen(lineBuffer) + 2)
     {
         enableLog = false;
         error = true;
         return;
     }
+    uint32_t m2 = micros();
+    n += m;
+    //LOG_INFO("write", n, " cumulative bytes", m2-m1, "us");
 
     ++linesWritten;
     error = false;
@@ -154,6 +162,10 @@ void CANLogger::write()
     if (tick)
     {
         LOG_DEBUG("LOG FLUSH, written lines: ", linesWritten );
+        m1 = micros();
         logFile.flush();
+        m2 = micros();
+        n = 0;
+        //LOG_INFO("flush", m2-m1);
     }
 }

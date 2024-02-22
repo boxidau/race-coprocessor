@@ -72,7 +72,7 @@ void NTCLogger::setup()
     enableLog = true;
 }
 
-void NTCLogger::logSamples(uint16_t ntc1a, uint16_t ntc1b, uint16_t ntc2, uint16_t ntc3, uint16_t ntc4, uint16_t ambient) {
+void NTCLogger::logSamples(uint16_t ntc1, uint16_t ntc1avg, uint16_t ambient, uint16_t ambientavg) {
     // 4 digits + 5 * 5 + commas + newline = 35 chars per line
     unsigned long time = micros();
     prevTime = started ? prevTime : time;
@@ -86,13 +86,11 @@ void NTCLogger::logSamples(uint16_t ntc1a, uint16_t ntc1b, uint16_t ntc2, uint16
     }
 
     NTCData data;
-    data.time = time64/1000;
-    data.ntc1a = ntc1a;
-    data.ntc1b = ntc1b;
-    data.ntc2 = ntc2;
-    data.ntc3 = ntc3;
-    data.ntc4 = ntc4;
+    data.time = time64;
+    data.ntc1 = ntc1;
+    data.ntc1avg = ntc1avg;
     data.ambient = ambient;
+    data.ambientavg = ambientavg;
     ntcData.push_back(data);
 
     if (ntcData.full()) {
@@ -122,7 +120,7 @@ void NTCLogger::flush()
     unsigned long micro = micros();
     for (uint i = 0; i < ntcData.size(); i++) {
         NTCData& data = ntcData[i];
-        logFile.printf("%lu,%u,%u,%u,%u,%u,%u\n", (long unsigned int) data.time, data.ntc1a, data.ntc1b, data.ntc2, data.ntc3, data.ntc4, data.ambient);
+        logFile.printf("%lu,%u,%u,%u,%u\n", data.time, data.ntc1, data.ntc1avg, data.ambient, data.ambientavg);
     }
 /*
     int bufWritten = 0;

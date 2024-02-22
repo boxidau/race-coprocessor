@@ -8,7 +8,7 @@ class CoolerUI {
 private:
     CoolerSystem &coolerSystem;
     Display display;
-    Metro displayUpdate { Metro(50) };
+    Metro displayUpdate { Metro(100) };
     uint uiButtonPin;
     Bounce uiButton;
     uint page { 0 };
