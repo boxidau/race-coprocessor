@@ -14,6 +14,7 @@
 #include "voltagemonitor.h"
 #include "singletonadc.h"
 #include "looptimer.h"
+#include "stringformat.h"
 
 #define HSR_LOGGER
 
@@ -107,7 +108,7 @@ void processRXCANMessage()
     CANLogger::logCANMessage(rxMessage, CAN_RX);
 }
 
-uint32_t slowLoopTime = 0;
+static uint32_t slowLoopTime = 0;
 
 void loop()
 {
@@ -123,9 +124,11 @@ void loop()
 
     if (canBroadcastTimer.check()) {
         char message[256];
+        StringFormatCSV format(message, sizeof(message));
         unsigned long startlog = micros();
-        cooler.getLogMessage(message, sizeof(message), slowLoopTime);
-        CANLogger::logMessage(message);
+        cooler.getLogMessage(format);
+        format.formatUnsignedInt(slowLoopTime);
+        CANLogger::logMessage(format);
         slowLoopTime = 0;
         unsigned long logduration = micros() - startlog;
         if (logduration > 200) {

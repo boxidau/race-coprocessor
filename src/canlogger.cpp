@@ -9,33 +9,22 @@ https://docs.openvehicles.com/en/latest/crtd
 #include <DebugLog.h>
 #include <Metro.h>
 #include <TimeLib.h>
+#include "sdlogger.h"
 
 static char lineBuffer[512];
 static int linesWritten;
-static File logFile;
+static FsFile logFile;
 static bool enableLog;
-static int retries;
-static Metro retrySDTimer = Metro(5000);
+static Metro retrySDTimer = Metro(FLUSH_MS);
 
 bool CANLogger::error = false;
 
 void CANLogger::setup()
 {
-    return;
-    if (retries++ == 3) {
-        return;
-    }
-
     linesWritten = 0;
-
-    LOG_DEBUG("Initializing SD card");
-    if (!SD.begin(BUILTIN_SDCARD))
-    {
-        LOG_WARN("SD card initialization failed, is a card inserted? Retries:", retries);
+    if (!SDLogger::ensureInitialized()) {
         return;
     }
-
-    LOG_DEBUG("An SD card is present");
 
     char logDir[9];
     char logFileName[13];
@@ -78,14 +67,18 @@ void CANLogger::setup()
     sprintf(fullLogFilePath, "%s/%s", logDir, logFileName);
     LOG_INFO("Log file full path", fullLogFilePath);
 
-
     if (SD.exists(fullLogFilePath))
     {
         LOG_ERROR("Log file already exists, overwriting");
     }
 
-    logFile = SD.open(fullLogFilePath, FILE_WRITE);
-    logFile.println("time,evapInletTemp,evapCalculatedAvg,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,flowRate,pressure,12v,5v,3v3,p3v3,coolingPower,switchPos,status,systemEnable,chillerPumpEnable,coolshirtPWM,compressorSpeed,underTempCutoff,systemFault,slowLoopTime,didSDFlush");
+    logFile = SD.sdfs.open(fullLogFilePath, O_WRONLY | O_CREAT | O_TRUNC);
+    //logFile = SD.open(fullLogFilePath, FILE_WRITE);
+    #if PREALLOC_BYTES
+        LOG_INFO("preallocing:", logFile.preAllocate(PREALLOC_BYTES) ? "success" : "failure");
+    #endif
+
+    logFile.write("time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,flowRate,pressure,12v,5v,3v3,p3v3,coolingPower,switchPos,status,systemEnable,chillerPumpEnable,coolshirtPWM,compressorSpeed,underTempCutoff,systemFault,slowLoopTime,didSDFlush,sdIsBusy\n");
     enableLog = true;
 }
 
@@ -123,13 +116,12 @@ void CANLogger::logCANMessage(const CAN_message_t &message, bool rx)
     write();
 }
 
-void CANLogger::logMessage(const char* message)
+void CANLogger::logMessage(StringFormatCSV& format)
 {
-    strcpy(lineBuffer, message);
-    write();
+    write(format);
 }
 
-void CANLogger::write()
+void CANLogger::write(StringFormatCSV& format)
 {
     bool tick = retrySDTimer.check();
     if (!enableLog)
@@ -142,30 +134,38 @@ void CANLogger::write()
     }
 
     //LOG_DEBUG("LOG WRITE:", + lineBuffer);
-    sprintf(lineBuffer + strlen(lineBuffer), ",%u", tick);
+    format.formatBool(tick);
+    format.formatBool(logFile.isBusy());
+    const char* buffer = format.finish();
+    uint32_t length = format.length();
     uint32_t m1 = micros();
     static uint32_t n = 0;
     uint32_t m = 0;
-    if ((m = logFile.println(lineBuffer)) != strlen(lineBuffer) + 2)
+    m = logFile.write(buffer, length);
+    if (m != length)
     {
+        LOG_INFO("failed write, bytes written", m, "desired length", length);
         enableLog = false;
         error = true;
         return;
     }
     uint32_t m2 = micros();
     n += m;
-    //LOG_INFO("write", n, " cumulative bytes", m2-m1, "us");
+    //LOG_INFO("write", n, "cumulative bytes", m2-m1, "us, was busy", isbusy);
 
     ++linesWritten;
     error = false;
     
-    if (tick)
-    {
-        LOG_DEBUG("LOG FLUSH, written lines: ", linesWritten );
-        m1 = micros();
-        logFile.flush();
-        m2 = micros();
-        n = 0;
-        //LOG_INFO("flush", m2-m1);
-    }
+    #if FLUSH_MS
+        if (tick)
+        {
+            LOG_DEBUG("LOG FLUSH, written lines: ", linesWritten );
+            m1 = micros();
+            logFile.flush();
+            m2 = micros();
+            LOG_INFO("flush", m2-m1, "us, bytes", n);
+            LOG_INFO("buffer", buffer);
+            n = 0;
+        }
+    #endif
 }

@@ -1,5 +1,4 @@
 #include "coolersystem.h"
-#include "stringformat.h"
 
 void printFaultLine(SystemFault f, byte systemFault) {
     const char* faultName = SystemFaultToString(f);
@@ -221,7 +220,7 @@ void CoolerSystem::loop()
         runCompressor();
         runCoolshirtPump();
     }
-//return;
+return;
     if (displayInfoTimer.check()) {
         if (NTC_DEBUG) {
             Serial.printf(
@@ -344,13 +343,11 @@ void CoolerSystem::getCANMessage(CAN_message_t &msg)
     //msg.buf[9] = (uint8_t)compressorFault.getCode();
 };
 
-void CoolerSystem::getLogMessage(char* message, uint32_t n, uint32_t slowLoopTime)
+void CoolerSystem::getLogMessage(StringFormatCSV& format)
 {
     unsigned long stamp = micros() - startTimeIndex;
-    StringFormatCSV format = StringFormatCSV(message, n);
     format.formatFloat3DP((float) stamp / 1000000);
     format.formatUnsignedInt(evaporatorInletNTC.adc());
-    format.formatUnsignedInt(evaporatorInletNTC.adcCalculateAverage());
     format.formatUnsignedInt(evaporatorOutletNTC.adc());
     format.formatUnsignedInt(condenserInletNTC.adc());
     format.formatUnsignedInt(condenserOutletNTC.adc());
@@ -377,6 +374,4 @@ void CoolerSystem::getLogMessage(char* message, uint32_t n, uint32_t slowLoopTim
     format.formatUnsignedInt(compressorSpeed);
     format.formatBool(undertempCutoff);
     format.formatBinary(_systemFault);
-    format.formatUnsignedInt(slowLoopTime);
-    format.finish();
 };

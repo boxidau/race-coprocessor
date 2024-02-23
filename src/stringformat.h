@@ -1,3 +1,5 @@
+#pragma once
+
 #include <string.h>
 
 #define INT_TO_CHAR(in) (0x30 + (in))
@@ -66,8 +68,13 @@ class StringFormatCSV {
         }
 
         char* finish() {
-            *next++ = '\0';
+            *next++ = '\n';
+            *next = '\0';
             return str;
+        }
+
+        uint32_t length() {
+            return next - str;
         }
 
     private:

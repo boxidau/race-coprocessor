@@ -1,24 +1,20 @@
 #include "ntclogger.h"
 
-#include "clocktime.h"
-
 #include <DebugLog.h>
 #include <Metro.h>
 #include <TimeLib.h>
 #include <SD.h>
 
+#include "clocktime.h"
+#include "sdlogger.h"
+#include "stringformat.h"
+
 void NTCLogger::setup()
 {
     //lineBuf = new char[LINEBUF_SIZE];
-
-    LOG_DEBUG("Initializing SD card");
-    if (!SD.begin(BUILTIN_SDCARD))
-    {
-        LOG_WARN("SD card initialization failed, is a card inserted?");
+    if (!SDLogger::ensureInitialized()) {
         return;
     }
-
-    LOG_DEBUG("An SD card is present");
 
     char logDir[10];
     char logFileName[20];
@@ -73,7 +69,6 @@ void NTCLogger::setup()
 }
 
 void NTCLogger::logSamples(uint16_t ntc1, uint16_t ntc1avg, uint16_t ambient, uint16_t ambientavg) {
-    // 4 digits + 5 * 5 + commas + newline = 35 chars per line
     unsigned long time = micros();
     prevTime = started ? prevTime : time;
     unsigned long duration = time >= prevTime ? time - prevTime : time + (UINT32_MAX - prevTime);
@@ -96,16 +91,6 @@ void NTCLogger::logSamples(uint16_t ntc1, uint16_t ntc1avg, uint16_t ambient, ui
     if (ntcData.full()) {
         flush();
     }
-/*
-    unsigned long micro = micros();
-    bufWritten += snprintf(lineBuf + bufWritten, 64, "%lu,%u,%u,%u,%u,%u,%u,%u\n", (long unsigned int) time64/1000, ntc1a, ntc1b, ntc2, ntcDifferential, ntc3, ntc4, ambient);
-    //bufWritten += snprintf(lineBuf + bufWritten, 64, "%llu,%u\n", time64 / 1000, ambient);
-    //LOG_INFO("written line ", micros() - micro);
- 
-    if (bufWritten > LINEBUF_SIZE - 64) {
-        flush();
-    }
-*/
 }
 
 void NTCLogger::flush()
@@ -114,50 +99,24 @@ void NTCLogger::flush()
         return;
     }
 
-    //LOG_DEBUG("NTC LOG FLUSH, writing lines: ", ntcData.size());
-    int bufWritten = 0;
-    int fileWritten = 0;
     unsigned long micro = micros();
-    for (uint i = 0; i < ntcData.size(); i++) {
+    for (size_t i = 0; i < ntcData.size(); i++) {
         NTCData& data = ntcData[i];
-        logFile.printf("%lu,%u,%u,%u,%u\n", data.time, data.ntc1, data.ntc1avg, data.ambient, data.ambientavg);
-    }
-/*
-    int bufWritten = 0;
-    int fileWritten = 0;
-    unsigned long micro = micros();
-    for (uint i = 0; i < ntcData.size(); i++) {
-        NTCData& data = ntcData[i];
-        //bufWritten += snprintf(lineBuf + bufWritten, 64, "%lu,%u,%u,%u,%u,%u,%u\n", (long unsigned int) data.time, data.ntc1, data.ntc2, data.ntcDifferential, data.ntc3, data.ntc4, data.ambient);
-        bufWritten += snprintf(lineBuf + bufWritten, 64, "%lu,%u\n", (long unsigned int) data.time, data.ambient);
-        if (bufWritten > LINEBUF_SIZE - 64) {
-            //fileWritten = logFile.print(lineBuf);
-            if (false && fileWritten != bufWritten)
-            {
-                enableLog = false;
-                LOG_ERROR("NTC LOG FLUSH ERROR, buffer bytes written: ", bufWritten, ", file bytes written: ", fileWritten);
-                return;
-            }
 
-            bufWritten = 0;
-        }
-    }
+        char message[128];
+        StringFormatCSV format(message, sizeof(message));
+        format.formatUnsignedInt(data.time);
+        format.formatUnsignedInt(data.ntc1);
+        format.formatUnsignedInt(data.ntc1avg);
+        format.formatUnsignedInt(data.ambient);
+        format.formatUnsignedInt(data.ambientavg);
+        format.finish();
 
-    unsigned long micro = micros();
-    int fileWritten = logFile.print(lineBuf);
-    if (false && fileWritten != bufWritten)
-    {
-        enableLog = false;
-        LOG_ERROR("NTC LOG FLUSH ERROR, buffer bytes written: ", bufWritten, ", file bytes written: ", fileWritten);
-        return;
+        logFile.write(format.finish(), format.length());
     }
-*/
-    bufWritten = 0;
-    ntcData.clear();
-
     unsigned long doneprint = micros();
 
-    //ntcData.clear();
+    ntcData.clear();
     logFile.flush();
     LOG_INFO("NTC LOG FLUSHED, print ", doneprint - micro, ", flush ", micros() - doneprint);
 }

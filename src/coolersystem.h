@@ -20,6 +20,7 @@
 #include "ntclogger.h"
 //#include "ntclogger2.h"
 #include "looptimer.h"
+#include "stringformat.h"
 
 #define OVERPRESSURE_THRESHOLD_KPA 230
 #define PRESSURE_SENSOR_CALIBRATION_LOW_ADC 5674 // 0.5V = 0psig = 101kPa
@@ -261,7 +262,7 @@ public:
     void setup();
     void loop();
     void getCANMessage(CAN_message_t &msg);
-    void getLogMessage(char* message, uint32_t n, uint32_t slowLoopTime);
+    void getLogMessage(StringFormatCSV& format);
     byte systemFault();
     void getSystemData(CoolerSystemData &data);
     unsigned long lastFlowPulseMicros();
