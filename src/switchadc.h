@@ -9,12 +9,12 @@
 #define SWITCH_ADC_SAMPLES 10
 
 enum class CoolerSwitchPosition {
-    UNKNOWN        = 0,
-    RESET          = 1,
-    PRECHILL       = 2,
-    PUMP_LOW       = 3,
-    PUMP_MEDIUM    = 4,
-    PUMP_HIGH      = 5
+    UNKNOWN        = -1,
+    RESET          = 0,
+    PRECHILL       = 1,
+    PUMP_LOW       = 2,
+    PUMP_MEDIUM    = 3,
+    PUMP_HIGH      = 4
 };
 
 class SwitchADC

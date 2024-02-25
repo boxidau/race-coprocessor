@@ -4,5 +4,7 @@ class ClockTime
 {
 public:
     static void setup();
-    static double getMillisTime();
+    static void setEpoch();
+    static uint32_t millisSinceEpoch();
+    static double secSinceEpoch();
 };

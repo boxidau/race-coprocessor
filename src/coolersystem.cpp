@@ -1,4 +1,5 @@
 #include "coolersystem.h"
+#include "clocktime.h"
 
 void printFaultLine(SystemFault f, byte systemFault) {
     const char* faultName = SystemFaultToString(f);
@@ -27,9 +28,6 @@ void CoolerSystem::setup()
     condenserInletNTC.setup();
     condenserOutletNTC.setup();
     ambientNTC.setup();
-    if (NTC_DEBUG) {
-        ntcLogger.setup();
-    }
 
     switchADC.setup();
     pressureSensor.setup();
@@ -105,9 +103,12 @@ void CoolerSystem::runChillerPump()
 
     if (chillerPumpPWM.value() == 0) {
         pumpStartTime = millis();
-        chillerPumpPWM.setPercent(66);
+        chillerPumpPWM.setPercent(80);
     }
     uint32_t pumpRunTime = millis() - pumpStartTime;
+    if (chillerPumpPWM.percent() == 80 && pumpRunTime > 1000) {
+        chillerPumpPWM.setPercent(40);
+    }
     // we haven't seen enough flow after some amount of time
     // maybe the pump is broken
     bool flowError = (flowRate <= FLOW_RATE_MIN_THRESHOLD && pumpRunTime >= FLOW_RATE_STARTUP_TIME);
@@ -115,27 +116,45 @@ void CoolerSystem::runChillerPump()
     check(!flowError, SystemFault::FLOW_RATE_LOW);
 };
 
-
 void CoolerSystem::runCompressor()
 {
     // undertemp check
     // this isn't a panic condition
     // but we are going to shut down the compressor until temp
     // goes back above a safe value
-    if (evaporatorInletTemp <= COMPRESSOR_UNDER_TEMP_CUTOFF && !undertempCutoff) {
+    float cutoffTemp = 0, restartTemp = 0;
+    switch (systemStatus) {
+        case CoolerSystemStatus::PUMP_LOW:
+            cutoffTemp = COMPRESSOR_UNDER_TEMP_CUTOFF_LOW;
+            restartTemp = COMPRESSOR_RESTART_TEMP_LOW;
+            break;
+        case CoolerSystemStatus::PUMP_MEDIUM:
+            cutoffTemp = COMPRESSOR_UNDER_TEMP_CUTOFF_MED;
+            restartTemp = COMPRESSOR_RESTART_TEMP_MED;
+            break;            
+        case CoolerSystemStatus::PUMP_HIGH:
+        case CoolerSystemStatus::PRECHILL:
+        default:
+            cutoffTemp = COMPRESSOR_UNDER_TEMP_CUTOFF_HIGH;
+            restartTemp = COMPRESSOR_RESTART_TEMP_HIGH;
+            break;
+    }
+    compressorTempTarget = (cutoffTemp + restartTemp) / 2;
+
+    if (evaporatorInletTemp <= cutoffTemp && !undertempCutoff) {
         undertempCutoff = true;
-    } else if (evaporatorInletTemp >= COMPRESSOR_RESUME_PID_CONTROL_TEMP && undertempCutoff) {
+    } else if (evaporatorInletTemp >= restartTemp && undertempCutoff) {
         undertempCutoff = false;
     }
 
-    if (systemStatus < CoolerSystemStatus::PRECHILL || undertempCutoff) {
+    if (systemStatus == CoolerSystemStatus::RESET || systemStatus == CoolerSystemStatus::REQUIRES_RESET || undertempCutoff) {
         systemEnableOutput.setBoolean(false);
         analogWrite(compressorSpeedPin, 0);
         compressorPID.SetMode(MANUAL);
     } else {
         systemEnableOutput.setBoolean(true);
         compressorPID.SetMode(AUTOMATIC);
-        analogWrite(compressorSpeedPin, 1 * COMPRESSOR_SPEED_RATIO_TO_ANALOG); // 9V = 100%, 4.5V = 50%.
+        analogWrite(compressorSpeedPin, 0.75 * COMPRESSOR_SPEED_RATIO_TO_ANALOG); // 9V = 100%, 4.5V = 50%.
         // LOG_DEBUG("Compressor input temp:", compressorInputTemp, "target temp:", compressorTempTarget, "output value", compressorSpeed);
     }
 }
@@ -144,11 +163,11 @@ void CoolerSystem::runCoolshirtPump()
 {
     switch(systemStatus) {
         case CoolerSystemStatus::PUMP_LOW:
-            return coolshirtPWM.setPercent(33);
+            //return coolshirtPWM.setPercent(33);
         case CoolerSystemStatus::PUMP_MEDIUM:
-            return coolshirtPWM.setPercent(66);
+            //return coolshirtPWM.setPercent(66);
         case CoolerSystemStatus::PUMP_HIGH:
-            return coolshirtPWM.setPercent(100);
+            return coolshirtPWM.setPercent(70);
         default:
             return coolshirtPWM.setPercent(0);
     }
@@ -162,13 +181,20 @@ void CoolerSystem::check(bool checkResult, SystemFault fault)
     }
 }
 
+bool CoolerSystem::hasStarted() {
+    return startupCounter == 150;
+}
+
+static bool highNTC = false;
+
 void CoolerSystem::loop()
 {
     loopTimer.start();
     if (firstLoop) {
         // reset the timers so they're in sync with when the first sample was taken
-        pollTimer.reset();
-        displayInfoTimer.reset();
+        msTick.reset();
+        //pollTimer.reset();
+        //displayInfoTimer.reset();
         firstLoop = false;
         startTimeIndex = micros();
     }
@@ -176,15 +202,22 @@ void CoolerSystem::loop()
     if (!msTick.check()) {
         return;
     }
+    if (startupCounter < 150) {
+        startupCounter++;
+        if (startupCounter == 150) {
+            ClockTime::setEpoch();
+        }
+    }
+    pollCounter++;
+    displayInfoCounter++;
 
-    unsigned long ntcSampleDuration = micros();
-    unsigned long loopStart = ntcSampleDuration;
-    evaporatorInletNTC.loop();
+    // sample evap inlet after outlet, for reduced noise
+    uint32_t sampleTime = ClockTime::millisSinceEpoch();
     evaporatorOutletNTC.loop();
+    evaporatorInletNTC.loop();
     condenserInletNTC.loop();
     condenserOutletNTC.loop();
     ambientNTC.loop();
-    ntcSampleDuration = micros() - ntcSampleDuration;
 
     pressureSensor.loop();
     currentSensor.loop();
@@ -194,10 +227,21 @@ void CoolerSystem::loop()
     voltageMonitor.loop();
 
     if (NTC_DEBUG) {
-        ntcLogger.logSamples(evaporatorInletNTC.latest(), evaporatorInletNTC.adc(), evaporatorOutletNTC.latest(), evaporatorOutletNTC.adc());
+        ntcLogger.ensureSetup();
+        ntcLogger.logSamples(sampleTime, evaporatorInletNTC.latest(), evaporatorInletNTC.adc(), evaporatorOutletNTC.latest(), evaporatorOutletNTC.adc());
     }
 
-    if (pollTimer.check()) {
+    if (startupCounter < 150) {
+        // allow samples to stabilize before we run loops
+        return;
+    }
+
+    if (evaporatorInletNTC.latest() > 65500 || evaporatorOutletNTC.latest() > 65500) {
+        highNTC = true;
+    }
+
+    if (pollCounter > POLL_TIMER_MS) {
+        pollCounter = 0;
         flowRate = flowSensor.flowRate();
         systemPressure = pressureSensor.calibratedValue();
         compressorCurrent = currentSensor.calibratedValue();
@@ -215,21 +259,16 @@ void CoolerSystem::loop()
         check(!voltageMonitor.underVoltage(), SystemFault::SYSTEM_UNDERVOLT);
 
         // begin actions
-        compressorPID.Compute();
         runChillerPump();
         runCompressor();
         runCoolshirtPump();
+        compressorPID.Compute();
     }
-return;
-    if (displayInfoTimer.check()) {
-        if (NTC_DEBUG) {
-            Serial.printf(
-                "[%.3f s] Ambient Temp: avg %5d (%.3f C)    duration %u us\n",
-                (float) ntcLogger.msSinceStarted() / 1000,
-                ambientNTC.adc(),
-                ambientNTC.temperature(),
-                ntcSampleDuration
-            );
+
+    if (displayInfoCounter > DISPLAY_INFO_MS) {
+        displayInfoCounter = 0;
+
+        if (!SHOW_INFO) {
             return;
         }
 
@@ -345,20 +384,18 @@ void CoolerSystem::getCANMessage(CAN_message_t &msg)
 
 void CoolerSystem::getLogMessage(StringFormatCSV& format)
 {
-    unsigned long stamp = micros() - startTimeIndex;
-    format.formatFloat3DP((float) stamp / 1000000);
-    format.formatUnsignedInt(evaporatorInletNTC.adc());
-    format.formatUnsignedInt(evaporatorOutletNTC.adc());
-    format.formatUnsignedInt(condenserInletNTC.adc());
-    format.formatUnsignedInt(condenserOutletNTC.adc());
-    format.formatUnsignedInt(ambientNTC.adc());
-/*
+    format.formatFloat3DP(ClockTime::secSinceEpoch());
+    // format.formatUnsignedInt(evaporatorInletNTC.adc());
+    // format.formatUnsignedInt(evaporatorOutletNTC.adc());
+    // format.formatUnsignedInt(condenserInletNTC.adc());
+    // format.formatUnsignedInt(condenserOutletNTC.adc());
+    // format.formatUnsignedInt(ambientNTC.adc());
     format.formatFloat3DP(evaporatorInletTemp);
     format.formatFloat3DP(evaporatorOutletTemp);
     format.formatFloat3DP(condenserInletTemp);
     format.formatFloat3DP(condenserOutletTemp);
     format.formatFloat3DP(ambientTemp);
-*/
+    format.formatBool(highNTC); highNTC = false;
     format.formatUnsignedInt(flowRate);
     format.formatUnsignedInt(systemPressure);
     format.formatFloat3DP((float) voltageMonitor.get12vMilliVolts() / 1000);
@@ -366,12 +403,13 @@ void CoolerSystem::getLogMessage(StringFormatCSV& format)
     format.formatFloat3DP((float) voltageMonitor.get3v3MilliVolts() / 1000);
     format.formatFloat3DP((float) voltageMonitor.getp3v3MilliVolts() / 1000);
     format.formatInt(coolingPower);
-    format.formatString(CoolerSwitchPositionToString(switchADC.position()));
-    format.formatString(CoolerSystemStatusToString(systemStatus));
+    format.formatInt((int32_t) switchADC.position());
+    format.formatUnsignedInt(switchADC.adc());
+    format.formatInt((int32_t) systemStatus);
     format.formatBool(systemEnableOutput.value());
     format.formatBool(chillerPumpPWM.value());
-    format.formatUnsignedInt(coolshirtPWM.percent());
-    format.formatUnsignedInt(compressorSpeed);
+    format.formatBool(coolshirtPWM.value());
+    format.formatFloat3DP(compressorSpeed);
     format.formatBool(undertempCutoff);
     format.formatBinary(_systemFault);
 };

@@ -6,8 +6,8 @@
 #define CAN_RX true
 #define CAN_TX false
 
-#define PREALLOC_BYTES 1000000
-#define FLUSH_MS 5000
+#define PREALLOC_BYTES 18000000 // 18MB ~= 4 hours of logs
+#define FLUSH_MS 0
 
 class CANLogger
 {
@@ -18,9 +18,9 @@ public:
     static void stringify(char *output, const CAN_message_t &message, bool rx);
     static bool error;
 
-    static void logMessage(StringFormatCSV& format);
+    static bool logMessage(StringFormatCSV& format);
 private:
-    static void write(StringFormatCSV& format);
+    static bool write(StringFormatCSV& format);
     static void write() {
         char buf[1];
         StringFormatCSV format(buf, sizeof(buf));

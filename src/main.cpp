@@ -18,8 +18,8 @@
 
 #define HSR_LOGGER
 
-Metro statsTimer = Metro(10000);
-Metro canBroadcastTimer = Metro(100);
+Metro statsTimer = Metro(10000, 1);
+Metro canBroadcastTimer = Metro(100, 1);
 LoopTimer loopTimer = LoopTimer();
 
 FlexCAN CANbus = FlexCAN(500000, 0, true, true);
@@ -66,9 +66,8 @@ void setup()
 {
     // LOG_SET_LEVEL(DebugLogLevel::LVL_DEBUG);
     // initialize pin inputs/outputs first thing so they stabilize
-    Serial.begin(115200);
-    ClockTime::setup();
     cooler.setup();
+    ui.setup();
 
     // Set up and calibrate ADCs, see https://forum.pjrc.com/index.php?threads/adc-library-with-support-for-teensy-4-3-x-and-lc.25532/
     // adc0 is for NTCs, adc1 everything else
@@ -86,13 +85,13 @@ void setup()
     adc->adc1->setSamplingSpeed(ADC_SAMPLING_SPEED::HIGH_SPEED);
 
     analogWriteRes(16);
-
-    CANbus.begin();
-    CANLogger::setup();
-    ui.setup();
-
     adc->adc0->recalibrate();
     adc->adc1->recalibrate();
+
+    Serial.begin(115200);
+    ClockTime::setup();
+    CANbus.begin();
+    CANLogger::setup();
 
     LOG_INFO("System Boot OK");
 }
@@ -109,6 +108,7 @@ void processRXCANMessage()
 }
 
 static uint32_t slowLoopTime = 0;
+static bool coolerHasStarted = false;
 
 void loop()
 {
@@ -117,24 +117,22 @@ void loop()
     // tick functions for all modules
     cooler.loop();
     ui.loop();
-    if (loopTimer.elapsedSinceLoop() > 200) {
-        LOG_INFO("slow cooler/ui loop:", loopTimer.elapsedSinceLoop(), "us");
-    }
     // end tick functions
 
-    if (canBroadcastTimer.check()) {
+    bool logFirstData = false;
+    if (cooler.hasStarted() && !coolerHasStarted) {
+        coolerHasStarted = true;
+        canBroadcastTimer.reset();
+        logFirstData = true;
+    }
+
+    if (coolerHasStarted && canBroadcastTimer.check() || logFirstData) {
         char message[256];
         StringFormatCSV format(message, sizeof(message));
-        unsigned long startlog = micros();
         cooler.getLogMessage(format);
         format.formatUnsignedInt(slowLoopTime);
         CANLogger::logMessage(format);
         slowLoopTime = 0;
-        unsigned long logduration = micros() - startlog;
-        if (logduration > 200) {
-            LOG_INFO("slow log loop:", logduration, "us");
-        }
-
         //cooler.getCANMessage(coolerSystemMessage);
         //broadcastMessage(coolerSystemMessage);
     }

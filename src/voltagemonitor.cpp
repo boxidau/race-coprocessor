@@ -1,7 +1,5 @@
 #include "voltagemonitor.h"
 
-Metro msTick = Metro(1);
-
 void VoltageMonitor::setup() {
     sys12v.setup();
     sys12v.setCalibration(0, 0, 39784, 12000, false);
@@ -14,11 +12,24 @@ void VoltageMonitor::setup() {
 };
 
 void VoltageMonitor::loop() {
-    if (msTick.check()) {
-        sys12v.loop();
-        sys5v.loop();
-        sys3v3.loop();
-        sysp3v3.loop();
+    sys12v.loop();
+    sys5v.loop();
+    sys3v3.loop();
+    sysp3v3.loop();
+
+    // if 12V out of range, wait for timeout before we report it
+    // this is so the car can start without undervolting
+    uint16_t sys12vMillivolts = get12vMilliVolts();
+    uint32_t ms = millis();
+    if (sys12vMillivolts < UNDERVOLT_12V) {
+        millisSince12vUndervolt = millisSince12vUndervolt || ms;
+    } else {
+        millisSince12vUndervolt = 0;
+    }
+    if (sys12vMillivolts > OVERVOLT_12V) {
+        millisSince12vOvervolt = millisSince12vOvervolt || ms;
+    } else {
+        millisSince12vOvervolt = 0;
     }
 };
 
@@ -26,13 +37,14 @@ const bool VoltageMonitor::underVoltage() {
     return (get3v3MilliVolts() < UNDERVOLT_3V3)
         || (getp3v3MilliVolts() < UNDERVOLT_P3V3)
         || (get5vMilliVolts() < UNDERVOLT_5V)
-        || (get12vMilliVolts() < UNDERVOLT_12V);
+        || (millisSince12vUndervolt && (millis() - millisSince12vUndervolt > MS_12V_OUT_OF_RANGE_TIMEOUT));
 };
+
 const bool VoltageMonitor::overVoltage() {
     return (get3v3MilliVolts() > OVERVOLT_3V3)
         || (getp3v3MilliVolts() > OVERVOLT_P3V3)
         || (get5vMilliVolts() > OVERVOLT_5V)
-        || (get12vMilliVolts() > OVERVOLT_12V);
+        || (millisSince12vOvervolt && (millis() - millisSince12vOvervolt > MS_12V_OUT_OF_RANGE_TIMEOUT));
 };
 
 const uint16_t VoltageMonitor::get3v3MilliVolts() {

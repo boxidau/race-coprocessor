@@ -17,7 +17,11 @@
         "vector": "cpp",
         "system_error": "cpp",
         "array": "cpp",
-        "limits": "cpp"
+        "limits": "cpp",
+        "list": "cpp",
+        "unordered_map": "cpp",
+        "memory": "cpp",
+        "random": "cpp"
     },
     "C_Cpp.errorSquiggles": "Enabled"
 }

@@ -17,10 +17,10 @@ CoolerSwitchPosition _getSwitchPosition(uint16_t switchADCValue)
 {
     // UNKNOWN means switch is open, likely in process of switching positions
     if (switchADCValue < 15000) return CoolerSwitchPosition::RESET;
-    if (switchADCValue < 26000) return CoolerSwitchPosition::PRECHILL;
-    if (switchADCValue < 38000) return CoolerSwitchPosition::PUMP_LOW;
-    if (switchADCValue < 49000) return CoolerSwitchPosition::PUMP_MEDIUM;
-    if (switchADCValue < 60000) return CoolerSwitchPosition::PUMP_HIGH;
+    if (switchADCValue < 25000) return CoolerSwitchPosition::PRECHILL;
+    if (switchADCValue < 35000) return CoolerSwitchPosition::PUMP_LOW;
+    if (switchADCValue < 46000) return CoolerSwitchPosition::PUMP_MEDIUM;
+    if (switchADCValue < 59000) return CoolerSwitchPosition::PUMP_HIGH;
     return CoolerSwitchPosition::UNKNOWN;
 }
 

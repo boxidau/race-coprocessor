@@ -18,11 +18,10 @@
 #include "flowsensor.h"
 #include "compressorfault.h"
 #include "ntclogger.h"
-//#include "ntclogger2.h"
 #include "looptimer.h"
 #include "stringformat.h"
 
-#define OVERPRESSURE_THRESHOLD_KPA 230
+#define OVERPRESSURE_THRESHOLD_KPA 250 // operating pressure ~170 - 200kPa
 #define PRESSURE_SENSOR_CALIBRATION_LOW_ADC 5674 // 0.5V = 0psig = 101kPa
 #define PRESSURE_SENSOR_CALIBRATION_HIGH_ADC 51063  // 4.5V = 100psig = 791kPa
 #define PRESSURE_SENSOR_CALIBRATION_LOW_KPA 101
@@ -39,23 +38,32 @@
 #define FLOW_RATE_MISSING_PULSE_TIME 1000 // ms allowed since the last pulse seen
 #define SPECIFIC_HEAT 4033 // J/kgK of chiller fluid (90% water / 10% IPA @ 3C)
 
-#define DESIRED_TEMP 5.0
-#define COMPRESSOR_UNDER_TEMP_CUTOFF 3.0
-#define COMPRESSOR_RESUME_PID_CONTROL_TEMP 7.0
+#define COMPRESSOR_UNDER_TEMP_CUTOFF_HIGH 3.0
+#define COMPRESSOR_RESTART_TEMP_HIGH 6.0
+#define COMPRESSOR_UNDER_TEMP_CUTOFF_MED 7.0
+#define COMPRESSOR_RESTART_TEMP_MED 10.0
+#define COMPRESSOR_UNDER_TEMP_CUTOFF_LOW 11.0
+#define COMPRESSOR_RESTART_TEMP_LOW 14.0
+
 #define COMPRESSOR_MIN_SPEED_RATIO 0.5
 #define COMPRESSOR_MAX_SPEED_RATIO 1.0
 #define COMPRESSOR_SPEED_RATIO_TO_ANALOG (9 / (3.3 * 3.717) * ADC_MAX)
+#define PID_KP 0.5
+#define PID_KI 0.2
+#define PID_KD 0
 
+#define SHOW_INFO 0
 #define NTC_DEBUG 0
 #define POLL_TIMER_MS 100
+#define DISPLAY_INFO_MS (NTC_DEBUG ? 500 : 2000)
 
 enum class CoolerSystemStatus {
-    REQUIRES_RESET = 0,
-    RESET          = 1,
-    PRECHILL       = 2,
-    PUMP_LOW       = 3,
-    PUMP_MEDIUM    = 4,
-    PUMP_HIGH      = 5
+    REQUIRES_RESET = -1,
+    RESET          = 0,
+    PRECHILL       = 1,
+    PUMP_LOW       = 2,
+    PUMP_MEDIUM    = 3,
+    PUMP_HIGH      = 4
 };
 
 constexpr CoolerSystemStatus CoolerSwitchPositionToStatus(CoolerSwitchPosition csp) {
@@ -165,8 +173,9 @@ private:
     CoolerSwitchPosition switchPosition { CoolerSwitchPosition::UNKNOWN };
 
     LoopTimer loopTimer;
-    Metro pollTimer { Metro(POLL_TIMER_MS, 1) };
-    Metro displayInfoTimer { Metro(NTC_DEBUG ? 500 : 2000, 1) };
+    uint32_t pollCounter { 0 };
+    uint32_t displayInfoCounter { 0 };
+    uint32_t startupCounter { 0 };
     Metro msTick = { Metro(1, 1) };
     uint32_t pumpStartTime = { 0 };
     NTCLogger ntcLogger;
@@ -194,12 +203,11 @@ private:
 
     double evaporatorInletTemp { -100.0 };
     double compressorSpeed { 0 };
-    double compressorTempTarget { DESIRED_TEMP };
+    double compressorTempTarget { 5 };
     bool undertempCutoff { false };
-    const double Kp=1.5e-1, Ki=0/*1e-3*/, Kd=0;
     PID compressorPID { PID(
         &evaporatorInletTemp, &compressorSpeed, &compressorTempTarget,
-        Kp, Ki, Kd, P_ON_M, REVERSE
+        PID_KP, PID_KI, PID_KD, P_ON_M, REVERSE
     )};
 
     // getters
@@ -266,4 +274,5 @@ public:
     byte systemFault();
     void getSystemData(CoolerSystemData &data);
     unsigned long lastFlowPulseMicros();
+    bool hasStarted();
 };

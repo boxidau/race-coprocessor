@@ -12,7 +12,6 @@ https://docs.openvehicles.com/en/latest/crtd
 #include "sdlogger.h"
 
 static char lineBuffer[512];
-static int linesWritten;
 static FsFile logFile;
 static bool enableLog;
 static Metro retrySDTimer = Metro(FLUSH_MS);
@@ -21,7 +20,6 @@ bool CANLogger::error = false;
 
 void CANLogger::setup()
 {
-    linesWritten = 0;
     if (!SDLogger::ensureInitialized()) {
         return;
     }
@@ -78,7 +76,7 @@ void CANLogger::setup()
         LOG_INFO("preallocing:", logFile.preAllocate(PREALLOC_BYTES) ? "success" : "failure");
     #endif
 
-    logFile.write("time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,flowRate,pressure,12v,5v,3v3,p3v3,coolingPower,switchPos,status,systemEnable,chillerPumpEnable,coolshirtPWM,compressorSpeed,underTempCutoff,systemFault,slowLoopTime,didSDFlush,sdIsBusy\n");
+    logFile.write("time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,highNTC,flowRate,pressure,12v,5v,3v3,p3v3,coolingPower,switchPos,switchADC,status,systemEnable,chillerPumpEnable,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,slowLoopTime\n");
     enableLog = true;
 }
 
@@ -87,13 +85,13 @@ void CANLogger::logComment(const String line)
     char strBuf[241];
     line.toCharArray(strBuf, 240);
 
-    snprintf(lineBuffer, 254, "%0.3f CXX %s", ClockTime::getMillisTime(), strBuf);
+    snprintf(lineBuffer, 254, "%0.3f CXX %s", ClockTime::secSinceEpoch(), strBuf);
     write();
 }
 
 void CANLogger::stringify(char output[255], const CAN_message_t &message, bool rx) {
     sprintf(output, "%0.3f %d%s%s %lu ",
-            ClockTime::getMillisTime(),
+            ClockTime::secSinceEpoch(),
             1, // hardcode canbus 1 for now
             rx ? "R" : "T",
             message.ext ? "29" : "11",
@@ -116,12 +114,12 @@ void CANLogger::logCANMessage(const CAN_message_t &message, bool rx)
     write();
 }
 
-void CANLogger::logMessage(StringFormatCSV& format)
+bool CANLogger::logMessage(StringFormatCSV& format)
 {
-    write(format);
+    return write(format);
 }
 
-void CANLogger::write(StringFormatCSV& format)
+bool CANLogger::write(StringFormatCSV& format)
 {
     bool tick = retrySDTimer.check();
     if (!enableLog)
@@ -130,12 +128,10 @@ void CANLogger::write(StringFormatCSV& format)
         {
             CANLogger::setup();
         }
-        return;
+        return false;
     }
 
     //LOG_DEBUG("LOG WRITE:", + lineBuffer);
-    format.formatBool(tick);
-    format.formatBool(logFile.isBusy());
     const char* buffer = format.finish();
     uint32_t length = format.length();
     uint32_t m1 = micros();
@@ -147,25 +143,26 @@ void CANLogger::write(StringFormatCSV& format)
         LOG_INFO("failed write, bytes written", m, "desired length", length);
         enableLog = false;
         error = true;
-        return;
+        return false;
     }
     uint32_t m2 = micros();
     n += m;
     //LOG_INFO("write", n, "cumulative bytes", m2-m1, "us, was busy", isbusy);
 
-    ++linesWritten;
     error = false;
     
     #if FLUSH_MS
         if (tick)
         {
-            LOG_DEBUG("LOG FLUSH, written lines: ", linesWritten );
             m1 = micros();
             logFile.flush();
             m2 = micros();
             LOG_INFO("flush", m2-m1, "us, bytes", n);
-            LOG_INFO("buffer", buffer);
+            //LOG_INFO("buffer", buffer);
             n = 0;
+            return true;
         }
     #endif
+
+    return false;
 }

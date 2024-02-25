@@ -10,20 +10,21 @@ void CoolerUI::setup() {
     display.setup();
     pinMode(uiButtonPin, INPUT);
     displayPageNameUntil = millis() + 1000;
+    display.setString("888");        
+    display.setLED(ScreenLED::RED, true);
+    display.setLED(ScreenLED::YELLOW, true);
+    display.setLED(ScreenLED::GREEN, true);
 };
 
 bool CoolerUI::shouldDisplayName() {
     return millis() < displayPageNameUntil;
 }
 
-bool CoolerUI::loop() {
+void CoolerUI::loop() {
     if (millis() < STARTUP_MILLIS) {
-        display.setString("888");
-        display.setLED(ScreenLED::RED, true);
-        display.setLED(ScreenLED::YELLOW, true);
-        display.setLED(ScreenLED::GREEN, true);
-        return false;
+        return;
     }
+
     if (startup) {
         startup = false;
         display.setLED(ScreenLED::RED, false);
@@ -56,7 +57,7 @@ bool CoolerUI::loop() {
     }
 
     if (!displayUpdate.check()) {
-        return false;
+        return;
     }
 
     coolerSystem.getSystemData(rtData);
@@ -82,12 +83,12 @@ bool CoolerUI::loop() {
             // ambient temp
             case 8: display.setString("AMT"); break;
         }
-        return true;
+        return;
     }
         
     if (page == 5) {
         display.displayError(rtData.fault);
-        return false;
+        return;
     }
 
     // output buffer size is 5 screen size is 3, why?
@@ -121,7 +122,6 @@ bool CoolerUI::loop() {
             break;
     }
     display.setString(buf);
-    return false;
 };
 
 

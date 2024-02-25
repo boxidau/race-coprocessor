@@ -8,7 +8,7 @@ class LoopTimer {
         uint32_t start() {
             unsigned long time = micros();
             _prevLoop = _hasStarted ? _prevLoop : time;
-            unsigned long duration = time >= _prevLoop ? time - _prevLoop : time + (UINT32_MAX - _prevLoop);
+            unsigned long duration = time >= _prevLoop ? time - _prevLoop : time + (UINT32_MAX - _prevLoop) + 1;
             _elapsedSinceStart += duration;
             _prevLoop = time;
             _hasStarted = true;
@@ -25,7 +25,7 @@ class LoopTimer {
 
         uint32_t elapsedSinceLoop() {
             unsigned long time = micros();
-            return time >= _prevLoop ? time - _prevLoop : time + (UINT32_MAX - _prevLoop);
+            return time >= _prevLoop ? time - _prevLoop : time + (UINT32_MAX - _prevLoop) + 1;
         };
 
     private:

@@ -2,7 +2,7 @@
 
 #include <DebugLog.h>
 
-static time_t initialTime = 0;
+static uint32_t epoch = 0;
 
 static time_t getTeensy3Time()
 {
@@ -20,10 +20,18 @@ void ClockTime::setup()
     {
         LOG_INFO("RTC has set the system time");
     }
-    initialTime = now();
 }
 
-double ClockTime::getMillisTime()
+void ClockTime::setEpoch() {
+    epoch = millis();
+}
+
+uint32_t ClockTime::millisSinceEpoch()
 {
-    return (double)initialTime + ((double)millis() / 1000);
+    return epoch ? millis() - epoch : 0;
+}
+
+double ClockTime::secSinceEpoch()
+{
+    return epoch ? (double)(millis() - epoch) / 1000 : 0;
 }

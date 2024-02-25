@@ -9,9 +9,12 @@
 #include "sdlogger.h"
 #include "stringformat.h"
 
-void NTCLogger::setup()
+void NTCLogger::ensureSetup()
 {
-    //lineBuf = new char[LINEBUF_SIZE];
+    if (enableLog) {
+        return;
+    }
+
     if (!SDLogger::ensureInitialized()) {
         return;
     }
@@ -68,24 +71,17 @@ void NTCLogger::setup()
     enableLog = true;
 }
 
-void NTCLogger::logSamples(uint16_t ntc1, uint16_t ntc1avg, uint16_t ambient, uint16_t ambientavg) {
-    unsigned long time = micros();
-    prevTime = started ? prevTime : time;
-    unsigned long duration = time >= prevTime ? time - prevTime : time + (UINT32_MAX - prevTime);
-    time64 += duration;
-    prevTime = time;
-    started = true;
-
+void NTCLogger::logSamples(uint32_t time, uint16_t ntc1, uint16_t ntc1avg, uint16_t ntc2, uint16_t ntc2avg) {
     if (!enableLog) {
         return;
     }
 
     NTCData data;
-    data.time = time64;
+    data.time = time;
     data.ntc1 = ntc1;
     data.ntc1avg = ntc1avg;
-    data.ambient = ambient;
-    data.ambientavg = ambientavg;
+    data.ntc2 = ntc2;
+    data.ntc2avg = ntc2avg;
     ntcData.push_back(data);
 
     if (ntcData.full()) {
@@ -99,7 +95,7 @@ void NTCLogger::flush()
         return;
     }
 
-    unsigned long micro = micros();
+    unsigned long start = micros();
     for (size_t i = 0; i < ntcData.size(); i++) {
         NTCData& data = ntcData[i];
 
@@ -108,15 +104,14 @@ void NTCLogger::flush()
         format.formatUnsignedInt(data.time);
         format.formatUnsignedInt(data.ntc1);
         format.formatUnsignedInt(data.ntc1avg);
-        format.formatUnsignedInt(data.ambient);
-        format.formatUnsignedInt(data.ambientavg);
-        format.finish();
+        format.formatUnsignedInt(data.ntc2);
+        format.formatUnsignedInt(data.ntc2avg);
 
         logFile.write(format.finish(), format.length());
     }
-    unsigned long doneprint = micros();
+    unsigned long end = micros();
 
     ntcData.clear();
     logFile.flush();
-    LOG_INFO("NTC LOG FLUSHED, print ", doneprint - micro, ", flush ", micros() - doneprint);
+    LOG_INFO("NTC LOG FLUSHED, print ", end - start, ", flush ", micros() - end);
 }
