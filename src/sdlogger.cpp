@@ -5,11 +5,11 @@
 static bool initialized = false;
 static uint32_t retries = 0;
 
-static bool SDLogger::isInitialized() {
+bool SDLogger::isInitialized() {
     return initialized;
 }
 
-static bool SDLogger::ensureInitialized() {
+bool SDLogger::ensureInitialized() {
     if (initialized) {
         return true;
     }

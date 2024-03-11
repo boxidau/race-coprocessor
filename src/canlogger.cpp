@@ -72,11 +72,11 @@ void CANLogger::setup()
 
     logFile = SD.sdfs.open(fullLogFilePath, O_WRONLY | O_CREAT | O_TRUNC);
     //logFile = SD.open(fullLogFilePath, FILE_WRITE);
-    #if PREALLOC_BYTES
-        LOG_INFO("preallocing:", logFile.preAllocate(PREALLOC_BYTES) ? "success" : "failure");
+    #if PREALLOC_MB
+        LOG_INFO("preallocing:", logFile.preAllocate(PREALLOC_MB * 1000000) ? "success" : "failure");
     #endif
 
-    logFile.write("time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,highNTC,flowRate,pressure,12v,5v,3v3,p3v3,coolingPower,switchPos,switchADC,status,systemEnable,chillerPumpEnable,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,slowLoopTime\n");
+    logFile.write("time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,flowRate,pressure,12v,5v,3v3,p3v3,coolingPower,switchPos,switchADC,status,systemEnable,chillerPumpEnable,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,slowLoopTime\n");
     enableLog = true;
 }
 

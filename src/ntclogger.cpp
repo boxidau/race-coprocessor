@@ -9,7 +9,7 @@
 #include "sdlogger.h"
 #include "stringformat.h"
 
-void NTCLogger::ensureSetup()
+void NTCLogger::ensureSetup(const char* header)
 {
     if (enableLog) {
         return;
@@ -67,21 +67,21 @@ void NTCLogger::ensureSetup()
     }
 
     logFile = SD.open(fullLogFilePath, FILE_WRITE);
-    logFile.print("time,ntc1,ntc1avg,ntc2,ntc2avg\n");
+    logFile.println(header);
     enableLog = true;
 }
 
-void NTCLogger::logSamples(uint32_t time, uint16_t ntc1, uint16_t ntc1avg, uint16_t ntc2, uint16_t ntc2avg) {
+void NTCLogger::logSamples(uint32_t time, uint16_t sample1, uint16_t sample2, uint16_t sample3, uint16_t sample4) {
     if (!enableLog) {
         return;
     }
 
     NTCData data;
     data.time = time;
-    data.ntc1 = ntc1;
-    data.ntc1avg = ntc1avg;
-    data.ntc2 = ntc2;
-    data.ntc2avg = ntc2avg;
+    data.sample1 = sample1;
+    data.sample2 = sample2;
+    //data.sample3 = sample3;
+    //data.sample4 = sample4;
     ntcData.push_back(data);
 
     if (ntcData.full()) {
@@ -102,10 +102,10 @@ void NTCLogger::flush()
         char message[128];
         StringFormatCSV format(message, sizeof(message));
         format.formatUnsignedInt(data.time);
-        format.formatUnsignedInt(data.ntc1);
-        format.formatUnsignedInt(data.ntc1avg);
-        format.formatUnsignedInt(data.ntc2);
-        format.formatUnsignedInt(data.ntc2avg);
+        format.formatUnsignedInt(data.sample1);
+        format.formatUnsignedInt(data.sample2);
+        //format.formatUnsignedInt(data.sample3);
+        //format.formatUnsignedInt(data.sample4);
 
         logFile.write(format.finish(), format.length());
     }

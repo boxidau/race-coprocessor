@@ -2,7 +2,7 @@
 #include "Arduino.h"
 
 #define FLOW_SAMPLES 16
-#define FLOW_DEBOUNCE_MS 10
+#define FLOW_DEBOUNCE_MS 0
 
 class FlowSensor {
 private:
@@ -24,4 +24,6 @@ public:
     void setup();
     uint16_t flowRate();
     unsigned long lastPulseMicros();
+    unsigned long lastPulseDuration();
+    uint8_t lastPulseIndex();
 };

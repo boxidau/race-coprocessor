@@ -21,7 +21,6 @@ void Display::updateDisplay() {
         sendSPIData(chipSelectPin, SCREEN_CHAR1, screen[1]);
         sendSPIData(chipSelectPin, SCREEN_CHAR2, screen[2]);
         sendSPIData(chipSelectPin, SCREEN_LED, screen[SCREEN_BUF_LED_IDX]);
-        // Serial.println(debugString());
     }
 };
 

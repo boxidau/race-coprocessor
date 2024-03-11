@@ -6,7 +6,7 @@
 #include "constants.h"
 #include "singletonadc.h"
 
-#define SWITCH_ADC_SAMPLES 10
+#define SWITCH_ADC_SAMPLES 20
 
 enum class CoolerSwitchPosition {
     UNKNOWN        = -1,

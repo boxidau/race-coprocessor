@@ -48,14 +48,17 @@
 #define COMPRESSOR_MIN_SPEED_RATIO 0.5
 #define COMPRESSOR_MAX_SPEED_RATIO 1.0
 #define COMPRESSOR_SPEED_RATIO_TO_ANALOG (9 / (3.3 * 3.717) * ADC_MAX)
+#define COMPRESSOR_MIN_COOLDOWN_MS 60000
 #define PID_KP 0.5
 #define PID_KI 0.2
 #define PID_KD 0
 
-#define SHOW_INFO 0
+#define STARTUP_STABILIZATION_MS 100 // time to acquire data and stabilize before doing anything
+
 #define NTC_DEBUG 0
+#define FLOW_DEBUG 1
 #define POLL_TIMER_MS 100
-#define DISPLAY_INFO_MS (NTC_DEBUG ? 500 : 2000)
+#define DISPLAY_INFO_MS 2000
 
 enum class CoolerSystemStatus {
     REQUIRES_RESET = -1,
@@ -114,8 +117,7 @@ enum class SystemFault {
     SYSTEM_OVER_PRESSURE = 4,
     SYSTEM_UNDERVOLT = 8,
     SYSTEM_OVERVOLT = 16,
-    SYSTEM_STARTUP = 32,
-    COMPRESSOR_FAULT = 64,
+    COMPRESSOR_FAULT = 32,
 };
 
 constexpr const char* SystemFaultToString(SystemFault sf)
@@ -128,7 +130,6 @@ constexpr const char* SystemFaultToString(SystemFault sf)
         case SystemFault::SYSTEM_OVER_PRESSURE: return "SYSTEM_OVER_PRESSURE";
         case SystemFault::SYSTEM_UNDERVOLT: return "SYSTEM_UNDERVOLT";
         case SystemFault::SYSTEM_OVERVOLT: return "SYSTEM_OVERVOLT";
-        case SystemFault::SYSTEM_STARTUP: return "SYSTEM_STARTUP";
         case SystemFault::COMPRESSOR_FAULT: return "COMPRESSOR_FAULT";
         default: return "UNKNOWN";
     }
@@ -158,7 +159,7 @@ private:
     uint8_t coolantLevelPin;
     uint8_t compressorSpeedPin;
     FlowSensor flowSensor;
-    PrecisionNTC evaporatorInletNTC, evaporatorOutletNTC;
+    PrecisionNTC evaporatorInletNTC, evaporatorInletA10, evaporatorOutletNTC;
     NTC condenserInletNTC, condenserOutletNTC;
     NTC ambientNTC;
 
@@ -168,7 +169,7 @@ private:
     // internal state
     Bounce coolantLevelBounce;
     VoltageMonitor& voltageMonitor;
-    byte _systemFault { (byte)SystemFault::SYSTEM_STARTUP };
+    byte _systemFault { (byte)SystemFault::SYSTEM_OK };
     CoolerSystemStatus systemStatus { CoolerSystemStatus::REQUIRES_RESET };
     CoolerSwitchPosition switchPosition { CoolerSwitchPosition::UNKNOWN };
 
@@ -185,6 +186,7 @@ private:
     // sensor values
     CompressorFaultCode compressorFaultCode { CompressorFaultCode::OK };
     uint16_t flowRate { 0 };
+    uint8_t lastLoggedFlowPulse { 0 };
     bool coolantLevel { false };
     uint16_t systemPressure { 0 };
     float compressorCurrent { 0 };
@@ -194,6 +196,7 @@ private:
     float ambientTemp { -100.0 };
     float coolingPower { 0 };
     bool chillerPumpRunning { false };
+    int32_t compressorShutoffTime { -COMPRESSOR_MIN_COOLDOWN_MS };
 
     // output states
     // for logging/canbus output
@@ -256,6 +259,7 @@ public:
         , compressorSpeedPin { _compressorSpeedPin }
         , flowSensor { FlowSensor(_flowRatePin, FLOW_SENSOR_PULSES_PER_SECOND, FLOW_RATE_MISSING_PULSE_TIME) }
         , evaporatorInletNTC { PrecisionNTC(_evaporatorInletNtcPin, _ntcADCNum, 15000) }
+        , evaporatorInletA10 { PrecisionNTC(NTC_EVAPORATOR_DIFF_1, _ntcADCNum, 15000) }
         , evaporatorOutletNTC { PrecisionNTC(_evaporatorOutletNtcPin, _ntcADCNum, 15000) }
         , condenserInletNTC { NTC(_condenserInletNtcPin, _ntcADCNum, 6800) }
         , condenserOutletNTC { NTC(_condenserOutletNtcPin, _ntcADCNum, 6800) }

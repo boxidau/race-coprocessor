@@ -64,7 +64,7 @@ CoolerUI ui = CoolerUI(cooler, SPI_DISPLAY_CS, UI_BUTTON);
 
 void setup()
 {
-    // LOG_SET_LEVEL(DebugLogLevel::LVL_DEBUG);
+     LOG_SET_LEVEL(DebugLogLevel::LVL_DEBUG);
     // initialize pin inputs/outputs first thing so they stabilize
     cooler.setup();
     ui.setup();
@@ -93,6 +93,8 @@ void setup()
     CANbus.begin();
     CANLogger::setup();
 
+    pinMode(PWM4, OUTPUT);
+
     LOG_INFO("System Boot OK");
 }
 
@@ -114,6 +116,10 @@ void loop()
 {
     uint32_t loopTime = loopTimer.start();
 
+    if (digitalRead(PWM4) == 1) {
+        digitalWrite(PWM4, 0);
+    }
+
     // tick functions for all modules
     cooler.loop();
     ui.loop();
@@ -126,12 +132,15 @@ void loop()
         logFirstData = true;
     }
 
-    if (coolerHasStarted && canBroadcastTimer.check() || logFirstData) {
+    if ((coolerHasStarted && canBroadcastTimer.check()) || logFirstData) {
         char message[256];
         StringFormatCSV format(message, sizeof(message));
         cooler.getLogMessage(format);
         format.formatUnsignedInt(slowLoopTime);
-        CANLogger::logMessage(format);
+        bool didFlush = CANLogger::logMessage(format);
+        if (didFlush) {
+            digitalWrite(PWM4, 1);
+        }
         slowLoopTime = 0;
         //cooler.getCANMessage(coolerSystemMessage);
         //broadcastMessage(coolerSystemMessage);

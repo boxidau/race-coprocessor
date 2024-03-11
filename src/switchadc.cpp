@@ -1,8 +1,6 @@
 #include "switchadc.h"
 #include <ADC.h>
 
-unsigned long start;
-
 void SwitchADC::loop() {
     uint16_t curValue = SingletonADC::getADC()->analogRead(pin, adcNum);
     if (!samples.full()) {
@@ -26,7 +24,7 @@ CoolerSwitchPosition _getSwitchPosition(uint16_t switchADCValue)
 
 CoolerSwitchPosition SwitchADC::position()
 {
-    if (samples.size() < samples.max_size()) {
+    if (!samples.full()) {
         return CoolerSwitchPosition::UNKNOWN;
     }
 
