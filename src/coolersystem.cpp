@@ -1,5 +1,6 @@
 #include "coolersystem.h"
 #include "clocktime.h"
+#include "eventloop.h"
 
 void printFaultLine(StringFormatCSV& format, SystemFault f, byte systemFault) {
     const char* faultName = SystemFaultToString(f);
@@ -302,6 +303,11 @@ void CoolerSystem::updateOutputs()
     }
 }
 
+void CoolerSystem::displayInfoCallback(EventData data) {
+    const char* str = (const char*) data;
+    Serial.write(str, format.length());
+}
+
 void CoolerSystem::displayInfo()
 {
 #ifndef DEBUGLOG_DISABLE_LOG
@@ -430,7 +436,8 @@ void CoolerSystem::displayInfo()
     printFaultLine(format, SystemFault::COMPRESSOR_FAULT, _systemFault);
     format.formatLiteral("-------------------------------------------------------\n");
 
-    Serial.write(format.finish(), format.length());
+    displayInfoBuffer = format.finish();
+    EventLoop::get().add(callback, data, EventPriority::PRIORITY_LOW);
 #endif
 }
 

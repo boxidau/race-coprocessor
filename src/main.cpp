@@ -14,6 +14,7 @@
 #include "singletonadc.h"
 #include "looptimer.h"
 #include "stringformat.h"
+#include "eventloop.h"
 
 #define HSR_LOGGER
 
@@ -114,6 +115,8 @@ void loop()
     if (digitalRead(PWM4) == 1) {
         digitalWrite(PWM4, 0);
     }
+
+    EventLoop::get().loop();
 
     // tick functions for all modules
     cooler.loop();
