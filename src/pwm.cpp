@@ -28,6 +28,10 @@ const uint8_t PWMOutput::percent() {
 };
 
 void PWMOutput::set(const uint16_t v) {
+    if (v == _value) {
+        return;
+    }
+
     _value = v;
     if (_inverted) {
         analogWrite(_pin, PWM_MAX-_value);
@@ -37,7 +41,7 @@ void PWMOutput::set(const uint16_t v) {
 };
 
 void PWMOutput::setPercent(const uint8_t p) {
-    set((uint16_t)((constrain(p, 0, 100) / 100.0) * PWM_MAX));
+    set((constrain(p, 0, 100) / 100.0) * PWM_MAX);
 };
 
 void PWMOutput::setBoolean(const bool b) {

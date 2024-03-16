@@ -2,13 +2,14 @@
 
 #include "Arduino.h"
 #include <TimeLib.h>
+#include "utils.h"
 
 class LoopTimer {
     public:
         uint32_t start() {
             unsigned long time = micros();
             _prevLoop = _hasStarted ? _prevLoop : time;
-            unsigned long duration = time >= _prevLoop ? time - _prevLoop : time + (UINT32_MAX - _prevLoop) + 1;
+            unsigned long duration = MICROS_DURATION(time, _prevLoop);
             _elapsedSinceStart += duration;
             _prevLoop = time;
             _hasStarted = true;
@@ -25,7 +26,7 @@ class LoopTimer {
 
         uint32_t elapsedSinceLoop() {
             unsigned long time = micros();
-            return time >= _prevLoop ? time - _prevLoop : time + (UINT32_MAX - _prevLoop) + 1;
+            return MICROS_DURATION(time, _prevLoop);
         };
 
     private:

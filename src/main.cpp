@@ -11,7 +11,6 @@
 #include "utils.h"
 #include "coolersystem.h"
 #include "ui.h"
-#include "voltagemonitor.h"
 #include "singletonadc.h"
 #include "looptimer.h"
 #include "stringformat.h"
@@ -25,17 +24,6 @@ LoopTimer loopTimer = LoopTimer();
 FlexCAN CANbus = FlexCAN(500000, 0, true, true);
 
 CAN_message_t coolerSystemMessage, rxMessage;
-
-VoltageMonitor voltageMonitor = VoltageMonitor(
-    ADC_SYSTEM_12V,
-    ADC_SYSTEM_12V_ADC_NUM,
-    ADC_SYSTEM_5V,
-    ADC_SYSTEM_5V_ADC_NUM,
-    ADC_SYSTEM_3V3,
-    ADC_SYSTEM_3V3_ADC_NUM,
-    ADC_SPARE_5V, // P3V3 using 5V spare ADC
-    ADC_SPARE_5V_ADC_NUM
-);
 
 CoolerSystem cooler = CoolerSystem(
     ADC_MAIN_SWITCH, // switchPin
@@ -57,14 +45,21 @@ CoolerSystem cooler = CoolerSystem(
     PWM1, // chillerPumpPin,
     PWM2, // coolshirtPumpPin,
     PWM3, // systemEnablePin
-    voltageMonitor
+    ADC_SYSTEM_12V,
+    ADC_SYSTEM_12V_ADC_NUM,
+    ADC_SYSTEM_5V,
+    ADC_SYSTEM_5V_ADC_NUM,
+    ADC_SYSTEM_3V3,
+    ADC_SYSTEM_3V3_ADC_NUM,
+    ADC_SPARE_5V, // P3V3 using 5V spare ADC
+    ADC_SPARE_5V_ADC_NUM
 );
 
 CoolerUI ui = CoolerUI(cooler, SPI_DISPLAY_CS, UI_BUTTON);
 
 void setup()
 {
-     LOG_SET_LEVEL(DebugLogLevel::LVL_DEBUG);
+    LOG_SET_LEVEL(DebugLogLevel::LVL_DEBUG);
     // initialize pin inputs/outputs first thing so they stabilize
     cooler.setup();
     ui.setup();

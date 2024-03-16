@@ -20,6 +20,7 @@
 #include "ntclogger.h"
 #include "looptimer.h"
 #include "stringformat.h"
+#include "timer.h"
 
 #define OVERPRESSURE_THRESHOLD_KPA 250 // operating pressure ~170 - 200kPa
 #define PRESSURE_SENSOR_CALIBRATION_LOW_ADC 5674 // 0.5V = 0psig = 101kPa
@@ -44,49 +45,41 @@
 #define COMPRESSOR_RESTART_TEMP_MED 10.0
 #define COMPRESSOR_UNDER_TEMP_CUTOFF_LOW 11.0
 #define COMPRESSOR_RESTART_TEMP_LOW 14.0
+#define EVAPORATOR_OUTLET_PANIC_TEMPERATURE 0.0
 
+// valid range of compressor speed output is 4.5V = 50%, 9V = 100%
 #define COMPRESSOR_MIN_SPEED_RATIO 0.5
 #define COMPRESSOR_MAX_SPEED_RATIO 1.0
+#define COMPRESSOR_DEFAULT_SPEED 0.75
 #define COMPRESSOR_SPEED_RATIO_TO_ANALOG (9 / (3.3 * 3.717) * ADC_MAX)
 #define COMPRESSOR_MIN_COOLDOWN_MS 60000
 #define PID_KP 0.5
 #define PID_KI 0.2
 #define PID_KD 0
 
-#define STARTUP_STABILIZATION_MS 100 // time to acquire data and stabilize before doing anything
+// time to acquire data and stabilize before doing anything
+#define STARTUP_STABILIZATION_SAMPLES 100
 
 #define NTC_DEBUG 0
 #define FLOW_DEBUG 1
-#define POLL_TIMER_MS 100
+#define UPDATE_STATE_TIMER_MS 100
 #define DISPLAY_INFO_MS 2000
 
 enum class CoolerSystemStatus {
-    REQUIRES_RESET = -1,
-    RESET          = 0,
-    PRECHILL       = 1,
-    PUMP_LOW       = 2,
-    PUMP_MEDIUM    = 3,
-    PUMP_HIGH      = 4
+    STARTUP         = -2,
+    REQUIRES_RESET  = -1,
+    RESET           = 0,
+    PRECHILL        = 1,
+    PUMP_LOW        = 2,
+    PUMP_MEDIUM     = 3,
+    PUMP_HIGH       = 4
 };
-
-constexpr CoolerSystemStatus CoolerSwitchPositionToStatus(CoolerSwitchPosition csp) {
-    switch (csp)
-    {
-        case CoolerSwitchPosition::RESET: return CoolerSystemStatus::RESET;
-        case CoolerSwitchPosition::PRECHILL: return CoolerSystemStatus::PRECHILL;
-        case CoolerSwitchPosition::PUMP_LOW: return CoolerSystemStatus::PUMP_LOW;
-        case CoolerSwitchPosition::PUMP_MEDIUM: return CoolerSystemStatus::PUMP_MEDIUM;
-        case CoolerSwitchPosition::PUMP_HIGH: return CoolerSystemStatus::PUMP_HIGH;
-        default:
-            LOG_ERROR("Invalid switch position", int(csp));
-            return CoolerSystemStatus::RESET;
-    }
-}
 
 constexpr const char* CoolerSystemStatusToString(CoolerSystemStatus css)
 {
     switch (css)
     {
+        case CoolerSystemStatus::STARTUP: return "STARTUP";
         case CoolerSystemStatus::REQUIRES_RESET: return "REQUIRES_RESET";
         case CoolerSystemStatus::RESET: return "RESET";
         case CoolerSystemStatus::PRECHILL: return "PRECHILL";
@@ -168,20 +161,18 @@ private:
 
     // internal state
     Bounce coolantLevelBounce;
-    VoltageMonitor& voltageMonitor;
+    VoltageMonitor voltageMonitor;
     byte _systemFault { (byte)SystemFault::SYSTEM_OK };
-    CoolerSystemStatus systemStatus { CoolerSystemStatus::REQUIRES_RESET };
+    CoolerSystemStatus systemStatus { CoolerSystemStatus::STARTUP };
     CoolerSwitchPosition switchPosition { CoolerSwitchPosition::UNKNOWN };
 
     LoopTimer loopTimer;
-    uint32_t pollCounter { 0 };
-    uint32_t displayInfoCounter { 0 };
-    uint32_t startupCounter { 0 };
-    Metro msTick = { Metro(1, 1) };
+    uint32_t sampleCounter { 0 };
+    MetroTimer msTick = { MetroTimer(1) };
+    MetroTimer updateStateTimer = { MetroTimer(UPDATE_STATE_TIMER_MS) };
+    MetroTimer displayInfoTimer = { MetroTimer(DISPLAY_INFO_MS) };
     uint32_t pumpStartTime = { 0 };
     NTCLogger ntcLogger;
-    bool firstLoop { true };
-    unsigned long startTimeIndex { 0 };
 
     // sensor values
     CompressorFaultCode compressorFaultCode { CompressorFaultCode::OK };
@@ -195,15 +186,9 @@ private:
     float condenserOutletTemp { -100.0 };
     float ambientTemp { -100.0 };
     float coolingPower { 0 };
-    bool chillerPumpRunning { false };
-    int32_t compressorShutoffTime { -COMPRESSOR_MIN_COOLDOWN_MS };
+    uint32_t compressorShutoffTime { 0 };
 
-    // output states
-    // for logging/canbus output
-    // systemEnable and chillerPump can just digitalRead their own state
-    uint16_t coolshirtPumpValue { 0 };
-    uint16_t compressorValue { 0 };
-
+    // PID control inputs/outputs
     double evaporatorInletTemp { -100.0 };
     double compressorSpeed { 0 };
     double compressorTempTarget { 5 };
@@ -213,20 +198,21 @@ private:
         PID_KP, PID_KI, PID_KD, P_ON_M, REVERSE
     )};
 
-    // getters
-    // will return REQUIRES_RESET until the switch has visited the RESET position at least once
-    // in a panic condition the need to re-visit the reset is enabled
-    CoolerSystemStatus _getSwitchPosition();
-
     // pollers/updaters
-    void _pollSystemStatus();
-    void _pollCoolantLevel();
+    void pollCoolantLevel();
 
     // executors
     void runChillerPump();
     void runCompressor();
+    void shutdownCompressor();
+    void startupCompressor();
     void runCoolshirtPump();
     void check(bool assertionResult, SystemFault fault);
+
+    void acquireSamples();
+    void updateState();
+    void updateOutputs();
+    void displayInfo();
 
 public:
     CoolerSystem(
@@ -249,7 +235,14 @@ public:
         uint8_t _chillerPumpPin,
         uint8_t _coolshirtPumpPin,
         uint8_t _systemEnablePin,
-        VoltageMonitor &_voltageMonitor
+        uint8_t sys12vPin,
+        uint8_t sys12vADCNum,
+        uint8_t sys5vPin,
+        uint8_t sys5vADCNum,
+        uint8_t sys3v3Pin,
+        uint8_t sys3v3ADCNum,
+        uint8_t sysp3v3Pin,
+        uint8_t sysp3v3ADCNum
     )
         : switchADC { SwitchADC(_switchPin, _switchADCNum) }
         , pressureSensor { CalibratedADC(_pressureSensorPin, _pressureSensorADCNum) }
@@ -267,8 +260,8 @@ public:
         , coolshirtPWM { PWMOutput(_coolshirtPumpPin) }
         , chillerPumpPWM { PWMOutput(_chillerPumpPin) }
         , systemEnableOutput { PWMOutput(_systemEnablePin) }
-        , coolantLevelBounce { Bounce(coolantLevelPin, 40) }
-        , voltageMonitor { _voltageMonitor }
+        , coolantLevelBounce { Bounce(coolantLevelPin, 10) }
+        , voltageMonitor { VoltageMonitor(sys12vPin, sys12vADCNum, sys5vPin, sys5vADCNum, sys3v3Pin, sys3v3ADCNum, sysp3v3Pin, sysp3v3ADCNum) }
     {
     };
     void setup();

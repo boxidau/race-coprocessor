@@ -12,41 +12,60 @@ class StringFormatCSV {
         char* str;
         char* next;
         uint32_t n;
+        char delim;
         bool begin;
 
     public:
-        StringFormatCSV(char* _str, uint32_t _n)
+        StringFormatCSV(char* _str, uint32_t _n, char _delim = ',')
             : str(_str)
             , next(_str)
             , n(_n)
+            , delim(_delim)
             , begin(true)
         {
         }
 
         void formatFloat3DP(float in) {
-            if (!checkLenAndWriteComma(MAX_FLOAT_3DP_CHARS)) {
+            if (!checkLenAndWriteDelim(MAX_FLOAT_3DP_CHARS)) {
                 return;
             }
             next = d3toa(next, in);
         }
 
         void formatUnsignedInt(uint32_t in) {
-            if (!checkLenAndWriteComma(MAX_INT32_CHARS)) {
+            if (!checkLenAndWriteDelim(MAX_INT32_CHARS)) {
                 return;
             }
             next = uitoa(next, in);
         }
 
         void formatInt(int32_t in) {
-            if (!checkLenAndWriteComma(MAX_INT32_CHARS)) {
+            if (!checkLenAndWriteDelim(MAX_INT32_CHARS)) {
                 return;
             }
             next = itoa(next, in);
         }
 
         void formatString(const char* in) {
-            int len = strlen(in);
-            if (!checkLenAndWriteComma(len)) {
+            size_t len = strlen(in);
+            if (!checkLenAndWriteDelim(len)) {
+                return;
+            }
+            strcpy(next, in);
+            next += len;
+        }
+
+        void formatString(const char* in, size_t len) {
+            if (!checkLenAndWriteDelim(len)) {
+                return;
+            }
+            strncpy(next, in, len);
+            next += len;
+        }
+
+        template <size_t N> void formatLiteral(const char (&in)[N]) {
+            size_t len = N - 1;
+            if (!checkLenAndWriteDelim(len)) {
                 return;
             }
             strcpy(next, in);
@@ -54,14 +73,14 @@ class StringFormatCSV {
         }
 
         void formatBool(bool in) {
-            if (!checkLenAndWriteComma(1)) {
+            if (!checkLenAndWriteDelim(1)) {
                 return;
             }
             next = booltoa(next, in);
         }
 
         void formatBinary(char in) {
-            if (!checkLenAndWriteComma(8)) {
+            if (!checkLenAndWriteDelim(8)) {
                 return;
             }
             next = btoa(next, in);
@@ -78,12 +97,12 @@ class StringFormatCSV {
         }
 
     private:
-        bool checkLenAndWriteComma(int max) {
+        bool checkLenAndWriteDelim(int max) {
             if ((int32_t) n - (next - str) < max + REMAIN_PAD) {
                 return false;
             }
-            if (!begin) {
-                *next++ = ',';
+            if (!begin && delim) {
+                *next++ = delim;
             }
             begin = false;
             return true;

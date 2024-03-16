@@ -21,7 +21,10 @@
         "list": "cpp",
         "unordered_map": "cpp",
         "memory": "cpp",
-        "random": "cpp"
+        "random": "cpp",
+        "memory_resource": "cpp",
+        "fstream": "cpp",
+        "sstream": "cpp"
     },
     "C_Cpp.errorSquiggles": "Enabled"
 }

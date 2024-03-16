@@ -1,12 +1,10 @@
 #include "flowsensor.h"
+#include "utils.h"
 
 #include "DebugLog.h"
 static volatile uint32_t _samples[FLOW_SAMPLES];
 static volatile uint8_t _idx;
 static volatile bool _filled;
-
-// subtract two microsecond timestamps, handling overflow
-#define MICROS_DURATION(a, b) ((a) > (b) ? (a) - (b) : (a) + (UINT32_MAX - (b)) + 1)
 
 uint32_t getPrevSample(uint8_t offset) {
     uint8_t idx = _idx;

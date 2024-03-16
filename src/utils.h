@@ -1,6 +1,11 @@
+#pragma once
+
 #include "Arduino.h"
 #include <DebugLog.h>
 #include "Print.h"
+
+// subtract two uint32_t microsecond timestamps, handling overflow
+#define MICROS_DURATION(a, b) ((a) > (b) ? (a) - (b) : (a) + (UINT32_MAX - (b)) + 1)
 
 const uint8_t hex[17] = "0123456789ABCDEF";
 
