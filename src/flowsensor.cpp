@@ -1,17 +1,17 @@
+#include "DebugLog.h"
+
 #include "flowsensor.h"
 #include "utils.h"
 
-#include "DebugLog.h"
 static volatile uint32_t _samples[FLOW_SAMPLES];
 static volatile uint8_t _idx;
 static volatile bool _filled;
 
 uint32_t getPrevSample(uint8_t offset) {
-    uint8_t idx = _idx;
-    if (idx == 0 && !_filled) {
+    if (_idx == 0 && !_filled) {
         return 0;
     }
-    return _samples[uint8_t(idx - offset - 1) % FLOW_SAMPLES];
+    return _samples[uint8_t(_idx - offset - 1) % FLOW_SAMPLES];
 }
 
 void recordPulse() {
@@ -37,19 +37,24 @@ void FlowSensor::setup() {
 }
 
 uint16_t FlowSensor::flowRate() {
-    if (!_filled) {
-        return 0;
-    }
-
+    __disable_irq();
+    bool filled = _filled;
     uint32_t firstPulse = _samples[_idx];
     uint32_t lastPulse = getPrevSample(0);
+    __enable_irq();
+
+    if (!filled) {
+        return 0;
+    }
     
     uint32_t now = micros();
     uint32_t timeSincePulseSeen = MICROS_DURATION(now, lastPulse);
     if (timeSincePulseSeen > _timeoutMilliseconds * 1000) {
         // flow has stalled, reset state
+        __disable_irq();
         _filled = false;
         _idx = 0;        
+        __enable_irq();
         return 0;
     }
 
@@ -57,17 +62,28 @@ uint16_t FlowSensor::flowRate() {
     return min((uint64_t) _pulsePeriodMicros * (FLOW_SAMPLES - 1) / period, UINT16_MAX);
 }
 
-unsigned long FlowSensor::lastPulseMicros() {
-    return getPrevSample(0);
+uint32_t FlowSensor::lastPulseMicros() {
+    __disable_irq();
+    uint32_t sample = getPrevSample(0);
+    __enable_irq();
+    return sample;
 }
 
-unsigned long FlowSensor::lastPulseDuration() {
-    return MICROS_DURATION(getPrevSample(0), getPrevSample(1));
+uint32_t FlowSensor::lastPulseDuration() {
+    __disable_irq();
+    uint32_t sample0 = getPrevSample(0);
+    uint32_t sample1 = getPrevSample(1);
+    __enable_irq();
+    return MICROS_DURATION(sample0, sample1);
 }
 
 uint8_t FlowSensor::lastPulseIndex() {
+    __disable_irq();
     uint8_t idx = _idx;
-    if (idx == 0 && !_filled) {
+    bool filled = _filled;
+    __enable_irq();
+
+    if (idx == 0 && !filled) {
         return 0;
     }
     return idx == 0 ? FLOW_SAMPLES - 1 : idx - 1;

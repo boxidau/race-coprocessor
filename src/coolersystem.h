@@ -272,4 +272,5 @@ public:
     void getSystemData(CoolerSystemData &data);
     unsigned long lastFlowPulseMicros();
     bool hasStarted();
+    void setCompressorSpeedPercent(uint32_t percent);
 };

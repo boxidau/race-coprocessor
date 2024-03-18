@@ -57,6 +57,24 @@ CoolerSystem cooler = CoolerSystem(
 
 CoolerUI ui = CoolerUI(cooler, SPI_DISPLAY_CS, UI_BUTTON);
 
+uint32_t mapInputToCompressorSpeed(char input) {
+    switch (input) {
+        case '1':
+            return 50;
+        case '2':
+            return 60;
+        case '3':
+            return 70;
+        case '4':
+            return 80;
+        case '5':
+            return 90;
+        case '6':
+        default:
+            return 100;
+    }
+}
+
 void setup()
 {
     LOG_SET_LEVEL(DebugLogLevel::LVL_DEBUG);
@@ -91,6 +109,7 @@ void setup()
     pinMode(PWM4, OUTPUT);
 
     LOG_INFO("System Boot OK");
+    LOG_INFO("Type 1, 2, 3, 4, 5, 6 = 50%, 60%, 70%, 80%, 90%, 100% compressor speed");
 }
 
 void broadcastMessage(CAN_message_t &message)
@@ -113,6 +132,14 @@ void loop()
 
     if (digitalRead(PWM4) == 1) {
         digitalWrite(PWM4, 0);
+    }
+
+    if (Serial.available()) {
+        char input = Serial.read();
+        LOG_INFO("Received input", input);
+        if (input >= '1' && input <= '6') {
+            cooler.setCompressorSpeedPercent(mapInputToCompressorSpeed(input));
+        }
     }
 
     // tick functions for all modules

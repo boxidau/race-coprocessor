@@ -146,8 +146,9 @@ void CoolerSystem::startupCompressor()
     if (!systemEnableOutput.value() &&
         (!compressorShutoffTime || millis() >= compressorShutoffTime + COMPRESSOR_MIN_COOLDOWN_MS)) {
         systemEnableOutput.setBoolean(true);
-        compressorPID.SetMode(AUTOMATIC);
-        analogWrite(compressorSpeedPin, COMPRESSOR_DEFAULT_SPEED * COMPRESSOR_SPEED_RATIO_TO_ANALOG);
+        compressorSpeed = COMPRESSOR_DEFAULT_SPEED;
+        //compressorPID.SetMode(AUTOMATIC);
+        analogWrite(compressorSpeedPin, compressorSpeed * COMPRESSOR_SPEED_RATIO_TO_ANALOG);
     }
 }
 
@@ -293,7 +294,6 @@ void CoolerSystem::updateOutputs()
             return;
 
         default:
-            // begin actions
             runChillerPump();
             runCompressor();
             runCoolshirtPump();
@@ -494,6 +494,11 @@ void CoolerSystem::getSystemData(CoolerSystemData &data) {
 
 unsigned long CoolerSystem::lastFlowPulseMicros() {
     return flowSensor.lastPulseMicros();
+}
+
+void CoolerSystem::setCompressorSpeedPercent(uint32_t percent) {
+    compressorSpeed = (double) percent / 100;
+    LOG_INFO("Setting compressor speed to", percent, "%");
 }
 
 byte CoolerSystem::systemFault() {

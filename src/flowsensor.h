@@ -23,7 +23,7 @@ public:
 
     void setup();
     uint16_t flowRate();
-    unsigned long lastPulseMicros();
-    unsigned long lastPulseDuration();
+    uint32_t lastPulseMicros();
+    uint32_t lastPulseDuration();
     uint8_t lastPulseIndex();
 };
