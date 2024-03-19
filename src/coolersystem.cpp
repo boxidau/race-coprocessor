@@ -25,6 +25,8 @@ void CoolerSystem::setup()
     compressorFault.setup();
 
     evaporatorInletNTC.setup();
+    evaporatorInletA10.setup();
+    evaporatorInletA11.setup();
     evaporatorOutletNTC.setup();
     condenserInletNTC.setup();
     condenserOutletNTC.setup();
@@ -80,7 +82,7 @@ void CoolerSystem::runChillerPump()
         case CoolerSystemStatus::PUMP_HIGH:
             if (chillerPumpPWM.value() == 0) {
                 pumpStartTime = millis();
-                chillerPumpPWM.setPercent(100);
+                chillerPumpPWM.setPercent(50);
             }
             return;
 
@@ -116,10 +118,10 @@ void CoolerSystem::runCompressor()
 
     // implement hysteresis on the undertemp cutoff. this isn't an error condition
     // but we are going to shut down the compressor until temp goes back above a safe value
-    if (evaporatorInletTemp < cutoffTemp) {
+    if (evaporatorInletA10Temp < cutoffTemp) {
         undertempCutoff = true;
     }
-    if (evaporatorInletTemp >= restartTemp) {
+    if (evaporatorInletA10Temp >= restartTemp) {
         undertempCutoff = false;
     }
 
@@ -185,6 +187,7 @@ void CoolerSystem::acquireSamples()
     evaporatorOutletNTC.loop();
     evaporatorInletNTC.loop();
     evaporatorInletA10.loop();
+    evaporatorInletA11.loop();
     condenserInletNTC.loop();
     condenserOutletNTC.loop();
     ambientNTC.loop();
@@ -226,13 +229,15 @@ void CoolerSystem::updateState()
 
             flowRate = flowSensor.flowRate();
             systemPressure = pressureSensor.calibratedValue();
-            compressorCurrent = currentSensor.calibratedValue();
+            compressorCurrent = currentSensor.calibratedValue() / 1000; // mA -> A
             evaporatorInletTemp = evaporatorInletNTC.temperature();
+            evaporatorInletA10Temp = evaporatorInletA10.temperature();
+            evaporatorInletA11Temp = evaporatorInletA11.temperature();
             evaporatorOutletTemp = evaporatorOutletNTC.temperature();
             condenserInletTemp = condenserInletNTC.temperature();
             condenserOutletTemp = condenserOutletNTC.temperature();
             ambientTemp = ambientNTC.temperature();
-            coolingPower = (evaporatorInletTemp - evaporatorOutletTemp) * SPECIFIC_HEAT * flowRate / 60000; // Watts
+            coolingPower = (evaporatorInletA10Temp - evaporatorOutletTemp) * SPECIFIC_HEAT * flowRate / 60000; // Watts
             compressorFaultCode = compressorFault.getCode();
 
             // check faults and set systemFault flags
@@ -334,9 +339,9 @@ void CoolerSystem::displayInfo()
     format.formatLiteral("Inputs ------------------------------------------------\n");
 
     format.formatLiteral("  Evaporator Inlet:              ");
-    format.formatFloat3DP(evaporatorInletTemp);
+    format.formatFloat3DP(evaporatorInletA10Temp);
     format.formatLiteral(" °C ( ");
-    format.formatUnsignedInt(evaporatorInletNTC.adc());
+    format.formatUnsignedInt(evaporatorInletA10.adc());
     format.formatLiteral(" )\n");
 
     format.formatLiteral("  Evaporator Outlet:             ");
@@ -364,8 +369,8 @@ void CoolerSystem::displayInfo()
     format.formatLiteral(" )\n");
 
     format.formatLiteral("  Flow Rate:                     ");
-    format.formatUnsignedInt(flowRate);
-    format.formatLiteral(" mL/min\n");
+    format.formatFloat3DP(flowRate / 1000.0);
+    format.formatLiteral(" L/min\n");
 
     format.formatLiteral("  System Pressure:               ");
     format.formatUnsignedInt(systemPressure);
@@ -388,9 +393,12 @@ void CoolerSystem::displayInfo()
 
     format.formatLiteral("  Compressor Status:             ");
     format.formatString(CompressorFaultToString(compressorFaultCode));
-    format.formatLiteral(" (");
-    format.formatUnsignedInt(compressorFault.durationSinceFaultRecorded());
-    format.formatLiteral(" ms ago)\n");
+    if (compressorFaultCode != CompressorFaultCode::OK) {
+        format.formatLiteral(" (");
+        format.formatFloat3DP(compressorFault.durationSinceFaultRecorded() / 1000.0);
+        format.formatLiteral(" s ago)");
+    }
+    format.formatLiteral("\n");
 
     format.formatLiteral("  Switch Position:               ");
     format.formatString(CoolerSwitchPositionToString(switchADC.position()));
@@ -428,7 +436,7 @@ void CoolerSystem::displayInfo()
     printFaultLine(format, SystemFault::SYSTEM_UNDERVOLT, _systemFault);
     printFaultLine(format, SystemFault::SYSTEM_OVERVOLT, _systemFault);
     printFaultLine(format, SystemFault::COMPRESSOR_FAULT, _systemFault);
-    format.formatLiteral("-------------------------------------------------------\n");
+    format.formatLiteral("-------------------------------------------------------");
 
     Serial.write(format.finish(), format.length());
 #endif
@@ -440,7 +448,6 @@ void CoolerSystem::loop()
         return;
     }
 
-    uint32_t sampleTime = ClockTime::millisSinceEpoch();
     acquireSamples();
 
     // sanity check in case of logic bugs or unexpected system conditions: if evaporator outlet temp drops below 0C,
@@ -449,11 +456,12 @@ void CoolerSystem::loop()
         undertempCutoff = true;
         systemStatus = CoolerSystemStatus::REQUIRES_RESET;
         shutdownCompressor();
-        LOG_ERROR("Panic condition: evaporator outlet temp", evaporatorInletNTC.temperature(), "C, shutting down compressor");
+        LOG_ERROR("Panic condition: evaporator outlet temp", evaporatorOutletNTC.temperature(), "C, shutting down compressor");
         return;
     }
 
     if (systemStatus != CoolerSystemStatus::STARTUP) {
+        uint32_t sampleTime = ClockTime::millisSinceEpoch();
 #if NTC_DEBUG
         ntcLogger.ensureSetup("time,inlet,inletA10");
         ntcLogger.logSamples(sampleTime, evaporatorInletNTC.latest(), evaporatorInletA10.latest(), 0, 0);
@@ -558,12 +566,13 @@ void CoolerSystem::getLogMessage(StringFormatCSV& format)
 {
     format.formatFloat3DP(ClockTime::secSinceEpoch());
     format.formatFloat3DP(evaporatorInletTemp);
-    format.formatFloat3DP(evaporatorInletA10.temperature());
+    format.formatFloat3DP(evaporatorInletA10Temp);
+    format.formatFloat3DP(evaporatorInletA11Temp);
     format.formatFloat3DP(evaporatorOutletTemp);
     format.formatFloat3DP(condenserInletTemp);
     format.formatFloat3DP(condenserOutletTemp);
     format.formatFloat3DP(ambientTemp);
-    format.formatUnsignedInt(flowRate);
+    format.formatFloat3DP(flowRate / 1000.0);
     format.formatUnsignedInt(systemPressure);
     format.formatBool(coolantLevel);
     format.formatFloat3DP((float) voltageMonitor.get12vMilliVolts() / 1000);

@@ -76,7 +76,7 @@ void CANLogger::setup()
         LOG_INFO("preallocing:", logFile.preAllocate(PREALLOC_MB * 1000000) ? "success" : "failure");
     #endif
 
-    logFile.write("time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,flowRate,pressure,coolantLevel,12v,5v,3v3,p3v3,coolingPower,switchPos,switchADC,status,systemEnable,chillerPumpEnable,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,slowLoopTime\n");
+    logFile.write("time,evapInletTemp,evapInletA10Temp,evapInletA11Temp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,flowRate,pressure,coolantLevel,12v,5v,3v3,p3v3,coolingPower,switchPos,switchADC,status,systemEnable,chillerPumpEnable,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,slowLoopTime\n");
     enableLog = true;
 }
 

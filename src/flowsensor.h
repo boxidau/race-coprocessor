@@ -2,7 +2,7 @@
 #include "Arduino.h"
 
 #define FLOW_SAMPLES 16
-#define FLOW_DEBOUNCE_MS 0
+#define FLOW_DEBOUNCE_MS 0 // disable debounce
 
 class FlowSensor {
 private:

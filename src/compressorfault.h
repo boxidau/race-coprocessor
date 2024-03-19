@@ -33,7 +33,8 @@ constexpr const char* CompressorFaultToString(CompressorFaultCode f)
 
 // Waveform is 400ms pulse period, ~2ms fall time / 10ms rise time, 1.5s reset gap between sequences.
 // Resistance changes 1kohm - 90kohm, falling edge is much faster.
-#define LDR_THRESHOLD 36000
+// Steady state (no fault) ADC value is ~63000. Waveform on/off range is 13000/56000.
+#define LDR_THRESHOLD 35000
 #define LDR_DEAD_TIME_RESET_MS 600
 #define LDR_DEBOUNCE_MS 50
 
@@ -43,7 +44,7 @@ private:
     uint8_t pin;
     ABounce bounce;
     bool recordingFault = { false };
-    uint8_t edges = { 0 };
+    uint8_t blinks = { 0 };
     CompressorFaultCode code { CompressorFaultCode::OK };
 
 public:
@@ -57,24 +58,21 @@ public:
 
     void loop() {
         bounce.update();
-        //if (!(millis() % 100)) LOG_INFO("100ms value ", analogRead(pin));
         if (!recordingFault && bounce.fallingEdge()) {
-            LOG_INFO("first falling edge, ", millis(), analogRead(pin));
             recordingFault = true;
-            edges = 1;
+            blinks = 1;
         } else if (recordingFault && bounce.fallingEdge()) {
-            LOG_INFO("falling edge ", edges, ", ", millis(), analogRead(pin));
-            edges++;
+            blinks++;
         } else if (recordingFault && bounce.duration() > LDR_DEAD_TIME_RESET_MS) {
-            LOG_INFO("dead time reset, ", millis());
-            if (edges == 0 || (edges >= 2 && edges <= 9)) {
-                code = (CompressorFaultCode) edges;
+            if (blinks >= 2 && blinks <= 9) {
+                code = (CompressorFaultCode) blinks;
+                LOG_INFO("Logged compressor fault", CompressorFaultToString(code));
             } else {
-                LOG_ERROR("Invalid compressor fault code ", (uint8_t)code, ", returning UNKNOWN");
+                LOG_ERROR("Invalid compressor fault,", blinks, "blinks, returning UNKNOWN");
                 code = CompressorFaultCode::UNKNOWN;
             }
 
-            edges = 0;
+            blinks = 0;
             recordingFault = false;
         }
     }
@@ -83,7 +81,7 @@ public:
         return code;
     }
 
-    unsigned int durationSinceFaultRecorded() {
+    uint32_t durationSinceFaultRecorded() {
         if (code == CompressorFaultCode::OK) {
             return 0;
         }

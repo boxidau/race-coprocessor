@@ -29,9 +29,10 @@ CoolerSwitchPosition SwitchADC::position()
     }
 
     // check every sample agrees, if not then the switch is likely in a bounce state
+    CoolerSwitchPosition pos = _getSwitchPosition(samples[0]);
     for (size_t i = 1; i < samples.size(); i++) {
-        if (_getSwitchPosition(samples[i]) != _getSwitchPosition(samples[i - 1])) {
-            LOG_INFO("Switch position samples disagree, returning UNKNOWN position", samples[i], samples[i - 1]);
+        if (_getSwitchPosition(samples[i]) != pos) {
+            LOG_INFO("Switch position samples are unstable, returning UNKNOWN position", samples[i], samples[0]);
             return CoolerSwitchPosition::UNKNOWN;
         }
     }

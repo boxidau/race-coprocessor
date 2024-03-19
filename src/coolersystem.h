@@ -31,7 +31,7 @@
 #define CURRENT_SENSOR_CALIBRATION_LOW_ADC 5660 // 0.5V = 0A
 #define CURRENT_SENSOR_CALIBRATION_HIGH_ADC 50942  // 4.5V = 50A
 #define CURRENT_SENSOR_CALIBRATION_LOW_AMPS 0
-#define CURRENT_SENSOR_CALIBRATION_HIGH_AMPS 50
+#define CURRENT_SENSOR_CALIBRATION_HIGH_AMPS 50000
 
 #define FLOW_SENSOR_PULSES_PER_SECOND 7.5
 #define FLOW_RATE_MIN_THRESHOLD 1000 // mL/min
@@ -61,7 +61,7 @@
 #define STARTUP_STABILIZATION_SAMPLES 100
 
 #define NTC_DEBUG 0
-#define FLOW_DEBUG 1
+#define FLOW_DEBUG 0
 #define UPDATE_STATE_TIMER_MS 100
 #define DISPLAY_INFO_MS 2000
 
@@ -152,7 +152,7 @@ private:
     uint8_t coolantLevelPin;
     uint8_t compressorSpeedPin;
     FlowSensor flowSensor;
-    PrecisionNTC evaporatorInletNTC, evaporatorInletA10, evaporatorOutletNTC;
+    PrecisionNTC evaporatorInletNTC, evaporatorInletA10, evaporatorInletA11, evaporatorOutletNTC;
     NTC condenserInletNTC, condenserOutletNTC;
     NTC ambientNTC;
 
@@ -181,6 +181,8 @@ private:
     bool coolantLevel { false };
     uint16_t systemPressure { 0 };
     float compressorCurrent { 0 };
+    float evaporatorInletA10Temp { -100.0 };
+    float evaporatorInletA11Temp { -100.0 };
     float evaporatorOutletTemp { -100.0 };
     float condenserInletTemp { -100.0 };
     float condenserOutletTemp { -100.0 };
@@ -253,6 +255,7 @@ public:
         , flowSensor { FlowSensor(_flowRatePin, FLOW_SENSOR_PULSES_PER_SECOND, FLOW_RATE_MISSING_PULSE_TIME) }
         , evaporatorInletNTC { PrecisionNTC(_evaporatorInletNtcPin, _ntcADCNum, 15000) }
         , evaporatorInletA10 { PrecisionNTC(NTC_EVAPORATOR_DIFF_1, _ntcADCNum, 15000) }
+        , evaporatorInletA11 { PrecisionNTC(NTC_EVAPORATOR_DIFF_2, _ntcADCNum, 15000) }
         , evaporatorOutletNTC { PrecisionNTC(_evaporatorOutletNtcPin, _ntcADCNum, 15000) }
         , condenserInletNTC { NTC(_condenserInletNtcPin, _ntcADCNum, 6800) }
         , condenserOutletNTC { NTC(_condenserOutletNtcPin, _ntcADCNum, 6800) }
