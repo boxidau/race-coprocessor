@@ -23,7 +23,12 @@ void NTCLogger::ensureSetup(const char* header)
     char logFileName[20];
     char fullLogFilePath[30];
 
-    sprintf(logDir, "%d%02d%02d", year(), month(), day());
+    time_t localTime = ClockTime::getLocalTime();
+    int localYear = year(localTime);
+    int localMonth = month(localTime);
+    int localDay = day(localTime);
+
+    sprintf(logDir, "%d%02d%02d", localYear, localMonth, localDay);
     if (year() < 1980) // rtc is not set
     {
         sprintf(logDir, "%s", "NODATE");
@@ -39,7 +44,7 @@ void NTCLogger::ensureSetup(const char* header)
     LOG_INFO("Log directory OK", logDir);
 
 
-    sprintf(logFileName, "n%02d%02d%02d.csv", hour(), minute(), second());
+    sprintf(logFileName, "n%02d%02d%02d.csv", localYear, localMonth, localDay);
     if (year() < 1980) // rtc is not set
     {
         File noDateDirectory = SD.open(logDir);

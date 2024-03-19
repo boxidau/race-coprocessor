@@ -28,7 +28,12 @@ void CANLogger::setup()
     char logFileName[13];
     char fullLogFilePath[19];
 
-    sprintf(logDir, "%d%02d%02d", year(), month(), day());
+    time_t localTime = ClockTime::getLocalTime();
+    int localYear = year(localTime);
+    int localMonth = month(localTime);
+    int localDay = day(localTime);
+
+    sprintf(logDir, "%d%02d%02d", localYear, localMonth, localDay);
     if (year() < 1980) // rtc is not set
     {
         sprintf(logDir, "%s", "NODATE");
@@ -43,8 +48,7 @@ void CANLogger::setup()
     }
     LOG_INFO("Log directory OK", logDir);
 
-
-    sprintf(logFileName, "%02d%02d%02d.csv", hour(), minute(), second());
+    sprintf(logFileName, "%02d%02d%02d.csv", localYear, localMonth, localDay);
     if (year() < 1980) // rtc is not set
     {
         File noDateDirectory = SD.open(logDir);
