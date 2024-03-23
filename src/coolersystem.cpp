@@ -240,6 +240,7 @@ void CoolerSystem::updateState()
             // check faults and set systemFault flags
             check(systemPressure < OVERPRESSURE_THRESHOLD_KPA, SystemFault::SYSTEM_OVER_PRESSURE);
             check(coolantLevel, SystemFault::LOW_COOLANT);
+            check(compressorFaultCode == CompressorFaultCode::OK, SystemFault::COMPRESSOR_FAULT);
             check(!voltageMonitor.overVoltage(), SystemFault::SYSTEM_OVERVOLT);
             check(!voltageMonitor.underVoltage(), SystemFault::SYSTEM_UNDERVOLT);
 
@@ -258,6 +259,8 @@ void CoolerSystem::updateState()
             if (switchPosition == CoolerSwitchPosition::RESET) {
                 // clear system fault and return now so we don't enter REQUIRES_RESET
                 _systemFault = (byte) SystemFault::SYSTEM_OK;
+                compressorFaultCode = CompressorFaultCode::OK;
+                compressorFault.reset();
                 systemStatus = CoolerSystemStatus::RESET;
                 return;
             }

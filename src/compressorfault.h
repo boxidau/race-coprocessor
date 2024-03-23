@@ -81,6 +81,10 @@ public:
         return code;
     }
 
+    void reset() {
+        code = CompressorFaultCode::OK;
+    }
+
     uint32_t durationSinceFaultRecorded() {
         if (code == CompressorFaultCode::OK) {
             return 0;
