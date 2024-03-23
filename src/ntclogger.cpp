@@ -94,7 +94,6 @@ void NTCLogger::flush()
         return;
     }
 
-    unsigned long start = micros();
     for (size_t i = 0; i < ntcData.size(); i++) {
         NTCData& data = ntcData[i];
 
@@ -108,9 +107,7 @@ void NTCLogger::flush()
 
         logFile.write(format.finish(), format.length());
     }
-    unsigned long end = micros();
 
     ntcData.clear();
     logFile.flush();
-    LOG_INFO("NTC LOG FLUSHED, print ", end - start, ", flush ", micros() - end);
 }

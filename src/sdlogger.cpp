@@ -2,6 +2,8 @@
 #include <DebugLog.h>
 #include "sdlogger.h"
 
+#define RETRY_INTERVAL_MS 5000
+
 static bool initialized = false;
 static uint32_t retries = 0;
 
@@ -14,17 +16,16 @@ bool SDLogger::ensureInitialized() {
         return true;
     }
     
-    if (retries == 3) {
+    static uint32_t lastRetryTime = millis();
+    if (retries == 3 || (retries > 0 && millis() < lastRetryTime + RETRY_INTERVAL_MS)) {
         return false;
     }
 
     bool ok = SD.begin(BUILTIN_SDCARD);
     //bool ok = SD.sdfs.begin(SdioConfig(FIFO_SDIO));
-    //bool ok = SD.sdfs.begin(SdioConfig(DMA_SDIO));
-    // CS= 10 or 4?
-    //bool ok = SD.sdfs.begin(SdSpiConfig(SS, DEDICATED_SPI, SD_SCK_MHZ(50)));
     if (!ok) {
         LOG_WARN("SD card initialization failed, is a card inserted? Retries:", retries++);
+        lastRetryTime = millis();
         return false;
     }
 

@@ -70,9 +70,8 @@ void CANLogger::setup()
     }
 
     logFile = SD.sdfs.open(fullLogFilePath, O_WRONLY | O_CREAT | O_TRUNC);
-    //logFile = SD.open(fullLogFilePath, FILE_WRITE);
     #if PREALLOC_MB
-        LOG_INFO("preallocing:", logFile.preAllocate(PREALLOC_MB * 1000000) ? "success" : "failure");
+        LOG_INFO("Preallocing", PREALLOC_MB, "MB logfile,", logFile.preAllocate(PREALLOC_MB * 1000000) ? "success" : "failure");
     #endif
 
     logFile.write("time,evapInletTemp,evapInletA10Temp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,flowRate,pressure,coolantLevel,12v,5v,3v3,p3v3,coolingPower,switchPos,switchADC,status,systemEnable,chillerPumpEnable,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,compressorFault,slowLoopTime\n");
@@ -130,35 +129,23 @@ bool CANLogger::write(StringFormatCSV& format)
         return false;
     }
 
-    //LOG_DEBUG("LOG WRITE:", + lineBuffer);
     const char* buffer = format.finish();
     uint32_t length = format.length();
-    uint32_t m1 = micros();
-    static uint32_t n = 0;
-    uint32_t m = 0;
-    m = logFile.write(buffer, length);
+    uint32_t m = logFile.write(buffer, length);
     if (m != length)
     {
-        LOG_INFO("failed write, bytes written", m, "desired length", length);
+        LOG_INFO("Failed write, bytes written", m, "desired length", length);
         enableLog = false;
         error = true;
         return false;
     }
-    uint32_t m2 = micros();
-    n += m;
-    //LOG_INFO("write", n, "cumulative bytes", m2-m1, "us, was busy", isbusy);
 
     error = false;
     
     #if FLUSH_MS
         if (tick)
         {
-            m1 = micros();
             logFile.flush();
-            m2 = micros();
-            LOG_INFO("flush", m2-m1, "us, bytes", n);
-            //LOG_INFO("buffer", buffer);
-            n = 0;
             return true;
         }
     #endif
