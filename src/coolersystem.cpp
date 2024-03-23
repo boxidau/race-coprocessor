@@ -26,7 +26,6 @@ void CoolerSystem::setup()
 
     evaporatorInletNTC.setup();
     evaporatorInletA10.setup();
-    evaporatorInletA11.setup();
     evaporatorOutletNTC.setup();
     condenserInletNTC.setup();
     condenserOutletNTC.setup();
@@ -187,7 +186,6 @@ void CoolerSystem::acquireSamples()
     evaporatorOutletNTC.loop();
     evaporatorInletNTC.loop();
     evaporatorInletA10.loop();
-    evaporatorInletA11.loop();
     condenserInletNTC.loop();
     condenserOutletNTC.loop();
     ambientNTC.loop();
@@ -232,7 +230,6 @@ void CoolerSystem::updateState()
             compressorCurrent = currentSensor.calibratedValue() / 1000; // mA -> A
             evaporatorInletTemp = evaporatorInletNTC.temperature();
             evaporatorInletA10Temp = evaporatorInletA10.temperature();
-            evaporatorInletA11Temp = evaporatorInletA11.temperature();
             evaporatorOutletTemp = evaporatorOutletNTC.temperature();
             condenserInletTemp = condenserInletNTC.temperature();
             condenserOutletTemp = condenserOutletNTC.temperature();
@@ -460,11 +457,17 @@ void CoolerSystem::loop()
         return;
     }
 
+    CoolerSystemStatus prevStatus = systemStatus;
+    updateState();
+    if (systemStatus != prevStatus) {
+        LOG_INFO("System status changed from", CoolerSystemStatusToString(prevStatus), "to", CoolerSystemStatusToString(systemStatus));
+    }
+
     if (systemStatus != CoolerSystemStatus::STARTUP) {
         uint32_t sampleTime = ClockTime::millisSinceEpoch();
 #if NTC_DEBUG
-        ntcLogger.ensureSetup("time,inlet,inletA10");
-        ntcLogger.logSamples(sampleTime, evaporatorInletNTC.latest(), evaporatorInletA10.latest(), 0, 0);
+        ntcLogger.ensureSetup("time,inlet,inletA10,current");
+        ntcLogger.logSamples(sampleTime, evaporatorInletNTC.latest(), evaporatorInletA10.latest(), currentSensor.latest(), 0);
 #endif
 #if FLOW_DEBUG
         if (flowSensor.lastPulseIndex() != lastLoggedFlowPulse) {
@@ -474,12 +477,6 @@ void CoolerSystem::loop()
             lastLoggedFlowPulse = flowSensor.lastPulseIndex();
         }
 #endif
-    }
-
-    CoolerSystemStatus prevStatus = systemStatus;
-    updateState();
-    if (systemStatus != prevStatus) {
-        LOG_INFO("System status changed from", CoolerSystemStatusToString(prevStatus), "to", CoolerSystemStatusToString(systemStatus));
     }
 
     updateOutputs();
@@ -567,7 +564,6 @@ void CoolerSystem::getLogMessage(StringFormatCSV& format)
     format.formatFloat3DP(ClockTime::secSinceEpoch());
     format.formatFloat3DP(evaporatorInletTemp);
     format.formatFloat3DP(evaporatorInletA10Temp);
-    format.formatFloat3DP(evaporatorInletA11Temp);
     format.formatFloat3DP(evaporatorOutletTemp);
     format.formatFloat3DP(condenserInletTemp);
     format.formatFloat3DP(condenserOutletTemp);

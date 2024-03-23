@@ -79,7 +79,7 @@ void NTCLogger::logSamples(uint32_t time, uint16_t sample1, uint16_t sample2, ui
     data.time = time;
     data.sample1 = sample1;
     data.sample2 = sample2;
-    //data.sample3 = sample3;
+    data.sample3 = sample3;
     //data.sample4 = sample4;
     ntcData.push_back(data);
 
@@ -103,7 +103,7 @@ void NTCLogger::flush()
         format.formatUnsignedInt(data.time);
         format.formatUnsignedInt(data.sample1);
         format.formatUnsignedInt(data.sample2);
-        //format.formatUnsignedInt(data.sample3);
+        format.formatUnsignedInt(data.sample3);
         //format.formatUnsignedInt(data.sample4);
 
         logFile.write(format.finish(), format.length());

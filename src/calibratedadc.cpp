@@ -26,11 +26,15 @@ void CalibratedADC::setCalibration(
     constrainCalibration = constrain;
 }
 
-const uint16_t CalibratedADC::adc() {
+uint16_t CalibratedADC::adc() {
     return !samples.empty() ? round((float) runningSum / samples.size()) : 0;
 }
 
-const uint16_t CalibratedADC::calibratedValue() {
+uint16_t CalibratedADC::latest() {
+    return !samples.empty() ? samples[(idx - 1) % ADC_SAMPLES] : 0;
+};
+
+uint16_t CalibratedADC::calibratedValue() {
     uint16_t _adc = adc();
     if (constrainCalibration) _adc = constrain(
         adc(), calibrationLowADC, calibrationHighADC

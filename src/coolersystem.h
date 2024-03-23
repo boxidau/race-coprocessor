@@ -152,7 +152,7 @@ private:
     uint8_t coolantLevelPin;
     uint8_t compressorSpeedPin;
     FlowSensor flowSensor;
-    PrecisionNTC evaporatorInletNTC, evaporatorInletA10, evaporatorInletA11, evaporatorOutletNTC;
+    PrecisionNTC evaporatorInletNTC, evaporatorInletA10, evaporatorOutletNTC;
     NTC condenserInletNTC, condenserOutletNTC;
     NTC ambientNTC;
 
@@ -182,7 +182,6 @@ private:
     uint16_t systemPressure { 0 };
     float compressorCurrent { 0 };
     float evaporatorInletA10Temp { -100.0 };
-    float evaporatorInletA11Temp { -100.0 };
     float evaporatorOutletTemp { -100.0 };
     float condenserInletTemp { -100.0 };
     float condenserOutletTemp { -100.0 };
@@ -255,7 +254,6 @@ public:
         , flowSensor { FlowSensor(_flowRatePin, FLOW_SENSOR_PULSES_PER_SECOND, FLOW_RATE_MISSING_PULSE_TIME) }
         , evaporatorInletNTC { PrecisionNTC(_evaporatorInletNtcPin, _ntcADCNum, 15000) }
         , evaporatorInletA10 { PrecisionNTC(NTC_EVAPORATOR_DIFF_1, _ntcADCNum, 15000) }
-        , evaporatorInletA11 { PrecisionNTC(NTC_EVAPORATOR_DIFF_2, _ntcADCNum, 15000) }
         , evaporatorOutletNTC { PrecisionNTC(_evaporatorOutletNtcPin, _ntcADCNum, 15000) }
         , condenserInletNTC { NTC(_condenserInletNtcPin, _ntcADCNum, 6800) }
         , condenserOutletNTC { NTC(_condenserOutletNtcPin, _ntcADCNum, 6800) }

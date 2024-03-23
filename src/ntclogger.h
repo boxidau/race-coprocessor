@@ -2,14 +2,13 @@
 #include <SD.h>
 #include <Array.h>
 
-#define NTC_ARRAY_SIZE 10000
+#define NTC_ARRAY_SIZE 15000
 
 struct NTCData {
     uint32_t time;
     uint16_t sample1;
     uint16_t sample2;
-    //uint32_t sample2;
-    //uint16_t sample3;
+    uint16_t sample3;
     //uint16_t sample4;
 };
 

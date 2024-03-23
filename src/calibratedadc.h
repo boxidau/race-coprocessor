@@ -35,6 +35,7 @@ public:
         bool constrain
     );
     void loop();
-    const uint16_t adc();
-    const uint16_t calibratedValue();
+    uint16_t latest();
+    uint16_t adc();
+    uint16_t calibratedValue();
 };
