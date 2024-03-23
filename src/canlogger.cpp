@@ -4,12 +4,11 @@ https://docs.openvehicles.com/en/latest/crtd
 */
 #include "canlogger.h"
 
-#include "clocktime.h"
-
 #include <DebugLog.h>
 #include <Metro.h>
 #include <TimeLib.h>
 #include "sdlogger.h"
+#include "clocktime.h"
 
 static char lineBuffer[512];
 static FsFile logFile;
@@ -24,16 +23,12 @@ void CANLogger::setup()
         return;
     }
 
-    char logDir[9];
-    char logFileName[13];
-    char fullLogFilePath[19];
+    char logDir[16];
+    char logFileName[16];
+    char fullLogFilePath[32];
 
-    time_t localTime = ClockTime::getLocalTime();
-    int localYear = year(localTime);
-    int localMonth = month(localTime);
-    int localDay = day(localTime);
-
-    sprintf(logDir, "%d%02d%02d", localYear, localMonth, localDay);
+    time_t time = now();
+    sprintf(logDir, "%d%02d%02d", year(time), month(time), day(time));
     if (year() < 1980) // rtc is not set
     {
         sprintf(logDir, "%s", "NODATE");
@@ -48,7 +43,7 @@ void CANLogger::setup()
     }
     LOG_INFO("Log directory OK", logDir);
 
-    sprintf(logFileName, "%02d%02d%02d.csv", localYear, localMonth, localDay);
+    sprintf(logFileName, "%02d%02d%02d.csv", hour(time), minute(time), second(time));
     if (year() < 1980) // rtc is not set
     {
         File noDateDirectory = SD.open(logDir);
@@ -80,7 +75,7 @@ void CANLogger::setup()
         LOG_INFO("preallocing:", logFile.preAllocate(PREALLOC_MB * 1000000) ? "success" : "failure");
     #endif
 
-    logFile.write("time,evapInletTemp,evapInletA10Temp,evapInletA11Temp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,flowRate,pressure,coolantLevel,12v,5v,3v3,p3v3,coolingPower,switchPos,switchADC,status,systemEnable,chillerPumpEnable,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,slowLoopTime\n");
+    logFile.write("time,evapInletTemp,evapInletA10Temp,evapInletA11Temp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,flowRate,pressure,coolantLevel,12v,5v,3v3,p3v3,coolingPower,switchPos,switchADC,status,systemEnable,chillerPumpEnable,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,compressorFault,slowLoopTime\n");
     enableLog = true;
 }
 

@@ -130,10 +130,6 @@ void loop()
 {
     uint32_t loopTime = loopTimer.start();
 
-    if (digitalRead(PWM4) == 1) {
-        digitalWrite(PWM4, 0);
-    }
-
     if (Serial.available()) {
         char input = Serial.read();
         LOG_INFO("Received input", input);
@@ -159,10 +155,7 @@ void loop()
         StringFormatCSV format(message, sizeof(message));
         cooler.getLogMessage(format);
         format.formatUnsignedInt(slowLoopTime);
-        bool didFlush = CANLogger::logMessage(format);
-        if (didFlush) {
-            digitalWrite(PWM4, 1);
-        }
+        CANLogger::logMessage(format);
         slowLoopTime = 0;
         //cooler.getCANMessage(coolerSystemMessage);
         //broadcastMessage(coolerSystemMessage);

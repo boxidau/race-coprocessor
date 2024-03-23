@@ -2,7 +2,7 @@
 #include <SD.h>
 #include <Array.h>
 
-#define NTC_ARRAY_SIZE 1000
+#define NTC_ARRAY_SIZE 10000
 
 struct NTCData {
     uint32_t time;

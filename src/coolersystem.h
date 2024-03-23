@@ -60,7 +60,7 @@
 // time to acquire data and stabilize before doing anything
 #define STARTUP_STABILIZATION_SAMPLES 100
 
-#define NTC_DEBUG 0
+#define NTC_DEBUG 1
 #define FLOW_DEBUG 0
 #define UPDATE_STATE_TIMER_MS 100
 #define DISPLAY_INFO_MS 2000

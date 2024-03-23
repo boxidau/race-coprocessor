@@ -11,7 +11,12 @@ Timezone Pacific(PDT, PST);
 
 static time_t getTeensy3Time()
 {
-    return Teensy3Clock.get();
+    // this is called to fetch the RTC and sync to CPU time.
+    // apply timezone offset here so CPU time is always local,
+    // and RTC time (set when serial is connected) is UTC.
+    // having CPU time be local is important for filesystem
+    // timestamps.
+    return Pacific.toLocal(Teensy3Clock.get());
 }
 
 void ClockTime::setup()
@@ -39,9 +44,4 @@ uint32_t ClockTime::millisSinceEpoch()
 double ClockTime::secSinceEpoch()
 {
     return epoch ? (double)(millis() - epoch) / 1000 : 0;
-}
-
-time_t ClockTime::getLocalTime() {
-    time_t time = now();
-    return Pacific.toLocal(time);
 }

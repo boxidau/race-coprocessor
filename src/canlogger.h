@@ -7,7 +7,7 @@
 #define CAN_TX false
 
 #define PREALLOC_MB 1 // 18MB ~= 4 hours of logs
-#define FLUSH_MS 1000
+#define FLUSH_MS 0
 
 class CANLogger
 {

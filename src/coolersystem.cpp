@@ -589,4 +589,5 @@ void CoolerSystem::getLogMessage(StringFormatCSV& format)
     format.formatFloat3DP(compressorSpeed);
     format.formatBool(undertempCutoff);
     format.formatBinary(_systemFault);
+    format.formatUnsignedInt((uint32_t) compressorFaultCode);
 };
