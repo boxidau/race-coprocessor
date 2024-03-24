@@ -57,6 +57,9 @@
 #define PID_KI 0.2
 #define PID_KD 0
 
+// max flush time with pumps running
+#define FLUSH_TIMEOUT_MS 60000
+
 // time to acquire data and stabilize before doing anything
 #define STARTUP_STABILIZATION_SAMPLES 100
 

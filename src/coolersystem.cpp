@@ -255,14 +255,24 @@ void CoolerSystem::updateState()
             updateCoolerData();
             updateFaults();
 
-            // if flushing, ignore faults and other inputs
-            if (shouldFlush) {
+            // handle system flushing
+            if (systemStatus != CoolerSystemStatus::FLUSH && shouldFlush) {
+                // start flushing
                 systemStatus = CoolerSystemStatus::FLUSH;
+                pumpStartTime = millis();
                 return;
             }
+            if (systemStatus == CoolerSystemStatus::FLUSH && shouldFlush && millis() < pumpStartTime + FLUSH_TIMEOUT_MS) {
+                // continue flushing, ignore faults and other inputs
+                return;
+            }
+            if (systemStatus == CoolerSystemStatus::FLUSH) {
+                // end flushing and fall through to switch handling
+                systemStatus = CoolerSystemStatus::REQUIRES_RESET;
+                shouldFlush = false;
+            }
 
-            if (_systemFault != (byte) SystemFault::SYSTEM_OK ||
-                systemStatus == CoolerSystemStatus::FLUSH) {
+            if (_systemFault != (byte) SystemFault::SYSTEM_OK) {
                 systemStatus = CoolerSystemStatus::REQUIRES_RESET;
             }
 
