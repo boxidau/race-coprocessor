@@ -109,7 +109,7 @@ void setup()
     pinMode(PWM4, OUTPUT);
 
     LOG_INFO("System Boot OK");
-    LOG_INFO("Type 1, 2, 3, 4, 5, 6 = 50%, 60%, 70%, 80%, 90%, 100% compressor speed");
+    LOG_INFO("Type 1, 2, 3, 4, 5, 6 = 50%, 60%, 70%, 80%, 90%, 100% compressor speed, f = flush coolant");
 }
 
 void broadcastMessage(CAN_message_t &message)
