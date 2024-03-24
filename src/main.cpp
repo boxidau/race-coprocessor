@@ -135,6 +135,8 @@ void loop()
         LOG_INFO("Received input", input);
         if (input >= '1' && input <= '6') {
             cooler.setCompressorSpeedPercent(mapInputToCompressorSpeed(input));
+        } else if (input == 'f') {
+            cooler.toggleFlush();
         }
     }
 

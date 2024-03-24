@@ -72,7 +72,8 @@ enum class CoolerSystemStatus {
     PRECHILL        = 1,
     PUMP_LOW        = 2,
     PUMP_MEDIUM     = 3,
-    PUMP_HIGH       = 4
+    PUMP_HIGH       = 4,
+    FLUSH           = 5
 };
 
 constexpr const char* CoolerSystemStatusToString(CoolerSystemStatus css)
@@ -86,6 +87,7 @@ constexpr const char* CoolerSystemStatusToString(CoolerSystemStatus css)
         case CoolerSystemStatus::PUMP_LOW: return "PUMP_LOW";
         case CoolerSystemStatus::PUMP_MEDIUM: return "PUMP_MEDIUM";
         case CoolerSystemStatus::PUMP_HIGH: return "PUMP_HIGH";
+        case CoolerSystemStatus::FLUSH: return "FLUSH";
         default: return "UNKNOWN";
     }
 }
@@ -172,6 +174,7 @@ private:
     MetroTimer updateStateTimer = { MetroTimer(UPDATE_STATE_TIMER_MS) };
     MetroTimer displayInfoTimer = { MetroTimer(DISPLAY_INFO_MS) };
     uint32_t pumpStartTime = { 0 };
+    bool shouldFlush { false };
     NTCLogger ntcLogger;
 
     // sensor values
@@ -211,6 +214,8 @@ private:
     void check(bool assertionResult, SystemFault fault);
 
     void acquireSamples();
+    void updateCoolerData();
+    void updateFaults();
     void updateState();
     void updateOutputs();
     void displayInfo();
@@ -274,4 +279,5 @@ public:
     unsigned long lastFlowPulseMicros();
     bool hasStarted();
     void setCompressorSpeedPercent(uint32_t percent);
+    void toggleFlush();
 };

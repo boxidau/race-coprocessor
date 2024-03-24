@@ -68,17 +68,12 @@ void CoolerSystem::pollCoolantLevel()
 
 void CoolerSystem::runChillerPump()
 {
-    if (_systemFault & uint8_t(SystemFault::LOW_COOLANT)) {
-        chillerPumpPWM.set(0);
-        return;
-    }
-
     switch (systemStatus) {
-        case CoolerSystemStatus::REQUIRES_RESET:
         case CoolerSystemStatus::PRECHILL:
         case CoolerSystemStatus::PUMP_LOW:
         case CoolerSystemStatus::PUMP_MEDIUM:
         case CoolerSystemStatus::PUMP_HIGH:
+        case CoolerSystemStatus::FLUSH:
             if (chillerPumpPWM.value() == 0) {
                 pumpStartTime = millis();
                 chillerPumpPWM.setPercent(50);
@@ -157,13 +152,15 @@ void CoolerSystem::runCoolshirtPump()
 {
     switch(systemStatus) {
         case CoolerSystemStatus::PUMP_LOW:
-            //return coolshirtPWM.setPercent(33);
         case CoolerSystemStatus::PUMP_MEDIUM:
-            //return coolshirtPWM.setPercent(66);
         case CoolerSystemStatus::PUMP_HIGH:
-            return coolshirtPWM.setPercent(100);
+        case CoolerSystemStatus::FLUSH:
+            coolshirtPWM.setPercent(100);
+            return;
+
         default:
-            return coolshirtPWM.setPercent(0);
+            coolshirtPWM.setPercent(0);
+            return;
     }
 }
 
@@ -201,6 +198,36 @@ void CoolerSystem::acquireSamples()
     sampleCounter++;
 }
 
+void CoolerSystem::updateCoolerData() {
+    flowRate = flowSensor.flowRate();
+    systemPressure = pressureSensor.calibratedValue();
+    compressorCurrent = currentSensor.calibratedValue() / 1000; // mA -> A
+    evaporatorInletTemp = evaporatorInletNTC.temperature();
+    evaporatorInletA10Temp = evaporatorInletA10.temperature();
+    evaporatorOutletTemp = evaporatorOutletNTC.temperature();
+    condenserInletTemp = condenserInletNTC.temperature();
+    condenserOutletTemp = condenserOutletNTC.temperature();
+    ambientTemp = ambientNTC.temperature();
+    coolingPower = (evaporatorInletA10Temp - evaporatorOutletTemp) * SPECIFIC_HEAT * flowRate / 60000; // Watts
+}
+
+void CoolerSystem::updateFaults() {
+    // check faults and set systemFault flags
+    check(systemPressure < OVERPRESSURE_THRESHOLD_KPA, SystemFault::SYSTEM_OVER_PRESSURE);
+    check(coolantLevel, SystemFault::LOW_COOLANT);
+    check(compressorFaultCode == CompressorFaultCode::OK, SystemFault::COMPRESSOR_FAULT);
+    check(!voltageMonitor.overVoltage(), SystemFault::SYSTEM_OVERVOLT);
+    check(!voltageMonitor.underVoltage(), SystemFault::SYSTEM_UNDERVOLT);
+    compressorFaultCode = compressorFault.getCode();
+
+    // check flow rate after chiller pump startup period is over and verify it's sufficient
+    if (chillerPumpPWM.value()) {
+        int32_t pumpRunTime = millis() - pumpStartTime;
+        bool flowError = flowRate < FLOW_RATE_MIN_THRESHOLD && pumpRunTime >= FLOW_RATE_STARTUP_TIME;
+        check(!flowError, SystemFault::FLOW_RATE_LOW);
+    }
+}
+
 void CoolerSystem::updateState()
 {
     switch (systemStatus) {
@@ -225,33 +252,17 @@ void CoolerSystem::updateState()
                 return;
             }
 
-            flowRate = flowSensor.flowRate();
-            systemPressure = pressureSensor.calibratedValue();
-            compressorCurrent = currentSensor.calibratedValue() / 1000; // mA -> A
-            evaporatorInletTemp = evaporatorInletNTC.temperature();
-            evaporatorInletA10Temp = evaporatorInletA10.temperature();
-            evaporatorOutletTemp = evaporatorOutletNTC.temperature();
-            condenserInletTemp = condenserInletNTC.temperature();
-            condenserOutletTemp = condenserOutletNTC.temperature();
-            ambientTemp = ambientNTC.temperature();
-            coolingPower = (evaporatorInletA10Temp - evaporatorOutletTemp) * SPECIFIC_HEAT * flowRate / 60000; // Watts
-            compressorFaultCode = compressorFault.getCode();
+            updateCoolerData();
+            updateFaults();
 
-            // check faults and set systemFault flags
-            check(systemPressure < OVERPRESSURE_THRESHOLD_KPA, SystemFault::SYSTEM_OVER_PRESSURE);
-            check(coolantLevel, SystemFault::LOW_COOLANT);
-            check(compressorFaultCode == CompressorFaultCode::OK, SystemFault::COMPRESSOR_FAULT);
-            check(!voltageMonitor.overVoltage(), SystemFault::SYSTEM_OVERVOLT);
-            check(!voltageMonitor.underVoltage(), SystemFault::SYSTEM_UNDERVOLT);
-
-            // check flow rate after chiller pump startup period is over and verify it's sufficient
-            if (chillerPumpPWM.value()) {
-                int32_t pumpRunTime = millis() - pumpStartTime;
-                bool flowError = flowRate < FLOW_RATE_MIN_THRESHOLD && pumpRunTime >= FLOW_RATE_STARTUP_TIME;
-                check(!flowError, SystemFault::FLOW_RATE_LOW);
+            // if flushing, ignore faults and other inputs
+            if (shouldFlush) {
+                systemStatus = CoolerSystemStatus::FLUSH;
+                return;
             }
 
-            if (_systemFault != (byte) SystemFault::SYSTEM_OK) {
+            if (_systemFault != (byte) SystemFault::SYSTEM_OK ||
+                systemStatus == CoolerSystemStatus::FLUSH) {
                 systemStatus = CoolerSystemStatus::REQUIRES_RESET;
             }
 
@@ -274,17 +285,19 @@ void CoolerSystem::updateState()
                 case CoolerSwitchPosition::PRECHILL:
                     systemStatus = CoolerSystemStatus::PRECHILL;
                     return;
+
                 case CoolerSwitchPosition::PUMP_LOW:
                     systemStatus = CoolerSystemStatus::PUMP_LOW;
                     return;
+
                 case CoolerSwitchPosition::PUMP_MEDIUM:
                     systemStatus = CoolerSystemStatus::PUMP_MEDIUM;
                     return;
+
                 case CoolerSwitchPosition::PUMP_HIGH:
                     systemStatus = CoolerSystemStatus::PUMP_HIGH;
                     return;
-                case CoolerSwitchPosition::RESET:
-                case CoolerSwitchPosition::UNKNOWN:
+
                 default:
                     // do nothing
                     return;
@@ -338,6 +351,12 @@ void CoolerSystem::displayInfo()
 
     format.formatLiteral("Inputs ------------------------------------------------\n");
 
+    format.formatLiteral("  Switch Position:               ");
+    format.formatString(CoolerSwitchPositionToString(switchADC.position()));
+    format.formatLiteral(" ( ");
+    format.formatUnsignedInt(switchADC.adc());
+    format.formatLiteral(" )\n");
+
     format.formatLiteral("  Evaporator Inlet:              ");
     format.formatFloat3DP(evaporatorInletA10Temp);
     format.formatLiteral(" °C ( ");
@@ -368,22 +387,12 @@ void CoolerSystem::displayInfo()
     format.formatUnsignedInt(ambientNTC.adc());
     format.formatLiteral(" )\n");
 
-    format.formatLiteral("  Flow Rate:                     ");
-    format.formatFloat3DP(flowRate / 1000.0);
-    format.formatLiteral(" L/min\n");
-
-    format.formatLiteral("  System Pressure:               ");
-    format.formatUnsignedInt(systemPressure);
-    format.formatLiteral(" kPa ( ");
-    format.formatUnsignedInt(pressureSensor.adc());
-    format.formatLiteral(" )\n");
-
     format.formatLiteral("  Coolant Level:                 ");
     coolantLevel ? format.formatLiteral("OK\n") : format.formatLiteral("LOW\n");
 
-    format.formatLiteral("  Cooling Power:                 ");
-    format.formatFloat3DP(coolingPower);
-    format.formatLiteral(" W\n");
+    format.formatLiteral("  Flow Rate:                     ");
+    format.formatFloat3DP(flowRate / 1000.0);
+    format.formatLiteral(" L/min\n");
 
     format.formatLiteral("  Compressor Current:            ");
     format.formatFloat3DP(compressorCurrent);
@@ -391,43 +400,37 @@ void CoolerSystem::displayInfo()
     format.formatUnsignedInt(currentSensor.adc());
     format.formatLiteral(" )\n");
 
-    format.formatLiteral("  Compressor Status:             ");
-    format.formatString(CompressorFaultToString(compressorFaultCode));
-    if (compressorFaultCode != CompressorFaultCode::OK) {
-        format.formatLiteral(" (");
-        format.formatFloat3DP(compressorFault.durationSinceFaultRecorded() / 1000.0);
-        format.formatLiteral(" s ago)");
-    }
-    format.formatLiteral("\n");
-
-    format.formatLiteral("  Switch Position:               ");
-    format.formatString(CoolerSwitchPositionToString(switchADC.position()));
-    format.formatLiteral(" ( ");
-    format.formatUnsignedInt(switchADC.adc());
+    format.formatLiteral("  System Pressure:               ");
+    format.formatUnsignedInt(systemPressure);
+    format.formatLiteral(" kPa ( ");
+    format.formatUnsignedInt(pressureSensor.adc());
     format.formatLiteral(" )\n");
 
-    format.formatLiteral("Outputs -----------------------------------------------\n");
+    format.formatLiteral("State -------------------------------------------------\n");
 
     format.formatLiteral("  System Status:                 ");
     format.formatString(CoolerSystemStatusToString(systemStatus));
     format.formatLiteral("\n");
 
-    format.formatLiteral("  System Enabled:                ");
+    format.formatLiteral("  Chiller        :               ");
     systemEnableOutput.value() ? format.formatLiteral("ON\n") : format.formatLiteral("OFF\n");
-
-    format.formatLiteral("  Compressor Speed:              ");
-    format.formatUnsignedInt(compressorSpeed * 100);
-    format.formatLiteral(" %\n");
 
     format.formatLiteral("  Chiller Pump:                  ");
     chillerPumpPWM.value() ? format.formatLiteral("ON\n") : format.formatLiteral("OFF\n");
 
     format.formatLiteral("  Coolshirt Pump:                ");
-    format.formatUnsignedInt(coolshirtPWM.percent());
+    coolshirtPWM.value() ? format.formatLiteral("ON\n") : format.formatLiteral("OFF\n");
+
+    format.formatLiteral("  Compressor Speed:              ");
+    format.formatUnsignedInt(compressorSpeed * 100);
     format.formatLiteral(" %\n");
 
     format.formatLiteral("  Undertemp Cutoff:              ");
     undertempCutoff ? format.formatLiteral("CUTOFF\n") : format.formatLiteral("OK\n");
+
+    format.formatLiteral("  Cooling Power:                 ");
+    format.formatFloat3DP(coolingPower);
+    format.formatLiteral(" W\n");
 
     format.formatLiteral("Faults ------------------------------------------------\n");
     printFaultLine(format, SystemFault::LOW_COOLANT, _systemFault);
@@ -436,6 +439,14 @@ void CoolerSystem::displayInfo()
     printFaultLine(format, SystemFault::SYSTEM_UNDERVOLT, _systemFault);
     printFaultLine(format, SystemFault::SYSTEM_OVERVOLT, _systemFault);
     printFaultLine(format, SystemFault::COMPRESSOR_FAULT, _systemFault);
+    format.formatLiteral("  Compressor Fault Code:         ");
+    format.formatString(CompressorFaultToString(compressorFaultCode));
+    if (compressorFaultCode != CompressorFaultCode::OK) {
+        format.formatLiteral(" (");
+        format.formatFloat3DP(compressorFault.durationSinceFaultRecorded() / 1000.0);
+        format.formatLiteral(" s ago)");
+    }
+    format.formatLiteral("\n");
     format.formatLiteral("-------------------------------------------------------");
 
     Serial.write(format.finish(), format.length());
@@ -456,7 +467,7 @@ void CoolerSystem::loop()
         undertempCutoff = true;
         systemStatus = CoolerSystemStatus::REQUIRES_RESET;
         shutdownCompressor();
-        LOG_ERROR("Panic condition: evaporator outlet temp", evaporatorOutletNTC.temperature(), "C, shutting down compressor");
+        LOG_ERROR("Panic condition: evaporator outlet temp", evaporatorOutletNTC.temperature(), "C (below", EVAPORATOR_OUTLET_PANIC_TEMPERATURE, "), shutting down compressor");
         return;
     }
 
@@ -507,6 +518,10 @@ unsigned long CoolerSystem::lastFlowPulseMicros() {
 void CoolerSystem::setCompressorSpeedPercent(uint32_t percent) {
     compressorSpeed = (double) percent / 100;
     LOG_INFO("Setting compressor speed to", percent, "%");
+}
+
+void CoolerSystem::toggleFlush() {
+    shouldFlush = systemStatus != CoolerSystemStatus::FLUSH;
 }
 
 byte CoolerSystem::systemFault() {
