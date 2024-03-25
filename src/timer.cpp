@@ -20,7 +20,7 @@ bool MetroTimer::check()
         // if > N.5x the interval has elapsed, skip the next N events. this prevents multiple
         // rapidfire events to play catchup.
         uint32_t intervalAdd = delta / intervalMillis + (2 * (delta % intervalMillis) >= intervalMillis);
-    		previousMillis += intervalAdd * intervalMillis;
+    	previousMillis += intervalAdd * intervalMillis;
         return true;
 	  }
   

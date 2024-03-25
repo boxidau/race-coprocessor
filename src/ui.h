@@ -30,9 +30,8 @@ public:
         , uiButton { Bounce(_uiButtonPin, 20) }
     {
     };
-    void setup();
 
+    void setup();
     void loop();
     bool shouldDisplayName();
-    const CoolerSystemData& getCSData();
 };

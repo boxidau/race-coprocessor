@@ -32,8 +32,6 @@ void CoolerUI::loop() {
         display.setLED(ScreenLED::GREEN, false);
     }
 
-    display.setLED(ScreenLED::RED, rtData.fault);
-
     if (uiButton.update() && uiButton.fallingEdge()) {
         page = (page + 1) % PAGES;
         displayPageNameUntil = millis() + 1000;
@@ -59,6 +57,7 @@ void CoolerUI::loop() {
     }
 
     coolerSystem.getSystemData(rtData);
+    display.setLED(ScreenLED::RED, rtData.fault);
 
     if (shouldDisplayName()) {
         switch (page) {
@@ -120,9 +119,4 @@ void CoolerUI::loop() {
             break;
     }
     display.setString(buf);
-};
-
-
-const CoolerSystemData& CoolerUI::getCSData() {
-    return rtData;
 };
