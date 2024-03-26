@@ -2,9 +2,9 @@
 #include <SD.h>
 #include <Array.h>
 
-#define NTC_ARRAY_SIZE 15000
+#define SAMPLE_ARRAY_SIZE 15000
 
-struct NTCData {
+struct SampleData {
     uint32_t time;
     uint16_t sample1;
     uint16_t sample2;
@@ -12,7 +12,7 @@ struct NTCData {
     //uint16_t sample4;
 };
 
-class NTCLogger
+class SampleLogger
 {
 public:
     void ensureSetup(const char* header);
@@ -21,8 +21,7 @@ public:
 private:
     void flush();
 
-    File logFile;
-    bool started { false };
+    FsFile logFile;
     bool enableLog { false } ;
-    Array<NTCData, NTC_ARRAY_SIZE> ntcData;
+    Array<SampleData, SAMPLE_ARRAY_SIZE> sampleData;
 };

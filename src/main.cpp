@@ -15,15 +15,11 @@
 #include "looptimer.h"
 #include "stringformat.h"
 
-#define HSR_LOGGER
-
-Metro statsTimer = Metro(10000, 1);
-Metro canBroadcastTimer = Metro(100, 1);
 LoopTimer loopTimer = LoopTimer();
 
 FlexCAN CANbus = FlexCAN(500000, 0, true, true);
 
-CAN_message_t coolerSystemMessage, rxMessage;
+CAN_message_t rxMessage;
 
 CoolerSystem cooler = CoolerSystem(
     ADC_MAIN_SWITCH, // switchPin
@@ -52,7 +48,8 @@ CoolerSystem cooler = CoolerSystem(
     ADC_SYSTEM_3V3,
     ADC_SYSTEM_3V3_ADC_NUM,
     ADC_SPARE_5V, // P3V3 using 5V spare ADC
-    ADC_SPARE_5V_ADC_NUM
+    ADC_SPARE_5V_ADC_NUM,
+    CANbus
 );
 
 CoolerUI ui = CoolerUI(cooler, SPI_DISPLAY_CS, UI_BUTTON);
@@ -78,8 +75,9 @@ uint32_t mapInputToCompressorSpeed(char input) {
 void setup()
 {
     LOG_SET_LEVEL(DebugLogLevel::LVL_DEBUG);
+
     // initialize pin inputs/outputs first thing so they stabilize
-    cooler.setup();
+    cooler.setupIO();
     ui.setup();
 
     // Set up and calibrate ADCs, see https://forum.pjrc.com/index.php?threads/adc-library-with-support-for-teensy-4-3-x-and-lc.25532/
@@ -104,27 +102,16 @@ void setup()
     Serial.begin(115200);
     ClockTime::setup();
     CANbus.begin();
-    CANLogger::setup();
-
-    pinMode(PWM4, OUTPUT);
+    cooler.setupLogging();
 
     LOG_INFO("System Boot OK");
     LOG_INFO("Type 1, 2, 3, 4, 5, 6 = 50%, 60%, 70%, 80%, 90%, 100% compressor speed, f = flush coolant");
 }
 
-void broadcastMessage(CAN_message_t &message)
-{
-    CANbus.write(message);
-    CANLogger::logCANMessage(message, CAN_TX);
-}
-
 void processRXCANMessage()
 {
-    CANLogger::logCANMessage(rxMessage, CAN_RX);
+    //CANLogger::logCANMessage(rxMessage, CAN_RX);
 }
-
-static uint32_t slowLoopTime = 0;
-static bool coolerHasStarted = false;
 
 void loop()
 {
@@ -145,37 +132,13 @@ void loop()
     ui.loop();
     // end tick functions
 
-    bool logFirstData = false;
-    if (cooler.hasStarted() && !coolerHasStarted) {
-        coolerHasStarted = true;
-        canBroadcastTimer.reset();
-        logFirstData = true;
-    }
-
-    if ((coolerHasStarted && canBroadcastTimer.check()) || logFirstData) {
-        char message[256];
-        StringFormatCSV format(message, sizeof(message));
-        cooler.getLogMessage(format);
-        format.formatUnsignedInt(slowLoopTime);
-        CANLogger::logMessage(format);
-        slowLoopTime = 0;
-        //cooler.getCANMessage(coolerSystemMessage);
-        //broadcastMessage(coolerSystemMessage);
-    }
-
     // // read canbus data if message is available
     // if (Can0.read(rxMessage))
     // {
     //     processRXCANMessage();
     // }
 
-    if (statsTimer.check())
-    {
-        //CANLogger::logComment("loop_time=" + (String)loopTime + "uS");
-    }
-
     if (loopTime > 1000) {
         LOG_INFO("SLOW LOOP:", loopTime, "us");
-        slowLoopTime += loopTime;
     }
 }

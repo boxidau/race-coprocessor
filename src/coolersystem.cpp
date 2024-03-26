@@ -1,5 +1,6 @@
 #include "coolersystem.h"
 #include "clocktime.h"
+#include "datasdlogger.h"
 
 void printFaultLine(StringFormatCSV& format, SystemFault f, byte systemFault) {
     const char* faultName = SystemFaultToString(f);
@@ -13,7 +14,7 @@ void printFaultLine(StringFormatCSV& format, SystemFault f, byte systemFault) {
     systemFault & (byte)f ? format.formatLiteral("ALARM\n") : format.formatLiteral("OK\n");
 }
 
-void CoolerSystem::setup()
+void CoolerSystem::setupIO()
 {
     // setup pin modes and initial states
     systemEnableOutput.setup();
@@ -57,6 +58,18 @@ void CoolerSystem::setup()
     compressorPID.SetMode(MANUAL);
 
     voltageMonitor.setup();
+}
+
+void CoolerSystem::setupLogging()
+{
+#if NTC_DEBUG
+    sampleLogger.ensureSetup("time,inlet,inletA10,current");
+#elif FLOW_DEBUG
+    sampleLogger.ensureSetup("time,index,duration");
+#endif
+
+    DataSDLogger::setup();
+    DataSDLogger::logData(getLogHeader());
 }
 
 void CoolerSystem::pollCoolantLevel()
@@ -232,7 +245,7 @@ void CoolerSystem::updateState()
 {
     switch (systemStatus) {
         case CoolerSystemStatus::STARTUP:
-            if (sampleCounter < STARTUP_STABILIZATION_SAMPLES) {
+            if (sampleCounter <= STARTUP_STABILIZATION_SAMPLES) {
                 return;
             }
 
@@ -240,6 +253,7 @@ void CoolerSystem::updateState()
             // to process inputs for the first time
             ClockTime::setEpoch();
             updateStateTimer.reset();
+            dataLogTimer.reset();
             displayInfoTimer.reset();
 
             systemStatus = CoolerSystemStatus::REQUIRES_RESET;
@@ -422,7 +436,7 @@ void CoolerSystem::displayInfo()
     format.formatString(CoolerSystemStatusToString(systemStatus));
     format.formatLiteral("\n");
 
-    format.formatLiteral("  Chiller        :               ");
+    format.formatLiteral("  Chiller:                       ");
     systemEnableOutput.value() ? format.formatLiteral("ON\n") : format.formatLiteral("OFF\n");
 
     format.formatLiteral("  Chiller Pump:                  ");
@@ -488,22 +502,20 @@ void CoolerSystem::loop()
     }
 
     if (systemStatus != CoolerSystemStatus::STARTUP) {
-        uint32_t sampleTime = ClockTime::millisSinceEpoch();
 #if NTC_DEBUG
-        ntcLogger.ensureSetup("time,inlet,inletA10,current");
-        ntcLogger.logSamples(sampleTime, evaporatorInletNTC.latest(), evaporatorInletA10.latest(), currentSensor.latest(), 0);
-#endif
-#if FLOW_DEBUG
+        uint32_t sampleTime = ClockTime::millisSinceEpoch();
+        sampleLogger.logSamples(sampleTime, evaporatorInletNTC.latest(), evaporatorInletA10.latest(), currentSensor.latest(), 0);
+#elif FLOW_DEBUG
         if (flowSensor.lastPulseIndex() != lastLoggedFlowPulse) {
-            //LOG_INFO("flow pulse!", flowSensor.lastPulseDuration());
-            ntcLogger.ensureSetup("time,index,duration");
-            ntcLogger.logSamples(sampleTime, flowSensor.lastPulseIndex(), flowSensor.lastPulseDuration(), 0, 0);
+            uint32_t sampleTime = ClockTime::millisSinceEpoch();
+            sampleLogger.logSamples(sampleTime, flowSensor.lastPulseIndex(), flowSensor.lastPulseDuration(), 0, 0);
             lastLoggedFlowPulse = flowSensor.lastPulseIndex();
         }
 #endif
     }
 
     updateOutputs();
+    logData();
     displayInfo();
 };
 
@@ -538,11 +550,11 @@ byte CoolerSystem::systemFault() {
     return _systemFault;
 }
 
-uint8_t clampAndScale(float val, int minVal, int scale) {
-    return max(255, (uint8_t)(max(minVal, val)) - minVal) / scale;
+int32_t clampAndScale(float val, int32_t minVal, int32_t maxVal, uint32_t scale) {
+    return max(min(round(val * scale), maxVal), minVal);
 }
 
-void CoolerSystem::getCANMessage(CAN_message_t &msg)
+void CoolerSystem::getCANMessage(CAN_message_t& msg)
 {
     msg.id = CANID_COOLER_SYSTEM;
     msg.len = 8;
@@ -550,42 +562,53 @@ void CoolerSystem::getCANMessage(CAN_message_t &msg)
 
     // byte | purpose
     // ------------------------------
-    // 0    | chiller inlet temp (celcius) uint8_t byte = (T + 15) / 0.25
-    // 1    | chiller outlet temp (celcius) uint8_t byte = (T + 15) / 0.25
-    // 2    | flow rate (cL/min [100mL/min]) uint8_t
-    // 3    | system pressure kPa scaling factor 0.25 uint8_t
-    // 4    | compressor value 0-254 uint8_t
-    // 5    | coolshirt value 0-254 uint8_t
-    // 6    | flags bitmap
-    //      |   [7]: system enable
-    //      |   [6]: chiller pump active
-    //      |   [5]: system reset required
-    //      |   [4]: coolant level OK
+    // 0,1  | chiller reservoir temp (int16_t) = T (degrees C) * 256
+    // 2    | compressor speed (uint8_t) = speed (0 - 1) * 255
+    // 3    | state bitmap
+    //      |   [6]: chiller active
+    //      |   [5]: chiller pump active
+    //      |   [4]: coolshirt pump active
     //      |   [3]: under-temp compressor cut-off
     //      |   [2,1,0]: system status
-    // 7    | system faults
-    // 8    | compressor fault
+    // 4    | system faults
+    // 5    | compressor fault
 
-    msg.buf[0] = clampAndScale(evaporatorInletTemp, -5, 0.2);
-    msg.buf[1] = evaporatorOutletTemp > -5 ? uint8_t((evaporatorOutletTemp + 5) / 0.2): 0xFF;
-    msg.buf[0] = condenserInletTemp > 10 ? uint8_t((condenserInletTemp - 10) / 0.35) : 0xFF;
-    msg.buf[1] = condenserOutletTemp > 10 ? uint8_t((condenserOutletTemp - 10) / 0.35): 0xFF;
-    msg.buf[1] = ambientTemp > 10 ? uint8_t((ambientTemp - 10) / 0.2): 0xFF;
-    msg.buf[2] = (uint8_t)(flowRate / 15);
-    msg.buf[3] = systemPressure / 4;
-    msg.buf[4] = compressorSpeed * 255;
-    msg.buf[5] = (uint8_t)(compressorCurrent / 40 * 255);
-    msg.buf[6] = coolshirtPWM.value() >> 8;
-    msg.buf[7] = 0;
-    if (systemEnableOutput.value()) msg.buf[7] |= 0x80;
-    if (chillerPumpPWM.value() >> 8) msg.buf[7] |= 0x40;
-    if (_systemFault) msg.buf[7] |= 0x20;
-    if (coolantLevel) msg.buf[7] |= 0x10;
-    if (undertempCutoff) msg.buf[7] |= 0x08;
-    msg.buf[7] |= (0x07 & (uint8_t)systemStatus);
-    //msg.buf[8] = (uint8_t)_systemFault;
-    //msg.buf[9] = (uint8_t)compressorFault.getCode();
+    int16_t temp = clampAndScale(evaporatorInletTemp, 0, INT16_MAX, 256);
+    msg.buf[0] = (temp & 0xff00) >> 8;
+    msg.buf[1] = temp & 0xff;
+
+    msg.buf[2] = clampAndScale(compressorSpeed, 0, 255, 255);
+
+    uint8_t state = 0;
+    systemEnableOutput.value() && (state |= 1 << 6);
+    chillerPumpPWM.value() && (state |= 1 << 5);
+    coolshirtPWM.value() && (state |= 1 << 4);
+    undertempCutoff && (state |= 1 << 3);
+    state |= (uint8_t) systemStatus & 0x07;
+    msg.buf[3] = state;
+
+    msg.buf[4] = (uint8_t) _systemFault;
+    msg.buf[5] = (uint8_t) compressorFault.getCode();
 };
+
+void CoolerSystem::logData() {
+    if (systemStatus == CoolerSystemStatus::STARTUP || !dataLogTimer.check()) {
+        return;
+    }
+
+    char data[256];
+    StringFormatCSV format(data, sizeof(data));
+    getLogMessage(format);
+    DataSDLogger::logData(format.finish(), format.length());
+
+    CAN_message_t message;
+    getCANMessage(message);
+    //CANBus.write(message);
+}
+
+const char* CoolerSystem::getLogHeader() {
+    return "time,evapInletTemp,evapInletA10Temp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,flowRate,pressure,coolantLevel,12v,5v,3v3,p3v3,coolingPower,switchPos,switchADC,status,systemEnable,chillerPumpEnable,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,compressorFault,slowLoopTime\n";
+}
 
 void CoolerSystem::getLogMessage(StringFormatCSV& format)
 {

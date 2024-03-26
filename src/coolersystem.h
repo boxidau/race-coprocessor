@@ -17,7 +17,7 @@
 #include "voltagemonitor.h"
 #include "flowsensor.h"
 #include "compressorfault.h"
-#include "ntclogger.h"
+#include "samplelogger.h"
 #include "looptimer.h"
 #include "stringformat.h"
 #include "timer.h"
@@ -66,17 +66,18 @@
 #define NTC_DEBUG 1
 #define FLOW_DEBUG 0
 #define UPDATE_STATE_TIMER_MS 100
+#define DATA_LOG_INTERVAL_MS 100
 #define DISPLAY_INFO_MS 2000
 
 enum class CoolerSystemStatus {
-    STARTUP         = -2,
-    REQUIRES_RESET  = -1,
-    RESET           = 0,
-    PRECHILL        = 1,
-    PUMP_LOW        = 2,
-    PUMP_MEDIUM     = 3,
-    PUMP_HIGH       = 4,
-    FLUSH           = 5
+    STARTUP         = 0,
+    REQUIRES_RESET  = 1,
+    RESET           = 2,
+    PRECHILL        = 3,
+    PUMP_LOW        = 4,
+    PUMP_MEDIUM     = 5,
+    PUMP_HIGH       = 6,
+    FLUSH           = 7
 };
 
 constexpr const char* CoolerSystemStatusToString(CoolerSystemStatus css)
@@ -175,10 +176,15 @@ private:
     uint32_t sampleCounter { 0 };
     MetroTimer msTick = { MetroTimer(1) };
     MetroTimer updateStateTimer = { MetroTimer(UPDATE_STATE_TIMER_MS) };
+    MetroTimer dataLogTimer = { MetroTimer(DATA_LOG_INTERVAL_MS) };
     MetroTimer displayInfoTimer = { MetroTimer(DISPLAY_INFO_MS) };
     uint32_t pumpStartTime = { 0 };
     bool shouldFlush { false };
-    NTCLogger ntcLogger;
+    FlexCAN& CANBus;
+
+#if NTC_DEBUG || FLOW_DEBUG
+    SampleLogger sampleLogger;
+#endif
 
     // sensor values
     CompressorFaultCode compressorFaultCode { CompressorFaultCode::OK };
@@ -222,6 +228,9 @@ private:
     void updateState();
     void updateOutputs();
     void displayInfo();
+    void getLogMessage(StringFormatCSV& format);
+    void logData();
+    const char* getLogHeader();
 
 public:
     CoolerSystem(
@@ -251,7 +260,8 @@ public:
         uint8_t sys3v3Pin,
         uint8_t sys3v3ADCNum,
         uint8_t sysp3v3Pin,
-        uint8_t sysp3v3ADCNum
+        uint8_t sysp3v3ADCNum,
+        FlexCAN& canbus
     )
         : switchADC { SwitchADC(_switchPin, _switchADCNum) }
         , pressureSensor { CalibratedADC(_pressureSensorPin, _pressureSensorADCNum) }
@@ -271,12 +281,13 @@ public:
         , systemEnableOutput { PWMOutput(_systemEnablePin) }
         , coolantLevelBounce { Bounce(coolantLevelPin, 10) }
         , voltageMonitor { VoltageMonitor(sys12vPin, sys12vADCNum, sys5vPin, sys5vADCNum, sys3v3Pin, sys3v3ADCNum, sysp3v3Pin, sysp3v3ADCNum) }
+        , CANBus(canbus)
     {
     };
-    void setup();
+    void setupIO();
+    void setupLogging();
     void loop();
     void getCANMessage(CAN_message_t &msg);
-    void getLogMessage(StringFormatCSV& format);
     byte systemFault();
     void getSystemData(CoolerSystemData &data);
     unsigned long lastFlowPulseMicros();
