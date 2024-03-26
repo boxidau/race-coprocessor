@@ -17,6 +17,7 @@
 
 LoopTimer loopTimer = LoopTimer();
 
+// try higher baud, 1M. 100k/250k also valid
 FlexCAN CANbus = FlexCAN(500000, 0, true, true);
 
 CAN_message_t rxMessage;

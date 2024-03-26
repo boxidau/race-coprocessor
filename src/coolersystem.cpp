@@ -557,8 +557,9 @@ int32_t clampAndScale(float val, int32_t minVal, int32_t maxVal, uint32_t scale)
 void CoolerSystem::getCANMessage(CAN_message_t& msg)
 {
     msg.id = CANID_COOLER_SYSTEM;
-    msg.len = 8;
-    // msg.flags = {};
+    msg.ext = false;
+    msg.len = 6;
+    msg.timeout = 1; // ms
 
     // byte | purpose
     // ------------------------------
@@ -589,6 +590,9 @@ void CoolerSystem::getCANMessage(CAN_message_t& msg)
 
     msg.buf[4] = (uint8_t) _systemFault;
     msg.buf[5] = (uint8_t) compressorFault.getCode();
+
+    msg.buf[6] = 0;
+    msg.buf[7] = 0;
 };
 
 void CoolerSystem::logData() {
@@ -601,9 +605,13 @@ void CoolerSystem::logData() {
     getLogMessage(format);
     DataSDLogger::logData(format.finish(), format.length());
 
+    return;
+
+    uint32_t m = micros();
     CAN_message_t message;
     getCANMessage(message);
     //CANBus.write(message);
+    LOG_INFO("CANBus write took", micros()-m, "us");
 }
 
 const char* CoolerSystem::getLogHeader() {
