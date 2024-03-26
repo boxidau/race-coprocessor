@@ -225,13 +225,14 @@ void CoolerSystem::updateCoolerData() {
 }
 
 void CoolerSystem::updateFaults() {
+    compressorFaultCode = compressorFault.getCode();
+
     // check faults and set systemFault flags
     check(systemPressure < OVERPRESSURE_THRESHOLD_KPA, SystemFault::SYSTEM_OVER_PRESSURE);
     check(coolantLevel, SystemFault::LOW_COOLANT);
     check(compressorFaultCode == CompressorFaultCode::OK, SystemFault::COMPRESSOR_FAULT);
     check(!voltageMonitor.overVoltage(), SystemFault::SYSTEM_OVERVOLT);
     check(!voltageMonitor.underVoltage(), SystemFault::SYSTEM_UNDERVOLT);
-    compressorFaultCode = compressorFault.getCode();
 
     // check flow rate after chiller pump startup period is over and verify it's sufficient
     if (chillerPumpPWM.value()) {
@@ -564,7 +565,8 @@ void CoolerSystem::getCANMessage(CAN_message_t& msg)
     // byte | purpose
     // ------------------------------
     // 0,1  | chiller reservoir temp (int16_t) = T (degrees C) * 256
-    // 2    | compressor speed (uint8_t) = speed (0 - 1) * 255
+    //        byte 0: integer temp in C, byte 1: fractional temp * 256
+    // 2    | compressor speed (uint8_t) = speed (%) (0 - 100)
     // 3    | state bitmap
     //      |   [6]: chiller active
     //      |   [5]: chiller pump active
@@ -574,11 +576,11 @@ void CoolerSystem::getCANMessage(CAN_message_t& msg)
     // 4    | system faults
     // 5    | compressor fault
 
-    int16_t temp = clampAndScale(evaporatorInletTemp, 0, INT16_MAX, 256);
+    uint16_t temp = clampAndScale(evaporatorInletTemp, 0, UINT16_MAX, 256);
     msg.buf[0] = (temp & 0xff00) >> 8;
     msg.buf[1] = temp & 0xff;
 
-    msg.buf[2] = clampAndScale(compressorSpeed, 0, 255, 255);
+    msg.buf[2] = clampAndScale(compressorSpeed, 0, 100, 100);
 
     uint8_t state = 0;
     systemEnableOutput.value() && (state |= 1 << 6);
@@ -589,7 +591,7 @@ void CoolerSystem::getCANMessage(CAN_message_t& msg)
     msg.buf[3] = state;
 
     msg.buf[4] = (uint8_t) _systemFault;
-    msg.buf[5] = (uint8_t) compressorFault.getCode();
+    msg.buf[5] = (uint8_t) compressorFaultCode;
 
     msg.buf[6] = 0;
     msg.buf[7] = 0;
