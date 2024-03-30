@@ -67,6 +67,8 @@ public:
             if (blinks >= 2 && blinks <= 9) {
                 code = (CompressorFaultCode) blinks;
                 LOG_INFO("Logged compressor fault", CompressorFaultToString(code));
+            } else if (blinks == 1) {
+                // compressor will flash LED on startup / shutdown, not an error
             } else {
                 LOG_ERROR("Invalid compressor fault,", blinks, "blinks, returning UNKNOWN");
                 code = CompressorFaultCode::UNKNOWN;

@@ -60,7 +60,7 @@ bool SDLogger::createLogfile(char fileSuffix, FsFile& file) {
         return false;
     }
 
-    static time_t time = now();
+    time_t time = now();
     sprintf(logDir, "%d%02d%02d", year(time), month(time), day(time));
     if (year() < 1980) // rtc is not set
     {

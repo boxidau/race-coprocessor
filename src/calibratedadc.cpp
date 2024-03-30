@@ -1,17 +1,5 @@
 #include "calibratedadc.h"
 
-void CalibratedADC::loop() {
-    uint16_t curValue = SingletonADC::getADC()->analogRead(pin, adcNum);
-    if (!samples.full()) {
-        samples.push_back(curValue);
-    } else {
-        runningSum -= samples[idx % ADC_SAMPLES];
-        samples[idx % ADC_SAMPLES] = curValue;
-    }
-    idx++;
-    runningSum += curValue;
-}
-
 void CalibratedADC::setCalibration(
     uint16_t lowADC,
     uint16_t lowValue,
@@ -26,20 +14,12 @@ void CalibratedADC::setCalibration(
     constrainCalibration = constrain;
 }
 
-uint16_t CalibratedADC::adc() {
-    return !samples.empty() ? round((float) runningSum / samples.size()) : 0;
-}
-
-uint16_t CalibratedADC::latest() {
-    return !samples.empty() ? samples[(idx - 1) % ADC_SAMPLES] : 0;
-};
-
 uint16_t CalibratedADC::calibratedValue() {
-    uint16_t _adc = adc();
-    if (constrainCalibration) _adc = constrain(
-        adc(), calibrationLowADC, calibrationHighADC
-    );
-        
+    uint16_t _adc = this->adc();
+    if (constrainCalibration) {
+        _adc = constrain(_adc, calibrationLowADC, calibrationHighADC);
+    }
+
     return map(
         _adc,
         calibrationLowADC,
@@ -47,4 +27,4 @@ uint16_t CalibratedADC::calibratedValue() {
         calibrationLowValue,
         calibrationHighValue
     );
-};
+}

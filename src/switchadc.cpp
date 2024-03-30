@@ -1,15 +1,5 @@
+#include <DebugLog.h>
 #include "switchadc.h"
-#include <ADC.h>
-
-void SwitchADC::loop() {
-    uint16_t curValue = SingletonADC::getADC()->analogRead(pin, adcNum);
-    if (!samples.full()) {
-        samples.push_back(curValue);
-    } else {
-        samples[idx % samples.max_size()] = curValue;
-    }
-    idx++;
-}
 
 CoolerSwitchPosition _getSwitchPosition(uint16_t switchADCValue)
 {
@@ -38,16 +28,4 @@ CoolerSwitchPosition SwitchADC::position()
     }
 
     return _getSwitchPosition(samples[0]);
-}
-
-uint16_t SwitchADC::adc() {
-    if (samples.empty()) {
-        return 0;
-    }
-
-    uint32_t sum = 0;
-    for (size_t i = 0; i < samples.size(); i++) {
-        sum += samples[i];
-    }
-    return sum / samples.size();
 }

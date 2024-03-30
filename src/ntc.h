@@ -1,8 +1,5 @@
-#include "Arduino.h"
-#include "constants.h"
-#include "singletonadc.h"
 #include <math.h>
-#include <Array.h>
+#include "baseadc.h"
 
 #define NTC_DEFAULT_SAMPLES 100
 #define NTC_PRECISION_SAMPLES 100
@@ -11,16 +8,8 @@
 #define FULL_SCALE_VOLTAGE 3.3 // Volts
 #define FULL_SCALE_VREF 65516 // FS reading @ 3.3V @ zero leakage
 
-template <int NTC_SAMPLES> class BaseNTC
+template <int NTC_SAMPLES> class BaseNTC : public BaseADC<NTC_SAMPLES>
 {
-private:
-    const uint8_t pin, adcNum;
-    const uint32_t pullupResistance;
-    const float steinhartA, steinhartB, steinhartC;
-    Array<uint16_t, NTC_SAMPLES> samples;
-    uint32_t runningSum { 0 };
-    uint16_t idx { 0 };
-
 public:
     BaseNTC(
         const uint8_t _pin,
@@ -30,46 +19,17 @@ public:
         const float _steinhartB = 2.342041378e-4,
         const float _steinhartC = 8.737724626e-8
     )
-        : pin { _pin }
-        , adcNum { _adcNum }
+        : BaseADC<NTC_SAMPLES>(_pin, _adcNum)
         , pullupResistance { _pullupResistance }
         , steinhartA { _steinhartA }
         , steinhartB { _steinhartB }
         , steinhartC { _steinhartC }
     {
     };
-    
-    void setup() {
-        pinMode(pin, INPUT_DISABLE);
-    }
-
-    uint16_t acquireAndDiscardSample() {
-        return SingletonADC::getADC()->analogRead(pin, adcNum);
-    }
-    
-    void loop() {
-        uint16_t curValue = SingletonADC::getADC()->analogRead(pin, adcNum);
-        if (!samples.full()) {
-            samples.push_back(curValue);
-        } else {
-            runningSum -= samples[idx % NTC_SAMPLES];
-            samples[idx % NTC_SAMPLES] = curValue;
-        }
-        idx++;
-        runningSum += curValue;
-    }
 
     float temperature() {
-        return temperatureFor(adc());        
+        return temperatureFor(this->adc());
     }
-
-    uint16_t adc() {
-        return !samples.empty() ? round((float) runningSum / samples.size()) : 0;
-    }
-
-    uint16_t latest() {
-        return !samples.empty() ? samples[(idx - 1) % NTC_SAMPLES] : 0;
-    };
 
     float temperatureFor(uint16_t sample) {
         float ntcResistanceApprox = pullupResistance / (((float) ADC_MAX / sample) - 1);
@@ -80,6 +40,10 @@ public:
         // expand out lnR * lnR * lnR, much faster than pow()
         return 1 / (steinhartA + (steinhartB * lnR) + (steinhartC * lnR * lnR * lnR)) - 273.15;
     }
+
+private:
+    const uint32_t pullupResistance;
+    const float steinhartA, steinhartB, steinhartC;
 };
 
 typedef BaseNTC<NTC_DEFAULT_SAMPLES> NTC;
