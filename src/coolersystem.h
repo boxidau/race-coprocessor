@@ -229,6 +229,7 @@ private:
     void updateOutputs();
     void displayInfo();
     void getLogMessage(StringFormatCSV& format);
+    void getCANMessage(CAN_message_t &msg);
     void logData();
     const char* getLogHeader();
 
@@ -263,35 +264,33 @@ public:
         uint8_t sysp3v3ADCNum,
         FlexCAN& canbus
     )
-        : switchADC { SwitchADC(_switchPin, _switchADCNum) }
-        , pressureSensor { CalibratedADC(_pressureSensorPin, _pressureSensorADCNum) }
-        , currentSensor { CalibratedADC(_currentSensorPin, _currentSensorADCNum) }
-        , compressorFault { CompressorFault(_compressorLDRPin) }
+        : switchADC(_switchPin, _switchADCNum)
+        , pressureSensor(_pressureSensorPin, _pressureSensorADCNum)
+        , currentSensor(_currentSensorPin, _currentSensorADCNum)
+        , compressorFault(_compressorLDRPin)
         , coolantLevelPin { _coolantLevelPin }
         , compressorSpeedPin { _compressorSpeedPin }
-        , flowSensor { FlowSensor(_flowRatePin, FLOW_SENSOR_PULSES_PER_SECOND, FLOW_RATE_MISSING_PULSE_TIME) }
-        , evaporatorInletNTC { PrecisionNTC(_evaporatorInletNtcPin, _ntcADCNum, 15000) }
-        , evaporatorInletA10 { PrecisionNTC(NTC_EVAPORATOR_DIFF_1, _ntcADCNum, 15000) }
-        , evaporatorOutletNTC { PrecisionNTC(_evaporatorOutletNtcPin, _ntcADCNum, 15000) }
-        , condenserInletNTC { NTC(_condenserInletNtcPin, _ntcADCNum, 6800) }
-        , condenserOutletNTC { NTC(_condenserOutletNtcPin, _ntcADCNum, 6800) }
-        , ambientNTC { PrecisionNTC(_ambientNtcPin, _ntcADCNum, 6800) }
-        , coolshirtPWM { PWMOutput(_coolshirtPumpPin) }
-        , chillerPumpPWM { PWMOutput(_chillerPumpPin) }
-        , systemEnableOutput { PWMOutput(_systemEnablePin) }
-        , coolantLevelBounce { Bounce(coolantLevelPin, 10) }
-        , voltageMonitor { VoltageMonitor(sys12vPin, sys12vADCNum, sys5vPin, sys5vADCNum, sys3v3Pin, sys3v3ADCNum, sysp3v3Pin, sysp3v3ADCNum) }
+        , flowSensor(_flowRatePin, FLOW_SENSOR_PULSES_PER_SECOND, FLOW_RATE_MISSING_PULSE_TIME)
+        , evaporatorInletNTC(_evaporatorInletNtcPin, _ntcADCNum, 15000)
+        , evaporatorInletA10(NTC_EVAPORATOR_DIFF_1, _ntcADCNum, 15000)
+        , evaporatorOutletNTC(_evaporatorOutletNtcPin, _ntcADCNum, 15000)
+        , condenserInletNTC(_condenserInletNtcPin, _ntcADCNum, 6800)
+        , condenserOutletNTC(_condenserOutletNtcPin, _ntcADCNum, 6800)
+        , ambientNTC(_ambientNtcPin, _ntcADCNum, 6800)
+        , coolshirtPWM(_coolshirtPumpPin)
+        , chillerPumpPWM(_chillerPumpPin)
+        , systemEnableOutput(_systemEnablePin)
+        , coolantLevelBounce(_coolantLevelPin, 10)
+        , voltageMonitor(sys12vPin, sys12vADCNum, sys5vPin, sys5vADCNum, sys3v3Pin, sys3v3ADCNum, sysp3v3Pin, sysp3v3ADCNum)
         , CANBus(canbus)
     {
     };
+
     void setupIO();
     void setupLogging();
     void loop();
-    void getCANMessage(CAN_message_t &msg);
-    byte systemFault();
     void getSystemData(CoolerSystemData &data);
-    unsigned long lastFlowPulseMicros();
-    bool hasStarted();
+    uint32_t lastFlowPulseMicros();
     void setCompressorSpeedPercent(uint32_t percent);
     void toggleFlush();
 };

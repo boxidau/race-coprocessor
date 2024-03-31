@@ -24,7 +24,8 @@
         "random": "cpp",
         "memory_resource": "cpp",
         "fstream": "cpp",
-        "sstream": "cpp"
+        "sstream": "cpp",
+        "numbers": "cpp"
     },
     "C_Cpp.errorSquiggles": "Enabled"
 }

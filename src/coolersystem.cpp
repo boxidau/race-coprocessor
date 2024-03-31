@@ -63,7 +63,7 @@ void CoolerSystem::setupIO()
 void CoolerSystem::setupLogging()
 {
 #if NTC_DEBUG
-    sampleLogger.ensureSetup("time,inlet,inletA10,current");
+    sampleLogger.ensureSetup("time,inletA10,outlet,current");
 #elif FLOW_DEBUG
     sampleLogger.ensureSetup("time,index,duration");
 #endif
@@ -183,11 +183,6 @@ void CoolerSystem::check(bool checkResult, SystemFault fault)
         // fault code raised, assertion is false
         _systemFault |= (byte)fault;
     }
-}
-
-bool CoolerSystem::hasStarted()
-{
-    return systemStatus != CoolerSystemStatus::STARTUP;
 }
 
 void CoolerSystem::acquireSamples()
@@ -505,7 +500,7 @@ void CoolerSystem::loop()
     if (systemStatus != CoolerSystemStatus::STARTUP) {
 #if NTC_DEBUG
         uint32_t sampleTime = ClockTime::millisSinceEpoch();
-        sampleLogger.logSamples(sampleTime, evaporatorInletNTC.latest(), evaporatorOutletNTC.latest(), currentSensor.latest(), 0);
+        sampleLogger.logSamples(sampleTime, evaporatorInletA10.latest(), evaporatorOutletNTC.latest(), currentSensor.latest(), 0);
 #elif FLOW_DEBUG
         if (flowSensor.lastPulseIndex() != lastLoggedFlowPulse) {
             uint32_t sampleTime = ClockTime::millisSinceEpoch();
@@ -534,7 +529,7 @@ void CoolerSystem::getSystemData(CoolerSystemData &data) {
     data.compressorCurrent = compressorCurrent;
 };
 
-unsigned long CoolerSystem::lastFlowPulseMicros() {
+uint32_t CoolerSystem::lastFlowPulseMicros() {
     return flowSensor.lastPulseMicros();
 }
 
@@ -546,10 +541,6 @@ void CoolerSystem::setCompressorSpeedPercent(uint32_t percent) {
 
 void CoolerSystem::toggleFlush() {
     shouldFlush = systemStatus != CoolerSystemStatus::FLUSH;
-}
-
-byte CoolerSystem::systemFault() {
-    return _systemFault;
 }
 
 int32_t clampAndScale(float val, int32_t minVal, int32_t maxVal, uint32_t scale) {
@@ -618,7 +609,7 @@ void CoolerSystem::logData() {
 }
 
 const char* CoolerSystem::getLogHeader() {
-    return "time,evapInletTemp,evapInletA10Temp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,flowRate,pressure,compressorCurrent,coolantLevel,12v,5v,3v3,p3v3,coolingPower,switchPos,switchADC,status,systemEnable,chillerPumpEnable,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,compressorFault\n";
+    return "time,evapInletTemp,evapInletA10Temp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapA10Stdev,flowRate,pressure,compressorCurrent,coolantLevel,12v,5v,3v3,p3v3,coolingPower,switchPos,switchADC,status,systemEnable,chillerPumpEnable,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,compressorFault\n";
 }
 
 void CoolerSystem::getLogMessage(StringFormatCSV& format)
@@ -630,6 +621,7 @@ void CoolerSystem::getLogMessage(StringFormatCSV& format)
     format.formatFloat3DP(condenserInletTemp);
     format.formatFloat3DP(condenserOutletTemp);
     format.formatFloat3DP(ambientTemp);
+    format.formatFloat3DP(evaporatorInletA10.stdev());
     format.formatFloat3DP(flowRate / 1000.0);
     format.formatUnsignedInt(systemPressure);
     format.formatFloat3DP(compressorCurrent);
