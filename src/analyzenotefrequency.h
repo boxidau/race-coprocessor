@@ -23,21 +23,10 @@
 #pragma once
 
 #include "Arduino.h"
-/***********************************************************************
- *              Safe to adjust these values below                      *
- *                                                                     *
- *  This parameter defines the size of the buffer.                     *
- *                                                                     *
- *  1.  AUDIO_GUITARTUNER_BLOCKS -  Buffer size is 128 * AUDIO_BLOCKS. *
- *                      The more AUDIO_GUITARTUNER_BLOCKS the lower    *
- *                      the frequency you can detect. The default      *
- *                      (24) is set to measure down to 29.14 Hz        *
- *                      or B(flat)0.                                   *
- *                                                                     *
- ***********************************************************************/
-#define SAMPLES_PER_BLOCK 128 // 16Hz minimum detectable frequency
 
-/***********************************************************************/
+// This parameter defines the size of the buffer.
+// The more samples the lower the frequency you can detect.
+#define SAMPLES_PER_BLOCK 100 // 17Hz minimum detectable frequency, 0.1s measurement interval @ 1kHz sample rate
 
 class AnalyzeNoteFrequency {
 public:
@@ -46,28 +35,25 @@ public:
      *
      *  @return none
      */
-    AnalyzeNoteFrequency(float sample_rate) : sample_rate(sample_rate), enabled( false ), new_output(false) {
-        
+    AnalyzeNoteFrequency(float sample_rate, float threshold)
+        : sample_rate(sample_rate)
+        , yin_threshold(threshold)
+        , enabled(false)
+        , new_output(false) {
     }
     
     /**
      *  initialize variables and start conversion
      *
-     *  @param threshold Allowed uncertainty
-     *  @param cpu_max   How much cpu usage before throttling
-     *
      *  @return none
      */
-    void begin( float threshold );
+    void begin();
     
     /**
-     *  sets threshold value
-     *
-     *  @param thresh
-     *  @return none
+     *  stop conversion, any following calls to update() will be ignored
      */
-    void threshold( float p );
-    
+    void stop();
+
     /**
      *  triggers true when valid frequency is found
      *
@@ -126,7 +112,7 @@ private:
     int16_t  *samples;
     int16_t  samples1[SAMPLES_PER_BLOCK] __attribute__ ( ( aligned ( 4 ) ) );
     int16_t  samples2[SAMPLES_PER_BLOCK] __attribute__ ( ( aligned ( 4 ) ) );
-    uint8_t  yin_idx, state;
+    uint32_t  yin_idx, state;
     float    periodicity, yin_threshold, cpu_usage_max, data;
     bool     enabled, next_buffer, first_run;
     volatile bool new_output, process_buffer;

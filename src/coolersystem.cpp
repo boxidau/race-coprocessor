@@ -58,12 +58,14 @@ void CoolerSystem::setupIO()
     compressorPID.SetMode(MANUAL);
 
     voltageMonitor.setup();
+
+    analyzeNoteFrequency.begin();
 }
 
 void CoolerSystem::setupLogging()
 {
 #if NTC_DEBUG
-    sampleLogger.ensureSetup("time,inletA10,outlet,current");
+    sampleLogger.ensureSetup("time,inletA10,outlet");
 #elif FLOW_DEBUG
     sampleLogger.ensureSetup("time,index,duration");
 #endif
@@ -147,6 +149,10 @@ void CoolerSystem::shutdownCompressor()
         systemEnableOutput.setBoolean(false);
         analogWrite(compressorSpeedPin, 0);
         compressorPID.SetMode(MANUAL);
+
+        analyzeNoteFrequency.stop();
+        compressorFrequency = 0;
+        compressorFrequencyProbability = 0;
     }
 }
 
@@ -158,6 +164,9 @@ void CoolerSystem::startupCompressor()
         compressorSpeed = COMPRESSOR_DEFAULT_SPEED;
         //compressorPID.SetMode(AUTOMATIC);
         analogWrite(compressorSpeedPin, compressorSpeed * COMPRESSOR_SPEED_RATIO_TO_ANALOG);
+
+        // reset note frequency analyzer to start with fresh data
+        analyzeNoteFrequency.begin();
     }
 }
 
@@ -203,6 +212,24 @@ void CoolerSystem::acquireSamples()
 
     pollCoolantLevel();
 
+    float compCurrent = 
+        (sampleCounter < 500 ? sinf(2 * PI * 60 / 1000 * sampleCounter) : 0) + 
+        //(sampleCounter < 500 ? 0.3 * sinf(2 * PI * 70 / 1000 * sampleCounter) : 0) + 
+        (sampleCounter >= 500 && sampleCounter < 1000 ? sinf(2 * PI * 40 / 1000 * sampleCounter) : 0) +
+        (sampleCounter >= 1000 && sampleCounter < 1500 ? sinf(2 * PI * 80 / 1000 * sampleCounter) : 0) +
+        4.0 * (sampleCounter > 700);
+//    compCurrent = currentSensor.latest();
+    compressorCurrentBiquadOutput = biquad.process(compCurrent);
+
+    uint32_t m2 = micros();
+    analyzeNoteFrequency.update(compressorCurrentBiquadOutput * 1000); // ~2000 pp @ 40Hz -> +/- 1000, clipping at 32768 -> use x10 to be safe
+    uint32_t m3 = micros();
+    if (m3 - m2 > 5) LOG_INFO("anf micros", m3 - m2);
+
+    if (analyzeNoteFrequency.available()) {
+        LOG_INFO("notefreq", ClockTime::secSinceEpoch(), analyzeNoteFrequency.read(), analyzeNoteFrequency.probability());
+    }
+
     sampleCounter++;
 }
 
@@ -217,6 +244,11 @@ void CoolerSystem::updateCoolerData() {
     condenserOutletTemp = condenserOutletNTC.temperature();
     ambientTemp = ambientNTC.temperature();
     coolingPower = (evaporatorInletA10Temp - evaporatorOutletTemp) * SPECIFIC_HEAT * flowRate / 60000; // Watts
+
+    if (analyzeNoteFrequency.available()) {
+        compressorFrequency = analyzeNoteFrequency.read();
+        compressorFrequencyProbability = analyzeNoteFrequency.probability();
+    }
 }
 
 void CoolerSystem::updateFaults() {
@@ -500,7 +532,9 @@ void CoolerSystem::loop()
     if (systemStatus != CoolerSystemStatus::STARTUP) {
 #if NTC_DEBUG
         uint32_t sampleTime = ClockTime::millisSinceEpoch();
-        sampleLogger.logSamples(sampleTime, evaporatorInletA10.latest(), evaporatorOutletNTC.latest(), currentSensor.latest(), 0);
+        sampleLogger.logSamples(sampleTime, evaporatorInletA10.latest(), evaporatorOutletNTC.latest(), 0, 0);
+        //sampleLogger.logSamples(sampleTime, currentSensor.latest(), compressorCurrentBiquadOutput + 30000, analogRead(ADC_SYSTEM_12V), 0);
+        //sampleLogger.logSamples(sampleTime, currentSensor.latest(), compressorCurrentBiquadOutput + 30000, analyzeNoteFrequency.read() * 100, analyzeNoteFrequency.probability() * 1000);
 #elif FLOW_DEBUG
         if (flowSensor.lastPulseIndex() != lastLoggedFlowPulse) {
             uint32_t sampleTime = ClockTime::millisSinceEpoch();
@@ -609,7 +643,7 @@ void CoolerSystem::logData() {
 }
 
 const char* CoolerSystem::getLogHeader() {
-    return "time,evapInletTemp,evapInletA10Temp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapA10Stdev,flowRate,pressure,compressorCurrent,coolantLevel,12v,5v,3v3,p3v3,coolingPower,switchPos,switchADC,status,systemEnable,chillerPumpEnable,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,compressorFault\n";
+    return "time,evapInletTemp,evapInletA10Temp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapA10Stdev,flowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,coolantLevel,12v,5v,3v3,p3v3,coolingPower,switchPos,switchADC,status,systemEnable,chillerPumpEnable,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,compressorFault\n";
 }
 
 void CoolerSystem::getLogMessage(StringFormatCSV& format)
@@ -625,6 +659,8 @@ void CoolerSystem::getLogMessage(StringFormatCSV& format)
     format.formatFloat3DP(flowRate / 1000.0);
     format.formatUnsignedInt(systemPressure);
     format.formatFloat3DP(compressorCurrent);
+    format.formatFloat3DP(compressorFrequency);
+    format.formatFloat3DP(compressorFrequencyProbability);
     format.formatBool(coolantLevel);
     format.formatFloat3DP((float) voltageMonitor.get12vMilliVolts() / 1000);
     format.formatFloat3DP((float) voltageMonitor.get5vMilliVolts() / 1000);

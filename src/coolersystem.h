@@ -8,6 +8,7 @@
 #include <PID_v1.h>
 #include <Metro.h>
 #include <FlexCAN.h>
+#include <FixedPointBiquad.h>
 
 #include "constants.h"
 #include "pwm.h"
@@ -21,6 +22,7 @@
 #include "looptimer.h"
 #include "stringformat.h"
 #include "timer.h"
+#include "analyzenotefrequency.h"
 
 #define OVERPRESSURE_THRESHOLD_KPA 250 // operating pressure ~170 - 200kPa
 #define PRESSURE_SENSOR_CALIBRATION_LOW_ADC 5900 // 0.5V = 0psig = 101kPa
@@ -211,6 +213,13 @@ private:
         PID_KP, PID_KI, PID_KD, P_ON_M, REVERSE
     )};
 
+    // Biquad IIR filtering for compressor current frequency measurement
+    FixedPointBiquad biquad;
+    AnalyzeNoteFrequency analyzeNoteFrequency;
+    float compressorFrequency { 0 };
+    float compressorFrequencyProbability { 0 };
+    float compressorCurrentBiquadOutput;
+
     // pollers/updaters
     void pollCoolantLevel();
 
@@ -283,6 +292,8 @@ public:
         , coolantLevelBounce(_coolantLevelPin, 10)
         , voltageMonitor(sys12vPin, sys12vADCNum, sys5vPin, sys5vADCNum, sys3v3Pin, sys3v3ADCNum, sysp3v3Pin, sysp3v3ADCNum)
         , CANBus(canbus)
+        , biquad(bq_type_bandpass, 60.0 / 1000.0, 1, 0) // center freq / sample rate; Q; gain (dB)
+        , analyzeNoteFrequency(1000, 0.15) // sample rate (Hz); allowed uncertainty in detection
     {
     };
 

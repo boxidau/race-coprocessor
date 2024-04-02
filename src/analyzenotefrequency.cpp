@@ -25,9 +25,14 @@
 
 #include "analyzenotefrequency.h"
 
-#define HALF_BLOCKS (SAMPLES_PER_BLOCK / 2)
+// TODO: this was SAMPLES_PER_BLOCK / 2 with SAMPLES_PER_BLOCK = 128 but that produced noisy output. Unsure why.
+#define HALF_BLOCKS (SAMPLES_PER_BLOCK / 4)
 
 void AnalyzeNoteFrequency::update(int16_t sample) {
+    if (!enabled) {
+        return;
+    }
+
     if ( next_buffer ) {
         samples1[state++] = sample;
         if ( !first_run && process_buffer ) process( );
@@ -62,7 +67,6 @@ void AnalyzeNoteFrequency::update(int16_t sample) {
  *  size limit.
  */
 void AnalyzeNoteFrequency::process( void ) {
-    
     const int16_t *p = samples;
     
     uint16_t cycles = 64;
@@ -114,7 +118,7 @@ void AnalyzeNoteFrequency::process( void ) {
             return;
         }
     } while ( --cycles );
-    //digitalWriteFast(10, LOW);
+
     if ( tau >= HALF_BLOCKS ) {
         process_buffer  = false;
         new_output      = false;
@@ -171,12 +175,9 @@ uint16_t AnalyzeNoteFrequency::estimate( uint64_t *yin, uint64_t *rs, uint16_t h
 /**
  *  Initialise
  *
- *  @param threshold Allowed uncertainty
  */
-void AnalyzeNoteFrequency::begin( float threshold ) {
-    __disable_irq( );
+void AnalyzeNoteFrequency::begin() {
     process_buffer = false;
-    yin_threshold  = threshold;
     periodicity    = 0.0f;
     next_buffer    = true;
     running_sum    = 0;
@@ -186,7 +187,10 @@ void AnalyzeNoteFrequency::begin( float threshold ) {
     enabled        = true;
     state          = 0;
     data           = 0.0f;
-    __enable_irq( );
+}
+
+void AnalyzeNoteFrequency::stop() {
+    enabled = false;
 }
 
 /**
@@ -195,10 +199,8 @@ void AnalyzeNoteFrequency::begin( float threshold ) {
  *  @return true if data is ready else false
  */
 bool AnalyzeNoteFrequency::available( void ) {
-    __disable_irq( );
     bool flag = new_output;
     if ( flag ) new_output = false;
-    __enable_irq( );
     return flag;
 }
 
@@ -208,9 +210,7 @@ bool AnalyzeNoteFrequency::available( void ) {
  *  @return frequency in hertz
  */
 float AnalyzeNoteFrequency::read( void ) {
-    __disable_irq( );
     float d = data;
-    __enable_irq( );
     return sample_rate / d;
 }
 
@@ -220,19 +220,6 @@ float AnalyzeNoteFrequency::read( void ) {
  *  @return periodicity
  */
 float AnalyzeNoteFrequency::probability( void ) {
-    __disable_irq( );
     float p = periodicity;
-    __enable_irq( );
     return p;
-}
-
-/**
- *  Initialise parameters.
- *
- *  @param thresh    Allowed uncertainty
- */
-void AnalyzeNoteFrequency::threshold( float p ) {
-    __disable_irq( );
-    yin_threshold = p;
-    __enable_irq( );
 }
