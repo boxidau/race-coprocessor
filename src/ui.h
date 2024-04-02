@@ -15,23 +15,33 @@ private:
     uint displayPageNameUntil { 0 };
     CoolerSystemData rtData { CoolerSystemData() };
     bool pageTurnerEnabled { true };
-    unsigned long lastFlowPulseDisplayed { 0 };
+    uint32_t lastFlowPulseDisplayed { 0 };
     uint8_t pulseDivider { 0 };
+
+    PWMOutput systemStatusLED;
+    uint32_t faultBlinks { 0 };
+    uint32_t currentBlink { 0 };
+    uint32_t lastBlinkTime { 0 };
+
+    bool shouldDisplayName();
+    bool getSystemStatusLEDState();
+    uint32_t getFaultBlinks();
 
 public:
     CoolerUI(
         CoolerSystem &_coolerSystem,
         uint _displayPin,
-        uint _uiButtonPin
+        uint _uiButtonPin,
+        uint _systemStatusLEDPin
     )
         : coolerSystem { _coolerSystem }
         , display { Display(_displayPin) }
         , uiButtonPin { _uiButtonPin }
         , uiButton { Bounce(_uiButtonPin, 20) }
+        , systemStatusLED(_systemStatusLEDPin)
     {
     };
 
     void setup();
     void loop();
-    bool shouldDisplayName();
 };

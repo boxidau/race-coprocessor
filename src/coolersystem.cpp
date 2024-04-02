@@ -10,7 +10,7 @@ void printFaultLine(StringFormatCSV& format, SystemFault f, byte systemFault) {
     format.formatString(faultName, faultLen);
     format.formatLiteral(" ( ");
     format.formatUnsignedInt((uint32_t) f);
-    format.formatString(" ):             ", max(28 - prefLength, 0));
+    format.formatString(" ):             ", max(28 - (int) prefLength, 0));
     systemFault & (byte)f ? format.formatLiteral("ALARM\n") : format.formatLiteral("OK\n");
 }
 
@@ -146,6 +146,7 @@ void CoolerSystem::shutdownCompressor()
 {
     if (systemEnableOutput.value()) {
         compressorShutoffTime = millis();
+        compressorSpeed = 0;
         systemEnableOutput.setBoolean(false);
         analogWrite(compressorSpeedPin, 0);
         compressorPID.SetMode(MANUAL);
@@ -224,10 +225,10 @@ void CoolerSystem::acquireSamples()
     uint32_t m2 = micros();
     analyzeNoteFrequency.update(compressorCurrentBiquadOutput * 1000); // ~2000 pp @ 40Hz -> +/- 1000, clipping at 32768 -> use x10 to be safe
     uint32_t m3 = micros();
-    if (m3 - m2 > 5) LOG_INFO("anf micros", m3 - m2);
+    //if (m3 - m2 > 5) LOG_INFO("anf micros", m3 - m2);
 
     if (analyzeNoteFrequency.available()) {
-        LOG_INFO("notefreq", ClockTime::secSinceEpoch(), analyzeNoteFrequency.read(), analyzeNoteFrequency.probability());
+        //LOG_INFO("notefreq", ClockTime::secSinceEpoch(), analyzeNoteFrequency.read(), analyzeNoteFrequency.probability());
     }
 
     sampleCounter++;
@@ -550,6 +551,7 @@ void CoolerSystem::loop()
 };
 
 void CoolerSystem::getSystemData(CoolerSystemData &data) {
+    data.systemStatus = systemStatus;
     data.evaporatorInletTemp = evaporatorInletTemp;
     data.evaporatorOutletTemp = evaporatorOutletTemp;
     data.condenserInletTemp = condenserInletTemp;
@@ -558,6 +560,7 @@ void CoolerSystem::getSystemData(CoolerSystemData &data) {
     data.compressorSpeed = compressorSpeed;
     data.coolantLevel = coolantLevel;
     data.fault = _systemFault;
+    data.compressorFaultCode = compressorFaultCode;
     data.flowRate = flowRate;
     data.systemPressure = systemPressure;
     data.compressorCurrent = compressorCurrent;

@@ -53,7 +53,7 @@ CoolerSystem cooler = CoolerSystem(
     CANbus
 );
 
-CoolerUI ui = CoolerUI(cooler, SPI_DISPLAY_CS, UI_BUTTON);
+CoolerUI ui = CoolerUI(cooler, SPI_DISPLAY_CS, UI_BUTTON, PWM4);
 
 uint32_t mapInputToCompressorSpeed(char input) {
     switch (input) {

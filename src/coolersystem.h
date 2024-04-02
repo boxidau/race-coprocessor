@@ -137,17 +137,19 @@ constexpr const char* SystemFaultToString(SystemFault sf)
 }
 
 struct CoolerSystemData {
+    CoolerSystemStatus systemStatus;
+    CompressorFaultCode compressorFaultCode;
     byte fault;
     bool coolantLevel;
     uint16_t systemPressure;
-    float compressorCurrent;
+    uint16_t flowRate;
     float evaporatorInletTemp;
     float evaporatorOutletTemp;
     float condenserInletTemp;
     float condenserOutletTemp;
     float ambientTemp;
-    uint16_t flowRate;
     float compressorSpeed;
+    float compressorCurrent;
 };
 
 class CoolerSystem {
