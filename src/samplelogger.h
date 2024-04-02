@@ -2,7 +2,7 @@
 #include <SD.h>
 #include <Array.h>
 
-#define SAMPLE_ARRAY_SIZE 12000
+#define SAMPLE_ARRAY_SIZE 15000
 
 struct SampleData {
     uint32_t time;

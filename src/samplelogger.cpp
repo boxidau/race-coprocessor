@@ -7,6 +7,7 @@
 
 #include "sdlogger.h"
 #include "stringformat.h"
+#include "clocktime.h"
 
 void SampleLogger::ensureSetup(const char* header)
 {
@@ -60,6 +61,7 @@ void SampleLogger::flush()
         logFile.write(format.finish(), format.length());
     }
 
+    LOG_INFO("Flushed sample log at", ClockTime::secSinceEpoch());
     sampleData.clear();
     logFile.flush();
 }

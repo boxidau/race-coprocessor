@@ -41,20 +41,6 @@ public:
         return 1 / (steinhartA + (steinhartB * lnR) + (steinhartC * lnR * lnR * lnR)) - 273.15;
     }
 
-    float stdev() {
-        if (this->samples.empty()) {
-            return 0;
-        }
-
-        uint32_t var = 0;
-        uint16_t avg = this->adc();
-        for (size_t i = 0; i < this->samples.size(); i++) {
-            int32_t diff = this->samples[i] - avg; 
-            var += diff * diff;
-        }
-        return sqrtf((float) var / this->samples.size());
-    }
-
 private:
     const uint32_t pullupResistance;
     const float steinhartA, steinhartB, steinhartC;

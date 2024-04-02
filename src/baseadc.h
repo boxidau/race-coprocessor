@@ -40,6 +40,36 @@ public:
         return !samples.empty() ? samples[idx > 0 ? idx - 1 : samples.size() - 1] : 0;
     };
 
+    uint16_t min() {
+        uint16_t minVal = 0;
+        for (size_t i = 0; i < samples.size(); i++) {
+            minVal = ::min(minVal, samples[i]);
+        }
+        return minVal;
+    }
+
+    uint16_t max() {
+        uint16_t maxVal = 0;
+        for (size_t i = 0; i < samples.size(); i++) {
+            maxVal = ::max(maxVal, samples[i]);
+        }
+        return maxVal;
+    }
+
+    float stdev() {
+        if (samples.empty()) {
+            return 0;
+        }
+
+        uint32_t var = 0;
+        uint16_t avg = adc();
+        for (size_t i = 0; i < samples.size(); i++) {
+            int32_t diff = samples[i] - avg; 
+            var += diff * diff;
+        }
+        return sqrtf((float) var / samples.size());
+    }
+
 protected:
     const uint8_t pin;
     const uint8_t adcNum;

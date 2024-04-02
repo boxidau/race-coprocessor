@@ -152,8 +152,6 @@ void CoolerSystem::shutdownCompressor()
         compressorPID.SetMode(MANUAL);
 
         analyzeNoteFrequency.stop();
-        compressorFrequency = 0;
-        compressorFrequencyProbability = 0;
     }
 }
 
@@ -249,6 +247,9 @@ void CoolerSystem::updateCoolerData() {
     if (analyzeNoteFrequency.available()) {
         compressorFrequency = analyzeNoteFrequency.read();
         compressorFrequencyProbability = analyzeNoteFrequency.probability();
+    } else {
+        compressorFrequency = 0;
+        compressorFrequencyProbability = 0;
     }
 }
 
@@ -512,8 +513,8 @@ void CoolerSystem::loop()
         return;
     }
 
-    acquireSamples();
-
+    acquireSamples();    
+    
     // sanity check in case of logic bugs or unexpected system conditions: if evaporator outlet temp drops below 0C,
     // panic and shut the compressor down
     if (evaporatorOutletNTC.temperature() <= EVAPORATOR_OUTLET_PANIC_TEMPERATURE && systemEnableOutput.value()) {
@@ -646,7 +647,7 @@ void CoolerSystem::logData() {
 }
 
 const char* CoolerSystem::getLogHeader() {
-    return "time,evapInletTemp,evapInletA10Temp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapA10Stdev,flowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,coolantLevel,12v,5v,3v3,p3v3,coolingPower,switchPos,switchADC,status,systemEnable,chillerPumpEnable,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,compressorFault\n";
+    return "time,evapInletTemp,evapInletA10Temp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapA10Stdev,evapA10min,evapA10max,flowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,coolantLevel,12v,5v,3v3,p3v3,coolingPower,switchPos,switchADC,status,systemEnable,chillerPumpEnable,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,compressorFault\n";
 }
 
 void CoolerSystem::getLogMessage(StringFormatCSV& format)
@@ -659,6 +660,8 @@ void CoolerSystem::getLogMessage(StringFormatCSV& format)
     format.formatFloat3DP(condenserOutletTemp);
     format.formatFloat3DP(ambientTemp);
     format.formatFloat3DP(evaporatorInletA10.stdev());
+    format.formatUnsignedInt(evaporatorInletA10.min());
+    format.formatUnsignedInt(evaporatorInletA10.max());
     format.formatFloat3DP(flowRate / 1000.0);
     format.formatUnsignedInt(systemPressure);
     format.formatFloat3DP(compressorCurrent);
