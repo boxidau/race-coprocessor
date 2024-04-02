@@ -91,7 +91,7 @@ void CoolerSystem::runChillerPump()
         case CoolerSystemStatus::FLUSH:
             if (chillerPumpPWM.value() == 0) {
                 pumpStartTime = millis();
-                chillerPumpPWM.setPercent(50);
+                chillerPumpPWM.setPercent(60);
             }
             return;
 
