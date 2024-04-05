@@ -282,12 +282,12 @@ public:
         , coolantLevelPin { _coolantLevelPin }
         , compressorSpeedPin { _compressorSpeedPin }
         , flowSensor(_flowRatePin, FLOW_SENSOR_PULSES_PER_SECOND, FLOW_RATE_MISSING_PULSE_TIME)
-        , evaporatorInletNTC(_evaporatorInletNtcPin, _ntcADCNum, 15000)
-        , evaporatorInletA10(NTC_EVAPORATOR_DIFF_1, _ntcADCNum, 15000)
-        , evaporatorOutletNTC(_evaporatorOutletNtcPin, _ntcADCNum, 15000)
-        , condenserInletNTC(_condenserInletNtcPin, _ntcADCNum, 6800)
-        , condenserOutletNTC(_condenserOutletNtcPin, _ntcADCNum, 6800)
-        , ambientNTC(_ambientNtcPin, _ntcADCNum, 6800)
+        , evaporatorInletNTC(_evaporatorInletNtcPin, _ntcADCNum, 15000, TDK_THERMISTOR_STEINHART_A, TDK_THERMISTOR_STEINHART_B, TDK_THERMISTOR_STEINHART_C)
+        , evaporatorInletA10(NTC_EVAPORATOR_DIFF_1, _ntcADCNum, 15000, TDK_THERMISTOR_STEINHART_A, TDK_THERMISTOR_STEINHART_B, TDK_THERMISTOR_STEINHART_C)
+        , evaporatorOutletNTC(_evaporatorOutletNtcPin, _ntcADCNum, 15000, TDK_THERMISTOR_STEINHART_A, TDK_THERMISTOR_STEINHART_B, TDK_THERMISTOR_STEINHART_C)
+        , condenserInletNTC(_condenserInletNtcPin, _ntcADCNum, 6800, TE_THERMISTOR_STEINHART_A, TE_THERMISTOR_STEINHART_B, TE_THERMISTOR_STEINHART_C)
+        , condenserOutletNTC(_condenserOutletNtcPin, _ntcADCNum, 6800, TE_THERMISTOR_STEINHART_A, TE_THERMISTOR_STEINHART_B, TE_THERMISTOR_STEINHART_C)
+        , ambientNTC(_ambientNtcPin, _ntcADCNum, 6800, TE_THERMISTOR_STEINHART_A, TE_THERMISTOR_STEINHART_B, TE_THERMISTOR_STEINHART_C)
         , coolshirtPWM(_coolshirtPumpPin)
         , chillerPumpPWM(_chillerPumpPin)
         , systemEnableOutput(_systemEnablePin)

@@ -65,7 +65,8 @@ void CoolerSystem::setupIO()
 void CoolerSystem::setupLogging()
 {
 #if NTC_DEBUG
-    sampleLogger.ensureSetup("time,inletA10,outlet");
+    sampleLogger.ensureSetup("time,current,biquad,12V");
+    //sampleLogger.ensureSetup("time,inletA10,outlet,condinlet,condoutlet");
 #elif FLOW_DEBUG
     sampleLogger.ensureSetup("time,index,duration");
 #endif
@@ -211,22 +212,24 @@ void CoolerSystem::acquireSamples()
 
     pollCoolantLevel();
 
-    float compCurrent = 
-        (sampleCounter < 500 ? sinf(2 * PI * 60 / 1000 * sampleCounter) : 0) + 
+    float testWaveform = 
+        (sampleCounter < 1000 ? sinf(2 * PI * 60 / 1000 * sampleCounter) : 0) + 
         //(sampleCounter < 500 ? 0.3 * sinf(2 * PI * 70 / 1000 * sampleCounter) : 0) + 
-        (sampleCounter >= 500 && sampleCounter < 1000 ? sinf(2 * PI * 40 / 1000 * sampleCounter) : 0) +
-        (sampleCounter >= 1000 && sampleCounter < 1500 ? sinf(2 * PI * 80 / 1000 * sampleCounter) : 0) +
-        4.0 * (sampleCounter > 700);
-//    compCurrent = currentSensor.latest();
-    compressorCurrentBiquadOutput = biquad.process(compCurrent);
+        (sampleCounter >= 1000 && sampleCounter < 2000 ? sinf(2 * PI * 40 / 1000 * sampleCounter) : 0) +
+        (sampleCounter >= 2000 && sampleCounter < 3000 ? sinf(2 * PI * 80 / 1000 * sampleCounter) : 0) +
+        //4.0 * (sampleCounter > 1500) +
+        0;
+
+    compressorCurrentBiquadOutput = biquad.process(testWaveform) * 1000;
+    //compressorCurrentBiquadOutput = biquad.process(currentSensor.latest()) * 10; // ~2000 pp @ 40Hz -> +/- 1000, clipping at 32768 -> use x10 to be safe
 
     uint32_t m2 = micros();
-    analyzeNoteFrequency.update(compressorCurrentBiquadOutput * 1000); // ~2000 pp @ 40Hz -> +/- 1000, clipping at 32768 -> use x10 to be safe
+    analyzeNoteFrequency.update(compressorCurrentBiquadOutput);
     uint32_t m3 = micros();
-    //if (m3 - m2 > 5) LOG_INFO("anf micros", m3 - m2);
+    if (m3 - m2 > 5) LOG_INFO("anf micros", m3 - m2);
 
     if (analyzeNoteFrequency.available()) {
-        //LOG_INFO("notefreq", ClockTime::secSinceEpoch(), analyzeNoteFrequency.read(), analyzeNoteFrequency.probability());
+        LOG_INFO("notefreq", ClockTime::secSinceEpoch(), analyzeNoteFrequency.read(), analyzeNoteFrequency.probability());
     }
 
     sampleCounter++;
@@ -534,8 +537,8 @@ void CoolerSystem::loop()
     if (systemStatus != CoolerSystemStatus::STARTUP) {
 #if NTC_DEBUG
         uint32_t sampleTime = ClockTime::millisSinceEpoch();
-        sampleLogger.logSamples(sampleTime, evaporatorInletA10.latest(), evaporatorOutletNTC.latest(), 0, 0);
-        //sampleLogger.logSamples(sampleTime, currentSensor.latest(), compressorCurrentBiquadOutput + 30000, analogRead(ADC_SYSTEM_12V), 0);
+        //sampleLogger.logSamples(sampleTime, evaporatorInletA10.latest(), evaporatorOutletNTC.latest(), condenserInletNTC.latest(), condenserOutletNTC.latest());
+        sampleLogger.logSamples(sampleTime, currentSensor.latest(), compressorCurrentBiquadOutput + 30000, analogRead(ADC_SYSTEM_12V), 0);
         //sampleLogger.logSamples(sampleTime, currentSensor.latest(), compressorCurrentBiquadOutput + 30000, analyzeNoteFrequency.read() * 100, analyzeNoteFrequency.probability() * 1000);
 #elif FLOW_DEBUG
         if (flowSensor.lastPulseIndex() != lastLoggedFlowPulse) {

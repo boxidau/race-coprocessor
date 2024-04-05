@@ -41,7 +41,7 @@ public:
     };
 
     uint16_t min() {
-        uint16_t minVal = 0;
+        uint16_t minVal = UINT16_MAX;
         for (size_t i = 0; i < samples.size(); i++) {
             minVal = ::min(minVal, samples[i]);
         }

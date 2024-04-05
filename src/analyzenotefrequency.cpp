@@ -25,37 +25,41 @@
 
 #include "analyzenotefrequency.h"
 
-// TODO: this was SAMPLES_PER_BLOCK / 2 with SAMPLES_PER_BLOCK = 128 but that produced noisy output. Unsure why.
-#define HALF_BLOCKS (SAMPLES_PER_BLOCK / 4)
+#include <DebugLog.h>
+
+#include "arm_math.h"
+
+//#include "utility/dspinst.h"
+static inline int64_t multiply_accumulate_16tx16t_add_16bx16b(int64_t sum, uint32_t a, uint32_t b)
+{
+	asm volatile("smlald %Q0, %R0, %1, %2" : "+r" (sum) : "r" (a), "r" (b));
+	return sum;
+}
 
 void AnalyzeNoteFrequency::update(int16_t sample) {
     if (!enabled) {
         return;
     }
 
-    if ( next_buffer ) {
-        samples1[state++] = sample;
-        if ( !first_run && process_buffer ) process( );
-    } else {
-        samples2[state++] = sample;
-        if ( !first_run && process_buffer ) process( );
-    }
-    
-    if ( state >= SAMPLES_PER_BLOCK ) {
-        if ( next_buffer ) {
-            if ( !first_run && process_buffer ) process( );
-            samples = samples1;
-            next_buffer = false;
-        } else {
-            if ( !first_run && process_buffer ) process( );
-            samples = samples2;
-            next_buffer = true;
-        }
-        process_buffer = true;
-        first_run = false;
+    samples[state++] = sample;
+
+    /**
+     *  when half the blocks + 1 of the total
+     *  blocks have been stored in the buffer
+     *  start processing the data.
+     */
+
+    if (state == SAMPLES_PER_BLOCK) {
+        process();
         state = 0;
     }
-    
+
+    // if ( state % SAMPLES_PER_BLOCK == 0 && state++ >= SAMPLES_TO_ANALYZE >> 1 ) { // needed?
+        
+    //     if ( process_buffer ) process();
+        
+    //     if ( state == 0 ) process_buffer = true;
+    // }
 }
 
 /**
@@ -67,39 +71,40 @@ void AnalyzeNoteFrequency::update(int16_t sample) {
  *  size limit.
  */
 void AnalyzeNoteFrequency::process( void ) {
-    const int16_t *p = samples;
-    
-    uint16_t cycles = 64;
+    const uint16_t inner_cycles = SAMPLES_TO_ANALYZE >> 1;
+    uint16_t outer_cycles = OUTER_CYCLES;
     uint16_t tau = tau_global;
     do {
-        uint16_t x   = 0;
-        uint64_t  sum = 0;
+        uint64_t sum = 0;
+        int32_t  a1, a2, b1, b2, c1, c2, d1, d2;
+        int32_t  out1, out2, out3, out4;
+        uint16_t blkCnt;
+        int16_t * cur = samples;
+        int16_t * lag = samples + tau;
+        // unrolling the inner loop by 8
+        blkCnt = inner_cycles >> 3;
         do {
-            int16_t current, lag, delta;
-            lag = *( ( int16_t * )p + ( x+tau ) );
-            current = *( ( int16_t * )p+x );
-            delta = ( current-lag );
-            sum += delta * delta;
-            x += 4;
+            // a(n), b(n), c(n), d(n) each hold two samples
+            a1 = *__SIMD32( cur )++;
+            a2 = *__SIMD32( cur )++;
+            b1 = *__SIMD32( lag )++;
+            b2 = *__SIMD32( lag )++;
+            c1 = *__SIMD32( cur )++;
+            c2 = *__SIMD32( cur )++;
+            d1 = *__SIMD32( lag )++;
+            d2 = *__SIMD32( lag )++;
+            // subract two samples at a time
+            out1 = __QSUB16( a1, b1 );
+            out2 = __QSUB16( a2, b2 );
+            out3 = __QSUB16( c1, d1 );
+            out4 = __QSUB16( c2, d2 );
+            // square the difference
+            sum = multiply_accumulate_16tx16t_add_16bx16b( sum, out1, out1 );
+            sum = multiply_accumulate_16tx16t_add_16bx16b( sum, out2, out2 );
+            sum = multiply_accumulate_16tx16t_add_16bx16b( sum, out3, out3 );
+            sum = multiply_accumulate_16tx16t_add_16bx16b( sum, out4, out4 );
             
-            lag = *( ( int16_t * )p + ( x+tau ) );
-            current = *( ( int16_t * )p+x );
-            delta = ( current-lag );
-            sum += delta * delta;
-            x += 4;
-            
-            lag = *( ( int16_t * )p + ( x+tau ) );
-            current = *( ( int16_t * )p+x );
-            delta = ( current-lag );
-            sum += delta * delta;
-            x += 4;
-            
-            lag = *( ( int16_t * )p + ( x+tau ) );
-            current = *( ( int16_t * )p+x );
-            delta = ( current-lag );
-            sum += delta * delta;
-            x += 4;
-        } while ( x < HALF_BLOCKS );
+        } while( --blkCnt );
         
         uint64_t rs = running_sum;
         rs += sum;
@@ -110,23 +115,29 @@ void AnalyzeNoteFrequency::process( void ) {
         tau = estimate( yin_buffer, rs_buffer, yin_idx, tau );
         
         if ( tau == 0 ) {
+            LOG_INFO("tau zero exiting", blkCnt);
             process_buffer  = false;
             new_output      = true;
             yin_idx         = 1;
             running_sum     = 0;
             tau_global      = 1;
+            state           = 0;
             return;
         }
-    } while ( --cycles );
-
-    if ( tau >= HALF_BLOCKS ) {
-        process_buffer  = false;
+        
+    } while ( --outer_cycles );
+    
+    if ( tau >= inner_cycles ) {
+//        LOG_INFO("tau greater than inner cycles exiting", tau);
+        process_buffer  = true; // should be false?
         new_output      = false;
         yin_idx         = 1;
         running_sum     = 0;
         tau_global      = 1;
+        state           = 0;
         return;
     }
+//    LOG_INFO("process falling through", tau);
     tau_global = tau;
 }
 
@@ -154,13 +165,14 @@ uint16_t AnalyzeNoteFrequency::estimate( uint64_t *yin, uint64_t *rs, uint16_t h
         idx0 = _head;
         idx1 = _head + 1;
         idx1 = ( idx1 >= 5 ) ? 0 : idx1;
-        idx2 = head + 2;
-        idx2 = ( idx2 >= 5 ) ? 0 : idx2;
+        idx2 = _head + 2;
+        idx2 = ( idx2 >= 5 ) ? idx2 - 5 : idx2;
         
+        // maybe fixed point would be better here? But how?
         float s0, s1, s2;
-        s0 = ( ( float )*( y+idx0 ) / *( r+idx0 ) );
-        s1 = ( ( float )*( y+idx1 ) / *( r+idx1 ) );
-        s2 = ( ( float )*( y+idx2 ) / *( r+idx2 ) );
+        s0 = ( ( float )*( y+idx0 ) / ( float )*( r+idx0 ) );
+        s1 = ( ( float )*( y+idx1 ) / ( float )*( r+idx1 ) );
+        s2 = ( ( float )*( y+idx2 ) / ( float )*( r+idx2 ) );
         
         if ( s1 < thresh && s1 < s2 ) {
             uint16_t period = _tau - 3;
@@ -177,16 +189,14 @@ uint16_t AnalyzeNoteFrequency::estimate( uint64_t *yin, uint64_t *rs, uint16_t h
  *
  */
 void AnalyzeNoteFrequency::begin() {
-    process_buffer = false;
-    periodicity    = 0.0f;
-    next_buffer    = true;
-    running_sum    = 0;
-    tau_global     = 1;
-    first_run      = true;
-    yin_idx        = 1;
-    enabled        = true;
-    state          = 0;
-    data           = 0.0f;
+    process_buffer      = true;
+    periodicity         = 0.0f;
+    running_sum         = 0;
+    tau_global          = 1;
+    yin_idx             = 1;
+    enabled             = true;
+    state               = 0;
+    data                = 0.0f;
 }
 
 void AnalyzeNoteFrequency::stop() {

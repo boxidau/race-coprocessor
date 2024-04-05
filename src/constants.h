@@ -57,3 +57,13 @@
 #define         UART1_TX_PIN                    8
 #define         UART2_RX_PIN                    9
 #define         UART2_TX_PIN                    10
+
+// NTCs
+// TE thermistor = GA10K3A1IA
+// TDK thermistor = B57551G1103F005
+#define         TE_THERMISTOR_STEINHART_A       1.128653750e-3
+#define         TE_THERMISTOR_STEINHART_B       2.342041378e-4
+#define         TE_THERMISTOR_STEINHART_C       8.737724626e-8
+#define         TDK_THERMISTOR_STEINHART_A      9.195598396e-4
+#define         TDK_THERMISTOR_STEINHART_B      2.552863593e-4
+#define         TDK_THERMISTOR_STEINHART_C      1.064756872e-7

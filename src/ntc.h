@@ -15,9 +15,9 @@ public:
         const uint8_t _pin,
         const uint8_t _adcNum,
         const uint32_t _pullupResistance,
-        const float _steinhartA = 1.12865375e-3,
-        const float _steinhartB = 2.342041378e-4,
-        const float _steinhartC = 8.737724626e-8
+        const float _steinhartA,
+        const float _steinhartB,
+        const float _steinhartC
     )
         : BaseADC<NTC_SAMPLES>(_pin, _adcNum)
         , pullupResistance { _pullupResistance }
