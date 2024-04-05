@@ -72,8 +72,8 @@ void AnalyzeNoteFrequency::process( void ) {
         int32_t  a1, a2, b1, b2, c1, c2, d1, d2;
         int32_t  out1, out2, out3, out4;
         uint16_t blkCnt;
-        int16_t * cur = samples;
-        int16_t * lag = samples + tau;
+        int16_t __attribute__((__may_alias__)) * cur = samples;
+        int16_t __attribute__((__may_alias__)) * lag = samples + tau;
         // unrolling the inner loop by 8
         blkCnt = inner_cycles >> 3;
         do {
@@ -99,7 +99,7 @@ void AnalyzeNoteFrequency::process( void ) {
             
         } while( --blkCnt );
 
-        //LOG_INFO("audio loop", tau, cur-samples,lag-samples);
+        LOG_INFO("audio loop", tau, cur-samples,lag-samples);
         uint64_t rs = running_sum;
         rs += sum;
         yin_buffer[yin_idx] = sum*tau;
