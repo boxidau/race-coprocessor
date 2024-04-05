@@ -25,16 +25,20 @@
 
 #include "analyzenotefrequency.h"
 
+#include "arm_math.h"
 #include <DebugLog.h>
 
-#include "arm_math.h"
-
-//#include "utility/dspinst.h"
-static inline int64_t multiply_accumulate_16tx16t_add_16bx16b(int64_t sum, uint32_t a, uint32_t b)
+// this is provided by "utility/dspinst.h" but including it causes compilation errors
+// in the teensy audio library.
+static inline int64_t anf_multiply_accumulate_16tx16t_add_16bx16b(int64_t sum, uint32_t a, uint32_t b)
 {
 	asm volatile("smlald %Q0, %R0, %1, %2" : "+r" (sum) : "r" (a), "r" (b));
 	return sum;
 }
+
+// __SIMD32 defined in "arm_math.h", but needs may_alias attribute otherwise it violates
+// strict aliasing rules.
+#define ANF_SIMD32(addr) (( int32_t __attribute__((__may_alias__)) *) (addr))
 
 void AnalyzeNoteFrequency::update(int16_t sample) {
     if (!enabled) {
@@ -43,23 +47,10 @@ void AnalyzeNoteFrequency::update(int16_t sample) {
 
     samples[state++] = sample;
 
-    /**
-     *  when half the blocks + 1 of the total
-     *  blocks have been stored in the buffer
-     *  start processing the data.
-     */
-
-    if (state == SAMPLES_PER_BLOCK) {
+    if (state == SAMPLES_TO_ANALYZE) {
         process();
         state = 0;
     }
-
-    // if ( state % SAMPLES_PER_BLOCK == 0 && state++ >= SAMPLES_TO_ANALYZE >> 1 ) { // needed?
-        
-    //     if ( process_buffer ) process();
-        
-    //     if ( state == 0 ) process_buffer = true;
-    // }
 }
 
 /**
@@ -73,7 +64,9 @@ void AnalyzeNoteFrequency::update(int16_t sample) {
 void AnalyzeNoteFrequency::process( void ) {
     const uint16_t inner_cycles = SAMPLES_TO_ANALYZE >> 1;
     uint16_t outer_cycles = OUTER_CYCLES;
-    uint16_t tau = tau_global;
+    uint16_t tau = 1;
+    uint8_t yin_idx = 1;
+    uint64_t running_sum = 0;
     do {
         uint64_t sum = 0;
         int32_t  a1, a2, b1, b2, c1, c2, d1, d2;
@@ -85,27 +78,28 @@ void AnalyzeNoteFrequency::process( void ) {
         blkCnt = inner_cycles >> 3;
         do {
             // a(n), b(n), c(n), d(n) each hold two samples
-            a1 = *__SIMD32( cur )++;
-            a2 = *__SIMD32( cur )++;
-            b1 = *__SIMD32( lag )++;
-            b2 = *__SIMD32( lag )++;
-            c1 = *__SIMD32( cur )++;
-            c2 = *__SIMD32( cur )++;
-            d1 = *__SIMD32( lag )++;
-            d2 = *__SIMD32( lag )++;
+            a1 = *ANF_SIMD32( cur++ );
+            a2 = *ANF_SIMD32( cur++ );
+            b1 = *ANF_SIMD32( lag++ );
+            b2 = *ANF_SIMD32( lag++ );
+            c1 = *ANF_SIMD32( cur++ );
+            c2 = *ANF_SIMD32( cur++ );
+            d1 = *ANF_SIMD32( lag++ );
+            d2 = *ANF_SIMD32( lag++ );
             // subract two samples at a time
             out1 = __QSUB16( a1, b1 );
             out2 = __QSUB16( a2, b2 );
             out3 = __QSUB16( c1, d1 );
             out4 = __QSUB16( c2, d2 );
             // square the difference
-            sum = multiply_accumulate_16tx16t_add_16bx16b( sum, out1, out1 );
-            sum = multiply_accumulate_16tx16t_add_16bx16b( sum, out2, out2 );
-            sum = multiply_accumulate_16tx16t_add_16bx16b( sum, out3, out3 );
-            sum = multiply_accumulate_16tx16t_add_16bx16b( sum, out4, out4 );
+            sum = anf_multiply_accumulate_16tx16t_add_16bx16b( sum, out1, out1 );
+            sum = anf_multiply_accumulate_16tx16t_add_16bx16b( sum, out2, out2 );
+            sum = anf_multiply_accumulate_16tx16t_add_16bx16b( sum, out3, out3 );
+            sum = anf_multiply_accumulate_16tx16t_add_16bx16b( sum, out4, out4 );
             
         } while( --blkCnt );
-        
+
+        //LOG_INFO("audio loop", tau, cur-samples,lag-samples);
         uint64_t rs = running_sum;
         rs += sum;
         yin_buffer[yin_idx] = sum*tau;
@@ -115,30 +109,12 @@ void AnalyzeNoteFrequency::process( void ) {
         tau = estimate( yin_buffer, rs_buffer, yin_idx, tau );
         
         if ( tau == 0 ) {
-            LOG_INFO("tau zero exiting", blkCnt);
-            process_buffer  = false;
-            new_output      = true;
-            yin_idx         = 1;
-            running_sum     = 0;
-            tau_global      = 1;
-            state           = 0;
+            new_output = true;
             return;
         }
-        
     } while ( --outer_cycles );
     
-    if ( tau >= inner_cycles ) {
-//        LOG_INFO("tau greater than inner cycles exiting", tau);
-        process_buffer  = true; // should be false?
-        new_output      = false;
-        yin_idx         = 1;
-        running_sum     = 0;
-        tau_global      = 1;
-        state           = 0;
-        return;
-    }
-//    LOG_INFO("process falling through", tau);
-    tau_global = tau;
+    new_output = false;
 }
 
 /**
@@ -189,11 +165,7 @@ uint16_t AnalyzeNoteFrequency::estimate( uint64_t *yin, uint64_t *rs, uint16_t h
  *
  */
 void AnalyzeNoteFrequency::begin() {
-    process_buffer      = true;
     periodicity         = 0.0f;
-    running_sum         = 0;
-    tau_global          = 1;
-    yin_idx             = 1;
     enabled             = true;
     state               = 0;
     data                = 0.0f;

@@ -26,15 +26,8 @@
 
 // This parameter defines the size of the buffer.
 // The more samples the lower the frequency you can detect.
-#define SAMPLES_TO_ANALYZE 128 // 17Hz minimum detectable frequency, 0.1s measurement interval @ 1kHz sample rate
-
-// TODO: this was SAMPLES_PER_BLOCK / 2 with SAMPLES_PER_BLOCK = 128 but that produced noisy output. Unsure why.
-#define SAMPLES_PER_BLOCK 128
-#define OUTER_CYCLES 32 // 32 or 64
-// 128 * 24 / 2 -> example with 22kHz decimation. (1536)
-// 128 * 24 / 2 / 2 / 24 -> outer cycles (32)
-
-// 512, 32, 32 works
+#define SAMPLES_TO_ANALYZE 64 // 100 = 17Hz minimum detectable frequency, 0.1s measurement interval @ 1kHz sample rate
+#define OUTER_CYCLES (SAMPLES_TO_ANALYZE / 2) // allows algorithm to test up to the last sample
 
 class AnalyzeNoteFrequency {
 public:
@@ -114,10 +107,8 @@ private:
      */
     float    sample_rate;
     float    periodicity, yin_threshold, data;
-    uint64_t running_sum, yin_buffer[5], rs_buffer[5];
-    uint16_t tau_global;
-    int16_t  samples[SAMPLES_TO_ANALYZE] __attribute__ ( ( aligned ( 4 ) ) );
-    uint8_t  yin_idx;
+    uint64_t yin_buffer[5], rs_buffer[5];
+    int16_t  samples[SAMPLES_TO_ANALYZE] __attribute__ ((aligned(4)));
     uint32_t state;
-    bool enabled, new_output, process_buffer;
+    bool     enabled, new_output;
 };

@@ -214,10 +214,10 @@ void CoolerSystem::acquireSamples()
 
     float testWaveform = 
         (sampleCounter < 1000 ? sinf(2 * PI * 60 / 1000 * sampleCounter) : 0) + 
-        //(sampleCounter < 500 ? 0.3 * sinf(2 * PI * 70 / 1000 * sampleCounter) : 0) + 
+        (sampleCounter < 1000 ? 0.3 * sinf(2 * PI * 70 / 1000 * sampleCounter) : 0) + 
         (sampleCounter >= 1000 && sampleCounter < 2000 ? sinf(2 * PI * 40 / 1000 * sampleCounter) : 0) +
         (sampleCounter >= 2000 && sampleCounter < 3000 ? sinf(2 * PI * 80 / 1000 * sampleCounter) : 0) +
-        //4.0 * (sampleCounter > 1500) +
+        4.0 * (sampleCounter > 1500) +
         0;
 
     compressorCurrentBiquadOutput = biquad.process(testWaveform) * 1000;
@@ -551,7 +551,7 @@ void CoolerSystem::loop()
 
     updateOutputs();
     logData();
-    displayInfo();
+    //displayInfo();
 };
 
 void CoolerSystem::getSystemData(CoolerSystemData &data) {
