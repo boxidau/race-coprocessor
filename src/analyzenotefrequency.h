@@ -27,7 +27,7 @@
 // This parameter defines the size of the buffer.
 // The more samples the lower the frequency you can detect.
 #define SAMPLES_TO_ANALYZE 128 // 100 = 17Hz minimum detectable frequency, 0.1s measurement interval @ 1kHz sample rate
-#define OUTER_CYCLES (SAMPLES_TO_ANALYZE / 2) // allows algorithm to test up to the last sample
+#define OUTER_CYCLES (SAMPLES_TO_ANALYZE / 2) // /2 allows algorithm to test up to the last sample
 
 class AnalyzeNoteFrequency {
 public:

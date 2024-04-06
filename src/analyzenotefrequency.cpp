@@ -78,14 +78,14 @@ void AnalyzeNoteFrequency::process( void ) {
         blkCnt = inner_cycles >> 3;
         do {
             // a(n), b(n), c(n), d(n) each hold two samples
-            a1 = *ANF_SIMD32( cur++ );
-            a2 = *ANF_SIMD32( cur++ );
-            b1 = *ANF_SIMD32( lag++ );
-            b2 = *ANF_SIMD32( lag++ );
-            c1 = *ANF_SIMD32( cur++ );
-            c2 = *ANF_SIMD32( cur++ );
-            d1 = *ANF_SIMD32( lag++ );
-            d2 = *ANF_SIMD32( lag++ );
+            a1 = *ANF_SIMD32( cur ); cur += 2;
+            a2 = *ANF_SIMD32( cur ); cur += 2;
+            b1 = *ANF_SIMD32( lag ); lag += 2;
+            b2 = *ANF_SIMD32( lag ); lag += 2;
+            c1 = *ANF_SIMD32( cur ); cur += 2;
+            c2 = *ANF_SIMD32( cur ); cur += 2;
+            d1 = *ANF_SIMD32( lag ); lag += 2;
+            d2 = *ANF_SIMD32( lag ); lag += 2;
             // subract two samples at a time
             out1 = __QSUB16( a1, b1 );
             out2 = __QSUB16( a2, b2 );
@@ -99,7 +99,7 @@ void AnalyzeNoteFrequency::process( void ) {
             
         } while( --blkCnt );
 
-        LOG_INFO("audio loop", tau, cur-samples,lag-samples);
+        //LOG_INFO("anf loop", tau, cur-samples,lag-samples);
         uint64_t rs = running_sum;
         rs += sum;
         yin_buffer[yin_idx] = sum*tau;
