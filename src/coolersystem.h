@@ -65,7 +65,7 @@
 // time to acquire data and stabilize before doing anything
 #define STARTUP_STABILIZATION_SAMPLES 100
 
-#define NTC_DEBUG 1
+#define NTC_DEBUG 0
 #define FLOW_DEBUG 0
 #define UPDATE_STATE_TIMER_MS 100
 #define DATA_LOG_INTERVAL_MS 100
@@ -150,6 +150,7 @@ struct CoolerSystemData {
     float ambientTemp;
     float compressorSpeed;
     float compressorCurrent;
+    float compressorFrequency;
 };
 
 class CoolerSystem {
@@ -294,8 +295,8 @@ public:
         , coolantLevelBounce(_coolantLevelPin, 10)
         , voltageMonitor(sys12vPin, sys12vADCNum, sys5vPin, sys5vADCNum, sys3v3Pin, sys3v3ADCNum, sysp3v3Pin, sysp3v3ADCNum)
         , CANBus(canbus)
-        , biquad(bq_type_bandpass, 60.0 / 1000.0, 1, 0) // center freq / sample rate; Q; gain (dB)
-        , analyzeNoteFrequency(1000, 0.15) // sample rate (Hz); allowed uncertainty in detection
+        , biquad(bq_type_bandpass, 70.0 / 1000.0, 3, 0) // center freq / sample rate; Q; gain (dB)
+        , analyzeNoteFrequency(1000, 0.7) // sample rate (Hz); allowed uncertainty in detection
     {
     };
 

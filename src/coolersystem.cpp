@@ -1,6 +1,7 @@
 #include "coolersystem.h"
 #include "clocktime.h"
 #include "datasdlogger.h"
+//#include "../test/compressorcurrentsamples.h"
 
 void printFaultLine(StringFormatCSV& format, SystemFault f, byte systemFault) {
     const char* faultName = SystemFaultToString(f);
@@ -59,7 +60,7 @@ void CoolerSystem::setupIO()
 
     voltageMonitor.setup();
 
-    analyzeNoteFrequency.begin();
+    // analyzeNoteFrequency.begin();
 }
 
 void CoolerSystem::setupLogging()
@@ -212,25 +213,44 @@ void CoolerSystem::acquireSamples()
 
     pollCoolantLevel();
 
-    float testWaveform = 
-        (sampleCounter < 1000 ? sinf(2 * PI * 60 / 1000 * sampleCounter) : 0) + 
-        (sampleCounter < 1000 ? 0.3 * sinf(2 * PI * 70 / 1000 * sampleCounter) : 0) + 
-        (sampleCounter >= 1000 && sampleCounter < 2000 ? sinf(2 * PI * 40 / 1000 * sampleCounter) : 0) +
-        (sampleCounter >= 2000 && sampleCounter < 3000 ? sinf(2 * PI * 80 / 1000 * sampleCounter) : 0) +
-        4.0 * (sampleCounter > 1500) +
-        0;
+    // float testWaveform = 
+    //     (sampleCounter < 1000 ? sinf(2 * PI * 60 / 1000 * sampleCounter) : 0) + 
+    //     (sampleCounter < 1000 ? 0.3 * sinf(2 * PI * 70 / 1000 * sampleCounter) : 0) + 
+    //     (sampleCounter >= 1000 && sampleCounter < 2000 ? sinf(2 * PI * 40 / 1000 * sampleCounter) : 0) +
+    //     (sampleCounter >= 2000 && sampleCounter < 3000 ? sinf(2 * PI * 80 / 1000 * sampleCounter) : 0) +
+    //     4.0 * (sampleCounter > 1500) +
+    //     0;
 
-    compressorCurrentBiquadOutput = biquad.process(testWaveform) * 1000;
-    //compressorCurrentBiquadOutput = biquad.process(currentSensor.latest()) * 10; // ~2000 pp @ 40Hz -> +/- 1000, clipping at 32768 -> use x10 to be safe
+    // uint16_t currentSample = sampleCounter < 20000 ? compressorCurrentFullRun1[sampleCounter] : 0;
+    // uint16_t currentSample =
+    //     sampleCounter < 3000 ? compressorCurrent50Percent[sampleCounter] : 0 +
+    //     sampleCounter >= 3000 & sampleCounter < 6000 ? compressorCurrent60Percent[sampleCounter - 3000] : 0 +
+    //     sampleCounter >= 6000 & sampleCounter < 9000 ? compressorCurrent70Percent[sampleCounter - 6000] : 0 +
+    //     sampleCounter >= 9000 & sampleCounter < 12000 ? compressorCurrent80Percent[sampleCounter - 9000] : 0 +
+    //     sampleCounter >= 12000 & sampleCounter < 15000 ? compressorCurrent90Percent[sampleCounter - 12000] : 0 +
+    //     sampleCounter >= 15000 & sampleCounter < 18000 ? compressorCurrent100Percent[sampleCounter - 15000] : 0;
 
-    uint32_t m2 = micros();
+    compressorCurrentBiquadOutput = biquad.process(currentSensor.latest()) * 20;
+    // static uint32_t idx = 0;
+    // static float arr[1000];
+    // arr[idx++] = compressorCurrentBiquadOutput;
+    // if (idx == 1000) {
+    //     uint64_t rms = 0;
+    //     uint32_t max = 0;
+    //     for (int i = 0; i < 1000; i++) {
+    //         max = ::max(arr[i], max);
+    //         rms += arr[i] * arr[i];
+    //     }
+    //     idx = 0;
+    //     LOG_INFO("biquad max: t=", ClockTime::secSinceEpoch(), "s, max", (uint16_t) max, "rms", sqrt(rms / 1000));
+    // }
+
     analyzeNoteFrequency.update(compressorCurrentBiquadOutput);
-    uint32_t m3 = micros();
-    if (m3 - m2 > 5) LOG_INFO("anf micros", m3 - m2);
 
-    if (analyzeNoteFrequency.available()) {
-        LOG_INFO("notefreq", ClockTime::secSinceEpoch(), analyzeNoteFrequency.read(), analyzeNoteFrequency.probability());
-    }
+    // bool avail = analyzeNoteFrequency.available();
+    // if (avail) {
+    //     LOG_INFO("analyzenotefreq: t=", sampleCounter, ClockTime::secSinceEpoch(), "s, valid result", analyzeNoteFrequency.validResult(), ", freq ", analyzeNoteFrequency.read(), "Hz, probability", analyzeNoteFrequency.probability());
+    // }
 
     sampleCounter++;
 }
@@ -248,11 +268,13 @@ void CoolerSystem::updateCoolerData() {
     coolingPower = (evaporatorInletA10Temp - evaporatorOutletTemp) * SPECIFIC_HEAT * flowRate / 60000; // Watts
 
     if (analyzeNoteFrequency.available()) {
-        compressorFrequency = analyzeNoteFrequency.read();
-        compressorFrequencyProbability = analyzeNoteFrequency.probability();
-    } else {
-        compressorFrequency = 0;
-        compressorFrequencyProbability = 0;
+        if (analyzeNoteFrequency.validResult()) {
+            compressorFrequency = analyzeNoteFrequency.read();
+            compressorFrequencyProbability = analyzeNoteFrequency.probability();            
+        } else {
+            compressorFrequency = 0;
+            compressorFrequencyProbability = 0;
+        }
     }
 }
 
@@ -478,7 +500,7 @@ void CoolerSystem::displayInfo()
     format.formatLiteral("  Coolshirt Pump:                ");
     coolshirtPWM.value() ? format.formatLiteral("ON\n") : format.formatLiteral("OFF\n");
 
-    format.formatLiteral("  Compressor Speed:              ");
+    format.formatLiteral("  Compressor Speed Setpoint:     ");
     format.formatUnsignedInt(compressorSpeed * 100);
     format.formatLiteral(" %\n");
 
@@ -488,6 +510,22 @@ void CoolerSystem::displayInfo()
     format.formatLiteral("  Cooling Power:                 ");
     format.formatFloat3DP(coolingPower);
     format.formatLiteral(" W\n");
+
+    format.formatLiteral("  Power Draw:                    ");
+    format.formatFloat3DP(compressorCurrent * voltageMonitor.get12vMilliVolts() / 1000.0);
+    format.formatLiteral(" W\n");
+
+    if (compressorFrequency) {
+        format.formatLiteral("  Compressor Frequency:          ");
+        format.formatFloat3DP(compressorFrequency);
+        format.formatLiteral(" Hz\n");
+        format.formatLiteral("  Compressor Probability:        ");
+        format.formatFloat3DP(compressorFrequencyProbability);
+        format.formatLiteral("\n");
+    } else {
+        format.formatLiteral("  Compressor Frequency:          ---\n");
+        format.formatLiteral("  Compressor Probability:        ---\n");
+    }
 
     format.formatLiteral("Faults ------------------------------------------------\n");
     printFaultLine(format, SystemFault::LOW_COOLANT, _systemFault);
@@ -551,7 +589,7 @@ void CoolerSystem::loop()
 
     updateOutputs();
     logData();
-    //displayInfo();
+    displayInfo();
 };
 
 void CoolerSystem::getSystemData(CoolerSystemData &data) {
@@ -568,6 +606,7 @@ void CoolerSystem::getSystemData(CoolerSystemData &data) {
     data.flowRate = flowRate;
     data.systemPressure = systemPressure;
     data.compressorCurrent = compressorCurrent;
+    data.compressorFrequency = compressorFrequency;
 };
 
 uint32_t CoolerSystem::lastFlowPulseMicros() {
@@ -668,8 +707,16 @@ void CoolerSystem::getLogMessage(StringFormatCSV& format)
     format.formatFloat3DP(flowRate / 1000.0);
     format.formatUnsignedInt(systemPressure);
     format.formatFloat3DP(compressorCurrent);
-    format.formatFloat3DP(compressorFrequency);
-    format.formatFloat3DP(compressorFrequencyProbability);
+
+    // only log compressor frequency if there's a valid result
+    if (compressorFrequency) {
+        format.formatFloat3DP(compressorFrequency);
+        format.formatFloat3DP(compressorFrequencyProbability);
+    } else {
+        format.formatLiteral("");
+        format.formatLiteral("");
+    }
+
     format.formatBool(coolantLevel);
     format.formatFloat3DP((float) voltageMonitor.get12vMilliVolts() / 1000);
     format.formatFloat3DP((float) voltageMonitor.get5vMilliVolts() / 1000);

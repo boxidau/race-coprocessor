@@ -100,11 +100,9 @@ void AnalyzeNoteFrequency::process( void ) {
         } while( --blkCnt );
 
         //LOG_INFO("anf loop", tau, cur-samples,lag-samples);
-        uint64_t rs = running_sum;
-        rs += sum;
+        running_sum += sum;
         yin_buffer[yin_idx] = sum*tau;
-        rs_buffer[yin_idx] = rs;
-        running_sum = rs;
+        rs_buffer[yin_idx] = running_sum;
         yin_idx = ( ++yin_idx >= 5 ) ? 0 : yin_idx;
         tau = estimate( yin_buffer, rs_buffer, yin_idx, tau );
         
@@ -114,7 +112,8 @@ void AnalyzeNoteFrequency::process( void ) {
         }
     } while ( --outer_cycles );
     
-    new_output = false;
+    periodicity = 0.0f;
+    new_output = true;
 }
 
 /**
@@ -178,12 +177,21 @@ void AnalyzeNoteFrequency::stop() {
 /**
  *  available
  *
- *  @return true if data is ready else false
+ *  @return true if processing is complete. resets internal flag
  */
 bool AnalyzeNoteFrequency::available( void ) {
     bool flag = new_output;
-    if ( flag ) new_output = false;
+    new_output = false;
     return flag;
+}
+
+/**
+ *  validResult
+ *
+ *  @return true if valid frequency found
+ */
+bool AnalyzeNoteFrequency::validResult( void ) {
+    return periodicity != 0.0f;
 }
 
 /**
@@ -192,8 +200,7 @@ bool AnalyzeNoteFrequency::available( void ) {
  *  @return frequency in hertz
  */
 float AnalyzeNoteFrequency::read( void ) {
-    float d = data;
-    return sample_rate / d;
+    return sample_rate / data;
 }
 
 /**
@@ -202,6 +209,5 @@ float AnalyzeNoteFrequency::read( void ) {
  *  @return periodicity
  */
 float AnalyzeNoteFrequency::probability( void ) {
-    float p = periodicity;
-    return p;
+    return periodicity;
 }

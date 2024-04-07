@@ -3,7 +3,7 @@
 #define STARTUP_MILLIS 2000
 #define STATUS_LED_BLINK_DURATION_MS 200
 #define STATUS_LED_PAUSE_DURATION_MS 1500
-const uint PAGES = 9;
+const uint PAGES = 10;
 
 Metro pageTurner = Metro(5000);
 bool startup = true;
@@ -84,12 +84,14 @@ void CoolerUI::loop() {
             case 4: display.setString("SPD"); break;
             // compressor current
             case 5: display.setString("CUR"); break;
+            // compressor frequency
+            case 6: display.setString("FRE"); break;
             // flow rate L/min
-            case 6: display.setString("FLO"); break;
+            case 7: display.setString("FLO"); break;
             // system pressure
-            case 7: display.setString("PRE"); break;
+            case 8: display.setString("PRE"); break;
             // error code
-            case 8: display.setString("ERR"); break;
+            case 9: display.setString("ERR"); break;
         }
         return;
     }
@@ -123,10 +125,17 @@ void CoolerUI::loop() {
             snprintf(buf, 5, "%4.2f", rtData.compressorCurrent);
             break;
         case 6:
-            snprintf(buf, 5, "%4.2f", rtData.flowRate / 1000.0);
+            if (rtData.compressorFrequency) {
+                snprintf(buf, 5, "%d", (int) min(round(rtData.compressorFrequency), 999));
+            } else {
+                strcpy(buf, "---");
+            }
             break;
         case 7:
-            snprintf(buf, 5, "%hd", rtData.systemPressure);
+            snprintf(buf, 5, "%4.2f", rtData.flowRate / 1000.0);
+            break;
+        case 8:
+            snprintf(buf, 5, "%d", min(rtData.systemPressure, 999));
             break;
     }
     display.setString(buf);

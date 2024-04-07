@@ -57,6 +57,7 @@ constexpr const byte CharToSegValue(char c_input)
         case 'O': return B00011101;
         case 'P': return B01100111;
         case 'R': return B00000101;
+        case 'S': return B01011011;
         case 'T': return B00001111;
         case 'U': return B00011100;
         case 'W': return B01011100;

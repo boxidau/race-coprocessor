@@ -24,10 +24,9 @@
 
 #include "Arduino.h"
 
-// This parameter defines the size of the buffer.
-// The more samples the lower the frequency you can detect.
-#define SAMPLES_TO_ANALYZE 128 // 100 = 17Hz minimum detectable frequency, 0.1s measurement interval @ 1kHz sample rate
-#define OUTER_CYCLES (SAMPLES_TO_ANALYZE / 2) // /2 allows algorithm to test up to the last sample
+// These parameters define the number of samples to measure and the maximum lag offset to measure up to.
+#define SAMPLES_TO_ANALYZE 200 // the larger the number, the more precise the reading
+#define OUTER_CYCLES 32 // sets min detectable frequency (fs / OUTER_CYCLES). max (SAMPLES_TO_ANALYZE / 2) to test up to the last sample.
 
 class AnalyzeNoteFrequency {
 public:
@@ -56,11 +55,19 @@ public:
     void stop();
 
     /**
-     *  triggers true when valid frequency is found
+     *  triggers true when processing a block is complete
      *
      *  @return flag to indicate valid frequency is found
      */
     bool available( void );
+
+    /**
+     *  valid frequency is found
+     *
+     *  @return flag to indicate 'read' and 'probability' results are valid
+     */
+    bool validResult( void );
+
     /**
      *  get frequency
      *
