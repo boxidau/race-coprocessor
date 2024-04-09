@@ -1,7 +1,10 @@
 #include "coolersystem.h"
 #include "clocktime.h"
 #include "datasdlogger.h"
-//#include "../test/compressorcurrentsamples.h"
+
+#if ANF_SAMPLES_TEST
+#include "../test/compressorcurrentsamples.h"
+#endif
 
 void printFaultLine(StringFormatCSV& format, SystemFault f, byte systemFault) {
     const char* faultName = SystemFaultToString(f);
@@ -60,16 +63,18 @@ void CoolerSystem::setupIO()
 
     voltageMonitor.setup();
 
-    // analyzeNoteFrequency.begin();
+#if ANF_SAMPLES_TEST
+    analyzeNoteFrequency.begin();
+#endif
 }
 
 void CoolerSystem::setupLogging()
 {
 #if NTC_DEBUG
-    sampleLogger.ensureSetup("time,current,biquad,12V");
-    //sampleLogger.ensureSetup("time,inletA10,outlet,condinlet,condoutlet");
+    //sampleLogger.ensureSetup("time,current,biquad,12V");
+    sampleLogger.ensureSetup("time,inletA10,outlet,inlet");
 #elif FLOW_DEBUG
-    sampleLogger.ensureSetup("time,index,duration");
+    sampleLogger.ensureSetup("time,index,duration,coolantLevel");
 #endif
 
     DataSDLogger::setup();
@@ -213,6 +218,7 @@ void CoolerSystem::acquireSamples()
 
     pollCoolantLevel();
 
+#if ANF_SAMPLES_TEST
     // float testWaveform = 
     //     (sampleCounter < 1000 ? sinf(2 * PI * 60 / 1000 * sampleCounter) : 0) + 
     //     (sampleCounter < 1000 ? 0.3 * sinf(2 * PI * 70 / 1000 * sampleCounter) : 0) + 
@@ -222,15 +228,16 @@ void CoolerSystem::acquireSamples()
     //     0;
 
     // uint16_t currentSample = sampleCounter < 20000 ? compressorCurrentFullRun1[sampleCounter] : 0;
-    // uint16_t currentSample =
-    //     sampleCounter < 3000 ? compressorCurrent50Percent[sampleCounter] : 0 +
-    //     sampleCounter >= 3000 & sampleCounter < 6000 ? compressorCurrent60Percent[sampleCounter - 3000] : 0 +
-    //     sampleCounter >= 6000 & sampleCounter < 9000 ? compressorCurrent70Percent[sampleCounter - 6000] : 0 +
-    //     sampleCounter >= 9000 & sampleCounter < 12000 ? compressorCurrent80Percent[sampleCounter - 9000] : 0 +
-    //     sampleCounter >= 12000 & sampleCounter < 15000 ? compressorCurrent90Percent[sampleCounter - 12000] : 0 +
-    //     sampleCounter >= 15000 & sampleCounter < 18000 ? compressorCurrent100Percent[sampleCounter - 15000] : 0;
+    uint16_t currentSample =
+        sampleCounter < 3000 ? compressorCurrent50Percent[sampleCounter] : 0 +
+        sampleCounter >= 3000 && sampleCounter < 6000 ? compressorCurrent60Percent[sampleCounter - 3000] : 0 +
+        sampleCounter >= 6000 && sampleCounter < 9000 ? compressorCurrent70Percent[sampleCounter - 6000] : 0 +
+        sampleCounter >= 9000 && sampleCounter < 12000 ? compressorCurrent80Percent[sampleCounter - 9000] : 0 +
+        sampleCounter >= 12000 && sampleCounter < 15000 ? compressorCurrent90Percent[sampleCounter - 12000] : 0 +
+        sampleCounter >= 15000 && sampleCounter < 18000 ? compressorCurrent100Percent[sampleCounter - 15000] : 0;
 
-    compressorCurrentBiquadOutput = biquad.process(currentSensor.latest()) * 20;
+    compressorCurrentBiquadOutput = biquad.process(currentSample) * 20;
+
     // static uint32_t idx = 0;
     // static float arr[1000];
     // arr[idx++] = compressorCurrentBiquadOutput;
@@ -247,10 +254,13 @@ void CoolerSystem::acquireSamples()
 
     analyzeNoteFrequency.update(compressorCurrentBiquadOutput);
 
-    // bool avail = analyzeNoteFrequency.available();
-    // if (avail) {
-    //     LOG_INFO("analyzenotefreq: t=", sampleCounter, ClockTime::secSinceEpoch(), "s, valid result", analyzeNoteFrequency.validResult(), ", freq ", analyzeNoteFrequency.read(), "Hz, probability", analyzeNoteFrequency.probability());
-    // }
+    if (analyzeNoteFrequency.available()) {
+        LOG_INFO("analyzenotefreq: t=", sampleCounter, ClockTime::secSinceEpoch(), "s, valid result", analyzeNoteFrequency.validResult(), ", freq ", analyzeNoteFrequency.read(), "Hz, probability", analyzeNoteFrequency.probability());
+    }
+#else
+    compressorCurrentBiquadOutput = biquad.process(currentSensor.latest()) * 20;
+    analyzeNoteFrequency.update(compressorCurrentBiquadOutput);
+#endif
 
     sampleCounter++;
 }
@@ -575,13 +585,15 @@ void CoolerSystem::loop()
     if (systemStatus != CoolerSystemStatus::STARTUP) {
 #if NTC_DEBUG
         uint32_t sampleTime = ClockTime::millisSinceEpoch();
-        //sampleLogger.logSamples(sampleTime, evaporatorInletA10.latest(), evaporatorOutletNTC.latest(), condenserInletNTC.latest(), condenserOutletNTC.latest());
-        sampleLogger.logSamples(sampleTime, currentSensor.latest(), compressorCurrentBiquadOutput + 30000, analogRead(ADC_SYSTEM_12V), 0);
+        if (sampleTime % 10 == 0) {
+            sampleLogger.logSamples(sampleTime, evaporatorInletA10.latest(), evaporatorOutletNTC.latest(), evaporatorInletNTC.latest(), 0);
+        }
+        //sampleLogger.logSamples(sampleTime, currentSensor.latest(), compressorCurrentBiquadOutput + 30000, analogRead(ADC_SYSTEM_12V), 0);
         //sampleLogger.logSamples(sampleTime, currentSensor.latest(), compressorCurrentBiquadOutput + 30000, analyzeNoteFrequency.read() * 100, analyzeNoteFrequency.probability() * 1000);
 #elif FLOW_DEBUG
         if (flowSensor.lastPulseIndex() != lastLoggedFlowPulse) {
             uint32_t sampleTime = ClockTime::millisSinceEpoch();
-            sampleLogger.logSamples(sampleTime, flowSensor.lastPulseIndex(), flowSensor.lastPulseDuration(), 0, 0);
+            sampleLogger.logSamples(sampleTime, flowSensor.lastPulseIndex(), flowSensor.lastPulseDuration(), coolantLevelBounce.read(), 0);
             lastLoggedFlowPulse = flowSensor.lastPulseIndex();
         }
 #endif

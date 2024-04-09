@@ -27,6 +27,7 @@
 // These parameters define the number of samples to measure and the maximum lag offset to measure up to.
 #define SAMPLES_TO_ANALYZE 200 // the larger the number, the more precise the reading
 #define OUTER_CYCLES 32 // sets min detectable frequency (fs / OUTER_CYCLES). max (SAMPLES_TO_ANALYZE / 2) to test up to the last sample.
+#define SUM_DIVISOR_BITS 12 // perf optimization: divide autocorrelation sums to fit within 32 bits. 12 bits is sufficient to ensure no overflow with 200 samples.
 
 class AnalyzeNoteFrequency {
 public:
@@ -100,7 +101,7 @@ private:
      *
      *  @return tau
      */
-    uint16_t estimate( uint64_t *yin, uint64_t *rs, uint16_t head, uint16_t tau );
+    uint16_t estimate( uint16_t head, uint16_t tau );
     
     /**
      *  process audio data
@@ -114,7 +115,7 @@ private:
      */
     float    sample_rate;
     float    periodicity, yin_threshold, data;
-    uint64_t yin_buffer[5], rs_buffer[5];
+    uint32_t yin_buffer[5], rs_buffer[5];
     int16_t  samples[SAMPLES_TO_ANALYZE] __attribute__ ((aligned(4)));
     uint32_t state;
     bool     enabled, new_output;

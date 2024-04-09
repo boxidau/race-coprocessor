@@ -2,13 +2,13 @@
 #include <SD.h>
 #include <Array.h>
 
-#define SAMPLE_ARRAY_SIZE 15000
+#define SAMPLE_ARRAY_SIZE 1000
 
 struct SampleData {
     uint32_t time;
     uint16_t sample1;
     uint16_t sample2;
-    uint16_t sample3;
+    uint16_t sample3;   
     uint16_t sample4;
 };
 

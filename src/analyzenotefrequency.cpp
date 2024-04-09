@@ -66,7 +66,7 @@ void AnalyzeNoteFrequency::process( void ) {
     uint16_t outer_cycles = OUTER_CYCLES;
     uint16_t tau = 1;
     uint8_t yin_idx = 1;
-    uint64_t running_sum = 0;
+    uint32_t running_sum = 0;
     do {
         uint64_t sum = 0;
         int32_t  a1, a2, b1, b2, c1, c2, d1, d2;
@@ -96,15 +96,15 @@ void AnalyzeNoteFrequency::process( void ) {
             sum = anf_multiply_accumulate_16tx16t_add_16bx16b( sum, out2, out2 );
             sum = anf_multiply_accumulate_16tx16t_add_16bx16b( sum, out3, out3 );
             sum = anf_multiply_accumulate_16tx16t_add_16bx16b( sum, out4, out4 );
-            
+
         } while( --blkCnt );
 
         //LOG_INFO("anf loop", tau, cur-samples,lag-samples);
-        running_sum += sum;
-        yin_buffer[yin_idx] = sum*tau;
+        running_sum += sum >> SUM_DIVISOR_BITS;
+        yin_buffer[yin_idx] = sum*tau >> SUM_DIVISOR_BITS;
         rs_buffer[yin_idx] = running_sum;
         yin_idx = ( ++yin_idx >= 5 ) ? 0 : yin_idx;
-        tau = estimate( yin_buffer, rs_buffer, yin_idx, tau );
+        tau = estimate( yin_idx, tau );
         
         if ( tau == 0 ) {
             new_output = true;
@@ -126,37 +126,30 @@ void AnalyzeNoteFrequency::process( void ) {
  *
  *  @return tau
  */
-uint16_t AnalyzeNoteFrequency::estimate( uint64_t *yin, uint64_t *rs, uint16_t head, uint16_t tau ) {
-    const uint64_t *y = ( uint64_t * )yin;
-    const uint64_t *r = ( uint64_t * )rs;
-    uint16_t _tau, _head;
-    const float thresh = yin_threshold;
-    _tau = tau;
-    _head = head;
-    
-    if ( _tau > 4 ) {
-        
+uint16_t AnalyzeNoteFrequency::estimate( uint16_t head, uint16_t tau ) {
+    if ( tau > 4 ) {
         uint16_t idx0, idx1, idx2;
-        idx0 = _head;
-        idx1 = _head + 1;
+        idx0 = head;
+        idx1 = head + 1;
         idx1 = ( idx1 >= 5 ) ? 0 : idx1;
-        idx2 = _head + 2;
+        idx2 = head + 2;
         idx2 = ( idx2 >= 5 ) ? idx2 - 5 : idx2;
         
         // maybe fixed point would be better here? But how?
         float s0, s1, s2;
-        s0 = ( ( float )*( y+idx0 ) / ( float )*( r+idx0 ) );
-        s1 = ( ( float )*( y+idx1 ) / ( float )*( r+idx1 ) );
-        s2 = ( ( float )*( y+idx2 ) / ( float )*( r+idx2 ) );
+        s0 = (float) yin_buffer[idx0] / (float) rs_buffer[idx0];
+        s1 = (float) yin_buffer[idx1] / (float) rs_buffer[idx1];
+        s2 = (float) yin_buffer[idx2] / (float) rs_buffer[idx2];
         
-        if ( s1 < thresh && s1 < s2 ) {
-            uint16_t period = _tau - 3;
+        if ( s1 < yin_threshold && s1 < s2 ) {
+            uint16_t period = tau - 3;
             periodicity = 1 - s1;
             data = period + 0.5f * ( s0 - s2 ) / ( s0 - 2.0f * s1 + s2 );
             return 0;
         }
     }
-    return _tau + 1;
+
+    return tau + 1;
 }
 
 /**
