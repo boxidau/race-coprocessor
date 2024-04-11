@@ -59,11 +59,16 @@
 #define         UART2_TX_PIN                    10
 
 // NTCs
-// TE thermistor = GA10K3A1IA
-// TDK thermistor = B57551G1103F005
+// TE thermistor = GA10K3A1IA (condenser)
+// TDK thermistor = B57551G1103F005 (evaporator)
 #define         TE_THERMISTOR_STEINHART_A       1.128653750e-3
 #define         TE_THERMISTOR_STEINHART_B       2.342041378e-4
 #define         TE_THERMISTOR_STEINHART_C       8.737724626e-8
-#define         TDK_THERMISTOR_STEINHART_A      9.195598396e-4
-#define         TDK_THERMISTOR_STEINHART_B      2.552863593e-4
-#define         TDK_THERMISTOR_STEINHART_C      1.064756872e-7
+// Evaporator inlet (NTC1)
+#define         TDK_THERMISTOR_1_STEINHART_A    9.195598396e-4
+#define         TDK_THERMISTOR_1_STEINHART_B    2.552863593e-4
+#define         TDK_THERMISTOR_1_STEINHART_C    1.064756872e-7
+// Evaporator outlet (NTC2) from calibration relative to NTC1
+#define         TDK_THERMISTOR_2_STEINHART_A    9.205205975e-4
+#define         TDK_THERMISTOR_2_STEINHART_B    2.552981188e-4
+#define         TDK_THERMISTOR_2_STEINHART_C    1.065197564e-7

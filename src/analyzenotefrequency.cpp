@@ -62,7 +62,7 @@ void AnalyzeNoteFrequency::update(int16_t sample) {
  *  size limit.
  */
 void AnalyzeNoteFrequency::process( void ) {
-    const uint16_t inner_cycles = SAMPLES_TO_ANALYZE >> 1;
+    const uint16_t inner_cycles = SAMPLES_TO_ANALYZE - OUTER_CYCLES;
     uint16_t outer_cycles = OUTER_CYCLES;
     uint16_t tau = 1;
     uint8_t yin_idx = 1;
@@ -71,12 +71,12 @@ void AnalyzeNoteFrequency::process( void ) {
         uint64_t sum = 0;
         int32_t  a1, a2, b1, b2, c1, c2, d1, d2;
         int32_t  out1, out2, out3, out4;
-        uint16_t blkCnt;
         int16_t __attribute__((__may_alias__)) * cur = samples;
         int16_t __attribute__((__may_alias__)) * lag = samples + tau;
         // unrolling the inner loop by 8
-        blkCnt = inner_cycles >> 3;
-        do {
+        uint16_t blk_cnt = inner_cycles >> 3;
+        uint16_t remaining_cycles = inner_cycles - (blk_cnt << 3);
+        while (blk_cnt--) {
             // a(n), b(n), c(n), d(n) each hold two samples
             a1 = *ANF_SIMD32( cur ); cur += 2;
             a2 = *ANF_SIMD32( cur ); cur += 2;
@@ -97,9 +97,18 @@ void AnalyzeNoteFrequency::process( void ) {
             sum = anf_multiply_accumulate_16tx16t_add_16bx16b( sum, out3, out3 );
             sum = anf_multiply_accumulate_16tx16t_add_16bx16b( sum, out4, out4 );
 
-        } while( --blkCnt );
+        }
+        while (remaining_cycles--) {
+            a1 = *cur++;
+            b1 = *lag++;
+            sum += (a1 - b1) * (a1 - b1);
+        }
+        // LOG_INFO("anf loop", tau, cur-samples,lag-samples);
 
-        //LOG_INFO("anf loop", tau, cur-samples,lag-samples);
+        if (running_sum > running_sum + (sum >> SUM_DIVISOR_BITS)) {
+            LOG_WARN("Overflow condition, increase SUM_DIVISOR_BITS");
+        }
+
         running_sum += sum >> SUM_DIVISOR_BITS;
         yin_buffer[yin_idx] = sum*tau >> SUM_DIVISOR_BITS;
         rs_buffer[yin_idx] = running_sum;
@@ -193,6 +202,10 @@ bool AnalyzeNoteFrequency::validResult( void ) {
  *  @return frequency in hertz
  */
 float AnalyzeNoteFrequency::read( void ) {
+    if (!validResult()) {
+        return 0;
+    }
+
     return sample_rate / data;
 }
 

@@ -32,7 +32,7 @@ CoolerSystem cooler = CoolerSystem(
     ADC_COMPRESSOR_CURRENT, // currentSensorPin,
     ADC_COMPRESSOR_CURRENT_ADC_NUM, // currentSensorADCNum,
     ADC_COMPRESSOR_LDR, // compressorLDRPin,
-    NTC_EVAPORATOR_1, // _ntc1Pin,
+    NTC_EVAPORATOR_DIFF_1, // _ntc1Pin,
     NTC_EVAPORATOR_2, // _ntc2Pin,
     NTC_CONDENSER_1, // condenser inlet
     NTC_CONDENSER_2, // condenser outlet
@@ -86,13 +86,13 @@ void setup()
     ADC *adc = SingletonADC::getADC();
     adc->adc0->setResolution(16);
     adc->adc0->setReference(ADC_REFERENCE::REF_EXT);
-    adc->adc0->setAveraging(0);
+    adc->adc0->setAveraging(8);
     adc->adc0->setConversionSpeed(ADC_CONVERSION_SPEED::HIGH_SPEED);
     adc->adc0->setSamplingSpeed(ADC_SAMPLING_SPEED::VERY_LOW_SPEED);
 
     adc->adc1->setResolution(16);
     adc->adc1->setReference(ADC_REFERENCE::REF_EXT);
-    adc->adc1->setAveraging(0);
+    adc->adc1->setAveraging(8);
     adc->adc1->setConversionSpeed(ADC_CONVERSION_SPEED::HIGH_SPEED);
     adc->adc1->setSamplingSpeed(ADC_SAMPLING_SPEED::HIGH_SPEED);
 

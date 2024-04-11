@@ -59,15 +59,15 @@
 #define PID_KI 0.2
 #define PID_KD 0
 
-// max flush time with pumps running
-#define FLUSH_TIMEOUT_MS 60000
+// max flush time with pumps running, don't want to let them run dry for long
+#define FLUSH_TIMEOUT_MS 30000
 
 // time to acquire data and stabilize before doing anything
 #define STARTUP_STABILIZATION_SAMPLES 100
 
 #define NTC_DEBUG 0
 #define FLOW_DEBUG 0
-#define ANF_SAMPLES_TEST 1
+#define ANF_SAMPLES_TEST 0
 #define UPDATE_STATE_TIMER_MS 100
 #define DATA_LOG_INTERVAL_MS 100
 #define DISPLAY_INFO_MS 2000
@@ -164,7 +164,7 @@ private:
     uint8_t coolantLevelPin;
     uint8_t compressorSpeedPin;
     FlowSensor flowSensor;
-    PrecisionNTC evaporatorInletNTC, evaporatorInletA10, evaporatorOutletNTC;
+    PrecisionNTC evaporatorInletNTC, evaporatorOutletNTC;
     NTC condenserInletNTC, condenserOutletNTC;
     NTC ambientNTC;
 
@@ -199,7 +199,6 @@ private:
     bool coolantLevel { false };
     uint16_t systemPressure { 0 };
     float compressorCurrent { 0 };
-    float evaporatorInletA10Temp { -100.0 };
     float evaporatorOutletTemp { -100.0 };
     float condenserInletTemp { -100.0 };
     float condenserOutletTemp { -100.0 };
@@ -284,9 +283,8 @@ public:
         , coolantLevelPin { _coolantLevelPin }
         , compressorSpeedPin { _compressorSpeedPin }
         , flowSensor(_flowRatePin, FLOW_SENSOR_PULSES_PER_SECOND, FLOW_RATE_MISSING_PULSE_TIME)
-        , evaporatorInletNTC(_evaporatorInletNtcPin, _ntcADCNum, 15000, TDK_THERMISTOR_STEINHART_A, TDK_THERMISTOR_STEINHART_B, TDK_THERMISTOR_STEINHART_C)
-        , evaporatorInletA10(NTC_EVAPORATOR_DIFF_1, _ntcADCNum, 15000, TDK_THERMISTOR_STEINHART_A, TDK_THERMISTOR_STEINHART_B, TDK_THERMISTOR_STEINHART_C)
-        , evaporatorOutletNTC(_evaporatorOutletNtcPin, _ntcADCNum, 15000, TDK_THERMISTOR_STEINHART_A, TDK_THERMISTOR_STEINHART_B, TDK_THERMISTOR_STEINHART_C)
+        , evaporatorInletNTC(_evaporatorInletNtcPin, _ntcADCNum, 15000, TDK_THERMISTOR_1_STEINHART_A, TDK_THERMISTOR_1_STEINHART_B, TDK_THERMISTOR_1_STEINHART_C)
+        , evaporatorOutletNTC(_evaporatorOutletNtcPin, _ntcADCNum, 15000, TDK_THERMISTOR_2_STEINHART_A, TDK_THERMISTOR_2_STEINHART_B, TDK_THERMISTOR_2_STEINHART_C)
         , condenserInletNTC(_condenserInletNtcPin, _ntcADCNum, 6800, TE_THERMISTOR_STEINHART_A, TE_THERMISTOR_STEINHART_B, TE_THERMISTOR_STEINHART_C)
         , condenserOutletNTC(_condenserOutletNtcPin, _ntcADCNum, 6800, TE_THERMISTOR_STEINHART_A, TE_THERMISTOR_STEINHART_B, TE_THERMISTOR_STEINHART_C)
         , ambientNTC(_ambientNtcPin, _ntcADCNum, 6800, TE_THERMISTOR_STEINHART_A, TE_THERMISTOR_STEINHART_B, TE_THERMISTOR_STEINHART_C)

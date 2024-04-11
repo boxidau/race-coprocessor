@@ -59,7 +59,7 @@ uint16_t FlowSensor::flowRate() {
     }
 
     uint32_t period = MICROS_DURATION(lastPulse, firstPulse);
-    return min((uint64_t) _pulsePeriodMicros * (FLOW_SAMPLES - 1) / period, (uint64_t) UINT16_MAX);
+    return min(round(_bufferPeriodMicros / period), UINT16_MAX);
 }
 
 uint32_t FlowSensor::lastPulseMicros() {
