@@ -8,10 +8,14 @@ static volatile uint8_t _idx;
 static volatile bool _filled;
 
 uint32_t getPrevSample(uint8_t offset) {
-    if (_idx == 0 && !_filled) {
+    if (!_filled && _idx < offset + 1) {
         return 0;
     }
-    return _samples[uint8_t(_idx - offset - 1) % FLOW_SAMPLES];
+    int8_t idx = _idx - offset - 1;
+    if (idx < 0) {
+        idx += FLOW_SAMPLES;
+    }
+    return _samples[idx];
 }
 
 void recordPulse() {
@@ -36,7 +40,7 @@ void FlowSensor::setup() {
     attachInterrupt(digitalPinToInterrupt(_flowSensorPin), recordPulse, RISING);
 }
 
-uint16_t FlowSensor::flowRate() {
+float FlowSensor::flowRate() {
     __disable_irq();
     bool filled = _filled;
     uint32_t firstPulse = _samples[_idx];
@@ -59,7 +63,27 @@ uint16_t FlowSensor::flowRate() {
     }
 
     uint32_t period = MICROS_DURATION(lastPulse, firstPulse);
-    return min(round(_bufferPeriodMicros / period), UINT16_MAX);
+    return _pulsePeriodMicrosec * (FLOW_SAMPLES - 1) / period;
+}
+
+float FlowSensor::instantaneousFlowRate() {
+    __disable_irq();
+    bool hasSamples = _filled || _idx > 1;
+    uint32_t sample0 = getPrevSample(0);
+    uint32_t sample1 = getPrevSample(1);
+    __enable_irq();
+
+    if (!hasSamples) {
+        return 0;
+    }
+
+    uint32_t now = micros();
+    uint32_t timeSincePulseSeen = MICROS_DURATION(now, sample0);
+    if (timeSincePulseSeen > _timeoutMilliseconds * 1000) {
+        return 0;
+    }
+
+    return _pulsePeriodMicrosec / MICROS_DURATION(sample0, sample1);
 }
 
 uint32_t FlowSensor::lastPulseMicros() {

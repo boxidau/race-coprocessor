@@ -7,23 +7,24 @@
 class FlowSensor {
 private:
     uint8_t _flowSensorPin;
-    float _bufferPeriodMicros;
+    float _pulsePeriodMicrosec; // pulse period representing 1Lpm
     uint32_t _timeoutMilliseconds;
 
 public:
     FlowSensor(
         uint8_t flowSensorPin,
-        float pulsesPerLiter,
+        float hertzPerLpm,
         uint32_t timeoutMilliseconds
     )
         : _flowSensorPin { flowSensorPin }
-        , _bufferPeriodMicros { 1e9 / pulsesPerLiter * (FLOW_SAMPLES - 1) }
+        , _pulsePeriodMicrosec { 1e6 / hertzPerLpm }
         , _timeoutMilliseconds { timeoutMilliseconds }
     {
     };
 
     void setup();
-    uint16_t flowRate();
+    float flowRate();
+    float instantaneousFlowRate();
     uint32_t lastPulseMicros();
     uint32_t lastPulseDuration();
     uint8_t lastPulseIndex();

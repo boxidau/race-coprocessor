@@ -60,6 +60,10 @@ void CoolerSystem::setupIO()
     compressorPID.SetSampleTime(UPDATE_STATE_TIMER_MS);
     compressorPID.SetMode(MANUAL);
 
+    chillerPumpPID.SetOutputLimits(CHILLER_PUMP_MIN_SPEED, CHILLER_PUMP_MAX_SPEED);
+    chillerPumpPID.SetSampleTime(UPDATE_STATE_TIMER_MS);
+    chillerPumpPID.SetMode(MANUAL);
+
     voltageMonitor.setup();
 
 #if ANF_SAMPLES_TEST
@@ -73,7 +77,7 @@ void CoolerSystem::setupLogging()
     //sampleLogger.ensureSetup("time,current,biquad,12V");
     sampleLogger.ensureSetup("time,inlet,outlet");
 #elif FLOW_DEBUG
-    sampleLogger.ensureSetup("time,index,duration,coolantLevel");
+    sampleLogger.ensureSetup("time,index,duration,chillerPump,coolantLevel");
 #endif
 
     DataSDLogger::setup();
@@ -97,12 +101,23 @@ void CoolerSystem::runChillerPump()
         case CoolerSystemStatus::FLUSH:
             if (chillerPumpPWM.value() == 0) {
                 pumpStartTime = millis();
-                chillerPumpPWM.setPercent(60);
+                chillerPumpSpeed = CHILLER_PUMP_DEFAULT_SPEED;
+#if USE_CHILLER_PUMP_PID
+                chillerPumpPID.SetMode(AUTOMATIC);
+#endif
+#if FLOW_DEBUG
+                // log the exact time the pump started running
+                sampleLogger.logSamples(ClockTime::millisSinceEpoch(), 0, 0, 1, 0);
+#endif
             }
+
+            chillerPumpPWM.set(round(chillerPumpSpeed * ADC_MAX));
             return;
 
         default:
+            chillerPumpPID.SetMode(MANUAL);
             chillerPumpPWM.set(0);
+            chillerPumpSpeed = 0;
             return;
     }
 }
@@ -146,6 +161,9 @@ void CoolerSystem::runCompressor()
     }
     
     startupCompressor();
+
+    // update compressor speed output every cycle with PID output
+    analogWrite(compressorSpeedPin, round(compressorSpeed * COMPRESSOR_SPEED_RATIO_TO_ANALOG));
 }
 
 void CoolerSystem::shutdownCompressor()
@@ -167,8 +185,9 @@ void CoolerSystem::startupCompressor()
         (!compressorShutoffTime || millis() >= compressorShutoffTime + COMPRESSOR_MIN_COOLDOWN_MS)) {
         systemEnableOutput.setBoolean(true);
         compressorSpeed = COMPRESSOR_DEFAULT_SPEED;
-        //compressorPID.SetMode(AUTOMATIC);
-        analogWrite(compressorSpeedPin, compressorSpeed * COMPRESSOR_SPEED_RATIO_TO_ANALOG);
+#if USE_COMPRESSOR_PID
+        compressorPID.SetMode(AUTOMATIC);
+#endif
 
         // reset note frequency analyzer to start with fresh data
         analyzeNoteFrequency.begin();
@@ -264,6 +283,7 @@ void CoolerSystem::acquireSamples()
 
 void CoolerSystem::updateCoolerData() {
     flowRate = flowSensor.flowRate();
+    instantaneousFlowRate = flowSensor.instantaneousFlowRate();
     systemPressure = pressureSensor.calibratedValue();
     compressorCurrent = (float) currentSensor.calibratedValue() / 1000; // mA -> A
     evaporatorInletTemp = evaporatorInletNTC.temperature();
@@ -271,7 +291,7 @@ void CoolerSystem::updateCoolerData() {
     condenserInletTemp = condenserInletNTC.temperature();
     condenserOutletTemp = condenserOutletNTC.temperature();
     ambientTemp = ambientNTC.temperature();
-    coolingPower = (evaporatorInletTemp - evaporatorOutletTemp) * SPECIFIC_HEAT * flowRate / 60000; // Watts
+    coolingPower = (evaporatorInletTemp - evaporatorOutletTemp) * SPECIFIC_HEAT * flowRate / 60; // Watts
 
     if (analyzeNoteFrequency.available()) {
         if (analyzeNoteFrequency.validResult()) {
@@ -297,7 +317,7 @@ void CoolerSystem::updateFaults() {
     // check flow rate after chiller pump startup period is over and verify it's sufficient
     if (chillerPumpPWM.value()) {
         int32_t pumpRunTime = millis() - pumpStartTime;
-        bool flowError = flowRate < FLOW_RATE_MIN_THRESHOLD && pumpRunTime >= FLOW_RATE_STARTUP_TIME;
+        bool flowError = instantaneousFlowRate < FLOW_RATE_MIN_THRESHOLD && pumpRunTime >= FLOW_RATE_STARTUP_TIME;
         check(!flowError, SystemFault::FLOW_RATE_LOW);
     }
 }
@@ -397,10 +417,12 @@ void CoolerSystem::updateOutputs()
             return;
 
         default:
+            compressorPID.Compute();
+            chillerPumpPID.Compute();
+
             runChillerPump();
             runCompressor();
             runCoolshirtPump();
-            compressorPID.Compute();
             return;
     }
 }
@@ -479,7 +501,7 @@ void CoolerSystem::displayInfo()
     coolantLevel ? format.formatLiteral("OK\n") : format.formatLiteral("LOW\n");
 
     format.formatLiteral("  Flow Rate:                     ");
-    format.formatFloat3DP(flowRate / 1000.0);
+    format.formatFloat3DP(flowRate);
     format.formatLiteral(" L/min\n");
 
     format.formatLiteral("  Compressor Current:            ");
@@ -503,14 +525,15 @@ void CoolerSystem::displayInfo()
     format.formatLiteral("  Chiller:                       ");
     systemEnableOutput.value() ? format.formatLiteral("ON\n") : format.formatLiteral("OFF\n");
 
-    format.formatLiteral("  Chiller Pump:                  ");
-    chillerPumpPWM.value() ? format.formatLiteral("ON\n") : format.formatLiteral("OFF\n");
-
     format.formatLiteral("  Coolshirt Pump:                ");
     coolshirtPWM.value() ? format.formatLiteral("ON\n") : format.formatLiteral("OFF\n");
 
-    format.formatLiteral("  Compressor Speed Setpoint:     ");
-    format.formatUnsignedInt(compressorSpeed * 100);
+    format.formatLiteral("  Chiller Pump Speed:            ");
+    format.formatUnsignedInt(round(chillerPumpSpeed * 100));
+    format.formatLiteral(" %\n");
+
+    format.formatLiteral("  Compressor Speed:              ");
+    format.formatUnsignedInt(round(compressorSpeed * 100));
     format.formatLiteral(" %\n");
 
     format.formatLiteral("  Undertemp Cutoff:              ");
@@ -528,7 +551,7 @@ void CoolerSystem::displayInfo()
         format.formatLiteral("  Compressor Frequency:          ");
         format.formatFloat3DP(compressorFrequency);
         format.formatLiteral(" Hz\n");
-        format.formatLiteral("  Compressor Probability:        ");
+        format.formatLiteral("  Frequency Probability:         ");
         format.formatFloat3DP(compressorFrequencyProbability);
         format.formatLiteral("\n");
     } else {
@@ -578,21 +601,18 @@ void CoolerSystem::loop()
     CoolerSystemStatus prevStatus = systemStatus;
     updateState();
     if (systemStatus != prevStatus) {
-        LOG_INFO("System status changed from", CoolerSystemStatusToString(prevStatus), "to", CoolerSystemStatusToString(systemStatus));
+        LOG_INFO("[", ClockTime::secSinceEpoch(), " s] status changed from", CoolerSystemStatusToString(prevStatus), "to", CoolerSystemStatusToString(systemStatus));
     }
 
     if (systemStatus != CoolerSystemStatus::STARTUP) {
 #if NTC_DEBUG
-        uint32_t sampleTime = ClockTime::millisSinceEpoch();
-        if (sampleTime % 10 == 0) {
-            sampleLogger.logSamples(sampleTime, evaporatorInletNTC.latest(), evaporatorOutletNTC.latest(), 0, 0);
-        }
+        sampleLogger.logSamples(ClockTime::millisSinceEpoch(), evaporatorInletNTC.latest(), evaporatorOutletNTC.latest(), 0, 0);
         //sampleLogger.logSamples(sampleTime, currentSensor.latest(), compressorCurrentBiquadOutput + 30000, analogRead(ADC_SYSTEM_12V), 0);
         //sampleLogger.logSamples(sampleTime, currentSensor.latest(), compressorCurrentBiquadOutput + 30000, analyzeNoteFrequency.read() * 100, analyzeNoteFrequency.probability() * 1000);
 #elif FLOW_DEBUG
         if (flowSensor.lastPulseIndex() != lastLoggedFlowPulse) {
-            uint32_t sampleTime = ClockTime::millisSinceEpoch();
-            sampleLogger.logSamples(sampleTime, flowSensor.lastPulseIndex(), flowSensor.lastPulseDuration(), coolantLevelBounce.read(), 0);
+            sampleLogger.logSamples(ClockTime::millisSinceEpoch(), flowSensor.lastPulseIndex(), flowSensor.lastPulseDuration(), chillerPumpPWM.value(), coolantLevelBounce.read());
+            LOG_INFO("[", ClockTime::secSinceEpoch(), " s] pulse", flowSensor.lastPulseIndex(), ", duration", flowSensor.lastPulseDuration(), ", flow rate", flowSensor.instantaneousFlowRate(), ", speed", chillerPumpSpeed);
             lastLoggedFlowPulse = flowSensor.lastPulseIndex();
         }
 #endif
@@ -690,17 +710,15 @@ void CoolerSystem::logData() {
     getLogMessage(format);
     DataSDLogger::logData(format.finish(), format.length());
 
-    return;
-
-    uint32_t m = micros();
-    CAN_message_t message;
-    getCANMessage(message);
-    //CANBus.write(message);
-    LOG_INFO("CANBus write took", micros()-m, "us");
+    // uint32_t m = micros();
+    // CAN_message_t message;
+    // getCANMessage(message);
+    // //CANBus.write(message);
+    // LOG_INFO("CANBus write took", micros()-m, "us");
 }
 
 const char* CoolerSystem::getLogHeader() {
-    return "time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapInletTempStdev,flowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,coolantLevel,12v,5v,3v3,p3v3,coolingPower,switchPos,switchADC,status,systemEnable,chillerPumpEnable,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,compressorFault\n";
+    return "time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapInletTempStdev,flowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,coolantLevel,12v,5v,3v3,p3v3,coolingPower,switchPos,switchADC,status,systemEnable,chillerPumpSpeed,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,compressorFault\n";
 }
 
 void CoolerSystem::getLogMessage(StringFormatCSV& format)
@@ -712,7 +730,7 @@ void CoolerSystem::getLogMessage(StringFormatCSV& format)
     format.formatFloat3DP(condenserOutletTemp);
     format.formatFloat3DP(ambientTemp);
     format.formatFloat3DP(evaporatorInletNTC.stdev());
-    format.formatFloat3DP(flowRate / 1000.0);
+    format.formatFloat3DP(flowRate);
     format.formatUnsignedInt(systemPressure);
     format.formatFloat3DP(compressorCurrent);
 
@@ -735,7 +753,7 @@ void CoolerSystem::getLogMessage(StringFormatCSV& format)
     format.formatUnsignedInt(switchADC.adc());
     format.formatInt((int32_t) systemStatus);
     format.formatBool(systemEnableOutput.value());
-    format.formatBool(chillerPumpPWM.value());
+    format.formatFloat3DP(chillerPumpSpeed);
     format.formatBool(coolshirtPWM.value());
     format.formatFloat3DP(compressorSpeed);
     format.formatBool(undertempCutoff);

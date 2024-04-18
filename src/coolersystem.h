@@ -36,10 +36,18 @@
 #define CURRENT_SENSOR_CALIBRATION_HIGH_AMPS 50000
 
 #define FLOW_SENSOR_PULSES_PER_SECOND 7.5
-#define FLOW_RATE_MIN_THRESHOLD 1000 // mL/min
+#define FLOW_RATE_MIN_THRESHOLD 1.0 // Lpm
 #define FLOW_RATE_STARTUP_TIME 5000 // ms allowed until the flow rate must be above threshold
 #define FLOW_RATE_MISSING_PULSE_TIME 1000 // ms allowed since the last pulse seen
 #define SPECIFIC_HEAT 4033 // J/kgK of chiller fluid (90% water / 10% IPA @ 3C)
+#define FLOW_RATE_TARGET 3.5 // Lpm
+#define CHILLER_PUMP_DEFAULT_SPEED 0.6
+#define CHILLER_PUMP_PID_KP 0.05
+#define CHILLER_PUMP_PID_KI 0.25 // can try as high as 0.5 if stability is good
+#define CHILLER_PUMP_PID_KD 0
+#define CHILLER_PUMP_MIN_SPEED 0
+#define CHILLER_PUMP_MAX_SPEED 0.8
+#define USE_CHILLER_PUMP_PID 1
 
 #define COMPRESSOR_UNDER_TEMP_CUTOFF_HIGH 3.0
 #define COMPRESSOR_RESTART_TEMP_HIGH 6.0
@@ -55,9 +63,10 @@
 #define COMPRESSOR_DEFAULT_SPEED 0.75
 #define COMPRESSOR_SPEED_RATIO_TO_ANALOG (9 / (3.3 * 3.717) * ADC_MAX)
 #define COMPRESSOR_MIN_COOLDOWN_MS 60000
-#define PID_KP 0.5
-#define PID_KI 0.2
-#define PID_KD 0
+#define COMPRESSOR_PID_KP 0.5
+#define COMPRESSOR_PID_KI 0
+#define COMPRESSOR_PID_KD 0
+#define USE_COMPRESSOR_PID 1
 
 // max flush time with pumps running, don't want to let them run dry for long
 #define FLUSH_TIMEOUT_MS 30000
@@ -68,6 +77,7 @@
 #define NTC_DEBUG 0
 #define FLOW_DEBUG 0
 #define ANF_SAMPLES_TEST 0
+
 #define UPDATE_STATE_TIMER_MS 100
 #define DATA_LOG_INTERVAL_MS 100
 #define DISPLAY_INFO_MS 2000
@@ -194,7 +204,7 @@ private:
 
     // sensor values
     CompressorFaultCode compressorFaultCode { CompressorFaultCode::OK };
-    uint16_t flowRate { 0 };
+    float flowRate { 0 };
     uint8_t lastLoggedFlowPulse { 0 };
     bool coolantLevel { false };
     uint16_t systemPressure { 0 };
@@ -211,10 +221,30 @@ private:
     double compressorSpeed { 0 };
     double compressorTempTarget { 5 };
     bool undertempCutoff { false };
-    PID compressorPID { PID(
-        &evaporatorInletTemp, &compressorSpeed, &compressorTempTarget,
-        PID_KP, PID_KI, PID_KD, P_ON_M, REVERSE
-    )};
+    PID compressorPID {
+        &evaporatorInletTemp,
+        &compressorSpeed,
+        &compressorTempTarget,
+        COMPRESSOR_PID_KP,
+        COMPRESSOR_PID_KI,
+        COMPRESSOR_PID_KD,
+        P_ON_M,
+        REVERSE
+    };
+
+    double instantaneousFlowRate { 0 };
+    double chillerPumpSpeed { CHILLER_PUMP_DEFAULT_SPEED };
+    double flowRateTarget { FLOW_RATE_TARGET };
+    PID chillerPumpPID {
+        &instantaneousFlowRate,
+        &chillerPumpSpeed,
+        &flowRateTarget,
+        CHILLER_PUMP_PID_KP,
+        CHILLER_PUMP_PID_KI,
+        CHILLER_PUMP_PID_KD,
+        P_ON_E,
+        DIRECT
+    };
 
     // Biquad IIR filtering for compressor current frequency measurement
     FixedPointBiquad biquad;
