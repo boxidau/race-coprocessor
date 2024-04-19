@@ -125,8 +125,8 @@ void CoolerUI::loop() {
             snprintf(buf, 5, "%4.2f", rtData.compressorCurrent);
             break;
         case 6:
-            if (rtData.compressorFrequency) {
-                snprintf(buf, 5, "%d", (int) min(round(rtData.compressorFrequency), 999));
+            if (rtData.compressorFrequency && roundf(rtData.compressorFrequency) < 1000) {
+                snprintf(buf, 5, "%d", (int) roundf(rtData.compressorFrequency));
             } else {
                 strcpy(buf, "---");
             }

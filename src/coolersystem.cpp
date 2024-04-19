@@ -111,7 +111,7 @@ void CoolerSystem::runChillerPump()
 #endif
             }
 
-            chillerPumpPWM.set(round(chillerPumpSpeed * ADC_MAX));
+            chillerPumpPWM.set(roundf(chillerPumpSpeed * ADC_MAX));
             return;
 
         default:
@@ -163,7 +163,7 @@ void CoolerSystem::runCompressor()
     startupCompressor();
 
     // update compressor speed output every cycle with PID output
-    analogWrite(compressorSpeedPin, round(compressorSpeed * COMPRESSOR_SPEED_RATIO_TO_ANALOG));
+    analogWrite(compressorSpeedPin, roundf(compressorSpeed * COMPRESSOR_SPEED_RATIO_TO_ANALOG));
 }
 
 void CoolerSystem::shutdownCompressor()
@@ -265,7 +265,7 @@ void CoolerSystem::acquireSamples()
     //         rms += arr[i] * arr[i];
     //     }
     //     idx = 0;
-    //     LOG_INFO("biquad max: t=", ClockTime::secSinceEpoch(), "s, max", (uint16_t) max, "rms", sqrt(rms / 1000));
+    //     LOG_INFO("biquad max: t=", ClockTime::secSinceEpoch(), "s, max", (uint16_t) max, "rms", sqrtf(rms / 1000));
     // }
 
     analyzeNoteFrequency.update(compressorCurrentBiquadOutput);
@@ -529,11 +529,11 @@ void CoolerSystem::displayInfo()
     coolshirtPWM.value() ? format.formatLiteral("ON\n") : format.formatLiteral("OFF\n");
 
     format.formatLiteral("  Chiller Pump Speed:            ");
-    format.formatUnsignedInt(round(chillerPumpSpeed * 100));
+    format.formatUnsignedInt(roundf(chillerPumpSpeed * 100));
     format.formatLiteral(" %\n");
 
     format.formatLiteral("  Compressor Speed:              ");
-    format.formatUnsignedInt(round(compressorSpeed * 100));
+    format.formatUnsignedInt(roundf(compressorSpeed * 100));
     format.formatLiteral(" %\n");
 
     format.formatLiteral("  Undertemp Cutoff:              ");
@@ -645,7 +645,7 @@ uint32_t CoolerSystem::lastFlowPulseMicros() {
 }
 
 void CoolerSystem::setCompressorSpeedPercent(uint32_t percent) {
-    compressorSpeed = (double) percent / 100;
+    compressorSpeed = (float) percent / 100;
     analogWrite(compressorSpeedPin, compressorSpeed * COMPRESSOR_SPEED_RATIO_TO_ANALOG);
     LOG_INFO("Setting compressor speed to", percent, "%");
 }
@@ -655,7 +655,7 @@ void CoolerSystem::toggleFlush() {
 }
 
 int32_t clampAndScale(float val, int32_t minVal, int32_t maxVal, uint32_t scale) {
-    return max(min(round(val * scale), maxVal), minVal);
+    return max(min(roundf(val * scale), maxVal), minVal);
 }
 
 void CoolerSystem::getCANMessage(CAN_message_t& msg)
@@ -705,7 +705,7 @@ void CoolerSystem::logData() {
         return;
     }
 
-    char data[256];
+    char data[512];
     StringFormatCSV format(data, sizeof(data));
     getLogMessage(format);
     DataSDLogger::logData(format.finish(), format.length());
@@ -718,7 +718,7 @@ void CoolerSystem::logData() {
 }
 
 const char* CoolerSystem::getLogHeader() {
-    return "time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapInletTempStdev,flowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,coolantLevel,12v,5v,3v3,p3v3,coolingPower,switchPos,switchADC,status,systemEnable,chillerPumpSpeed,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,compressorFault\n";
+    return "time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapInletTempStdev,flowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,coolantLevel,12v,5v,3v3,p3v3,coolingPower,powerDraw,switchPos,switchADC,status,systemEnable,chillerPumpSpeed,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,compressorFault\n";
 }
 
 void CoolerSystem::getLogMessage(StringFormatCSV& format)
@@ -744,11 +744,12 @@ void CoolerSystem::getLogMessage(StringFormatCSV& format)
     }
 
     format.formatBool(coolantLevel);
-    format.formatFloat3DP((float) voltageMonitor.get12vMilliVolts() / 1000);
-    format.formatFloat3DP((float) voltageMonitor.get5vMilliVolts() / 1000);
-    format.formatFloat3DP((float) voltageMonitor.get3v3MilliVolts() / 1000);
-    format.formatFloat3DP((float) voltageMonitor.getp3v3MilliVolts() / 1000);
-    format.formatInt(coolingPower);
+    format.formatFloat3DP(voltageMonitor.get12vMilliVolts() / 1000.0);
+    format.formatFloat3DP(voltageMonitor.get5vMilliVolts() / 1000.0);
+    format.formatFloat3DP(voltageMonitor.get3v3MilliVolts() / 1000.0);
+    format.formatFloat3DP(voltageMonitor.getp3v3MilliVolts() / 1000.0);
+    format.formatFloat3DP(coolingPower);
+    format.formatFloat3DP(compressorCurrent * voltageMonitor.get12vMilliVolts() / 1000.0);
     format.formatInt((int32_t) switchADC.position());
     format.formatUnsignedInt(switchADC.adc());
     format.formatInt((int32_t) systemStatus);

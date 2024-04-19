@@ -217,9 +217,9 @@ private:
     uint32_t compressorShutoffTime { 0 };
 
     // PID control inputs/outputs
-    double evaporatorInletTemp { -100.0 };
-    double compressorSpeed { 0 };
-    double compressorTempTarget { 5 };
+    float evaporatorInletTemp { -100.0 };
+    float compressorSpeed { 0 };
+    float compressorTempTarget { 5 };
     bool undertempCutoff { false };
     PID compressorPID {
         &evaporatorInletTemp,
@@ -232,9 +232,9 @@ private:
         REVERSE
     };
 
-    double instantaneousFlowRate { 0 };
-    double chillerPumpSpeed { CHILLER_PUMP_DEFAULT_SPEED };
-    double flowRateTarget { FLOW_RATE_TARGET };
+    float instantaneousFlowRate { 0 };
+    float chillerPumpSpeed { CHILLER_PUMP_DEFAULT_SPEED };
+    float flowRateTarget { FLOW_RATE_TARGET };
     PID chillerPumpPID {
         &instantaneousFlowRate,
         &chillerPumpSpeed,

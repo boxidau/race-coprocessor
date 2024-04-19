@@ -150,7 +150,7 @@ class StringFormatCSV {
         }
 
         static char* d3toa(char* out, float in) {
-            int32_t integer1000 = round(in * 1000);
+            int32_t integer1000 = roundf(in * 1000);
             out = itoa(out, integer1000 / 1000);
             out = uitoa(out, abs(integer1000) % 1000 + 1000);
             out[-4] = '.';

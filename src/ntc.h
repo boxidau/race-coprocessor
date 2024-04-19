@@ -14,7 +14,7 @@ public:
     BaseNTC(
         const uint8_t _pin,
         const uint8_t _adcNum,
-        const uint32_t _pullupResistance,
+        const float _pullupResistance,
         const float _steinhartA,
         const float _steinhartB,
         const float _steinhartC
@@ -32,18 +32,14 @@ public:
     }
 
     float temperatureFor(uint16_t sample) {
-        float ntcResistanceApprox = pullupResistance / (((float) ADC_MAX / sample) - 1);
-        // double fullScaleLeakageOffset = 1 / (1 / ntcResistanceApprox + 1 / pullupResistance) * FULL_SCALE_LEAKAGE_CURRENT / FULL_SCALE_VOLTAGE;
-        // double offsetAdjustedVal = val + fullScaleLeakageOffset * val;
-        // double ntcResistance = pullupResistance / ((FULL_SCALE_VREF / offsetAdjustedVal) - 1);
-        float lnR = log(ntcResistanceApprox);
+        float ntcResistance = pullupResistance * sample / (ADC_MAX - sample);
+        float lnR = logf(ntcResistance);
         // expand out lnR * lnR * lnR, much faster than pow()
         return 1 / (steinhartA + (steinhartB * lnR) + (steinhartC * lnR * lnR * lnR)) - 273.15;
     }
 
 private:
-    const uint32_t pullupResistance;
-    const float steinhartA, steinhartB, steinhartC;
+    const float pullupResistance, steinhartA, steinhartB, steinhartC;
 };
 
 typedef BaseNTC<NTC_DEFAULT_SAMPLES> NTC;
