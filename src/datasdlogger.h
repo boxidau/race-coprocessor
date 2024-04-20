@@ -1,7 +1,6 @@
 #include "Arduino.h"
 #include "stringformat.h"
 
-#define PREALLOC_MB 2 // 1MB ~= 10 mins of logs, 18MB ~= 4 hours
 #define FLUSH_MS 0
 
 class DataSDLogger

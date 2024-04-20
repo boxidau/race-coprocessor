@@ -718,7 +718,7 @@ void CoolerSystem::logData() {
 }
 
 const char* CoolerSystem::getLogHeader() {
-    return "time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapInletTempStdev,flowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,coolantLevel,12v,5v,3v3,p3v3,coolingPower,powerDraw,switchPos,switchADC,status,systemEnable,chillerPumpSpeed,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,compressorFault\n";
+    return "time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapInletTempStdev,flowRate,instantaneousFlowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,coolantLevel,12v,5v,3v3,p3v3,coolingPower,powerDraw,switchPos,switchADC,status,systemEnable,chillerPumpSpeed,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,compressorFault\n";
 }
 
 void CoolerSystem::getLogMessage(StringFormatCSV& format)
@@ -731,6 +731,7 @@ void CoolerSystem::getLogMessage(StringFormatCSV& format)
     format.formatFloat3DP(ambientTemp);
     format.formatFloat3DP(evaporatorInletNTC.stdev());
     format.formatFloat3DP(flowRate);
+    format.formatFloat3DP(instantaneousFlowRate);
     format.formatUnsignedInt(systemPressure);
     format.formatFloat3DP(compressorCurrent);
 

@@ -2,32 +2,33 @@
 
 void sendSPIData(uint8_t csPin, uint8_t address, uint8_t value) {
     SPI1.beginTransaction(MAX6950CEESettings);
-    digitalWrite(csPin, LOW);
+    digitalWriteFast(csPin, LOW);
     SPI1.transfer16(address << 8 | value);
-    digitalWrite(csPin, HIGH);
+    digitalWriteFast(csPin, HIGH);
     SPI1.endTransaction();
 }
 
 void Display::updateDisplay() {
-    static uint32_t previousData = 0;
-    uint32_t currentData = (uint32_t)screen[0] << 24 |
-      (uint32_t)screen[1] << 16 |
-      (uint32_t)screen[2] << 8  |
-      (uint32_t)screen[3];
-
-    if (currentData != previousData) {
-        previousData = currentData;
+    if (screen[0] != prevData[0]) {
         sendSPIData(chipSelectPin, SCREEN_CHAR0, screen[0]);
-        sendSPIData(chipSelectPin, SCREEN_CHAR1, screen[1]);
-        sendSPIData(chipSelectPin, SCREEN_CHAR2, screen[2]);
-        sendSPIData(chipSelectPin, SCREEN_LED, screen[SCREEN_BUF_LED_IDX]);
     }
+    if (screen[1] != prevData[1]) {
+        sendSPIData(chipSelectPin, SCREEN_CHAR1, screen[1]);
+    }
+    if (screen[2] != prevData[2]) {
+        sendSPIData(chipSelectPin, SCREEN_CHAR2, screen[2]);
+    }
+    if (screen[3] != prevData[3]) {
+        sendSPIData(chipSelectPin, SCREEN_LED, screen[3]);
+    }
+
+    prevDataAsInt = screenAsInt;
 };
 
 void Display::setup() {
     SPI1.begin();
     pinMode(chipSelectPin, OUTPUT);
-    digitalWrite(chipSelectPin, HIGH);
+    digitalWriteFast(chipSelectPin, HIGH);
     // intensity set to 15/16
     sendSPIData(chipSelectPin, 0x02, 0x0A);
     // disable test mode

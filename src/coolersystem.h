@@ -47,7 +47,6 @@
 #define CHILLER_PUMP_PID_KD 0
 #define CHILLER_PUMP_MIN_SPEED 0
 #define CHILLER_PUMP_MAX_SPEED 0.8
-#define USE_CHILLER_PUMP_PID 1
 
 #define COMPRESSOR_UNDER_TEMP_CUTOFF_HIGH 3.0
 #define COMPRESSOR_RESTART_TEMP_HIGH 6.0
@@ -66,17 +65,12 @@
 #define COMPRESSOR_PID_KP 0.5
 #define COMPRESSOR_PID_KI 0
 #define COMPRESSOR_PID_KD 0
-#define USE_COMPRESSOR_PID 1
 
 // max flush time with pumps running, don't want to let them run dry for long
 #define FLUSH_TIMEOUT_MS 30000
 
 // time to acquire data and stabilize before doing anything
 #define STARTUP_STABILIZATION_SAMPLES 100
-
-#define NTC_DEBUG 0
-#define FLOW_DEBUG 0
-#define ANF_SAMPLES_TEST 0
 
 #define UPDATE_STATE_TIMER_MS 100
 #define DATA_LOG_INTERVAL_MS 100

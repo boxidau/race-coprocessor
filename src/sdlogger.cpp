@@ -38,7 +38,8 @@ bool SDLogger::ensureInitialized() {
     bool ok = SD.begin(BUILTIN_SDCARD);
     //bool ok = SD.sdfs.begin(SdioConfig(FIFO_SDIO));
     if (!ok) {
-        LOG_WARN("SD card initialization failed, is a card inserted? Retries:", retries++);
+        retries++;
+        LOG_WARN("SD card initialization failed, is a card inserted? Retries:", retries);
         lastRetryTime = millis();
         return false;
     }

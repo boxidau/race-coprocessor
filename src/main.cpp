@@ -86,7 +86,7 @@ void setup()
     ADC *adc = SingletonADC::getADC();
     adc->adc0->setResolution(16);
     adc->adc0->setReference(ADC_REFERENCE::REF_EXT);
-    adc->adc0->setAveraging(8);
+    adc->adc0->setAveraging(16);
     adc->adc0->setConversionSpeed(ADC_CONVERSION_SPEED::HIGH_SPEED);
     adc->adc0->setSamplingSpeed(ADC_SAMPLING_SPEED::VERY_LOW_SPEED);
 
@@ -116,8 +116,11 @@ void processRXCANMessage()
 
 void loop()
 {
+#if LOG_SLOW_LOOPS
     uint32_t loopTime = loopTimer.start();
+#endif
 
+#if RC_DEBUG
     if (Serial.available()) {
         char input = Serial.read();
         LOG_INFO("Received input", input);
@@ -127,6 +130,7 @@ void loop()
             cooler.toggleFlush();
         }
     }
+#endif
 
     // tick functions for all modules
     cooler.loop();
@@ -139,7 +143,14 @@ void loop()
     //     processRXCANMessage();
     // }
 
-    if (loopTime > 1000) {
-        LOG_INFO("SLOW LOOP:", loopTime, "us");
+#if LOG_SLOW_LOOPS
+    static uint32_t loopMax = 0;
+    if (loopTime > loopMax) {
+        Serial.printf("[%u ms] New slowest loop: %u ms\n", millis(), loopTime);
+        loopMax = loopTime;
     }
+    if (loopTime > 800) {
+        Serial.printf("[%u ms] Slow loop: %u ms\n", millis(), loopTime);
+    }
+#endif
 }

@@ -70,7 +70,14 @@ constexpr const byte CharToSegValue(char c_input)
 class Display {
 private:
     const uint8_t chipSelectPin;
-    byte screen[4] = { 0, 0, 0, 0 };
+    union {
+        byte screen[4];
+        uint32_t screenAsInt { 0 };
+    };
+    union {
+        byte prevData[4];
+        uint32_t prevDataAsInt { 0 };
+    };
     void updateDisplay();
 public:
     Display(

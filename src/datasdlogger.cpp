@@ -11,7 +11,7 @@
 static char lineBuffer[512];
 static FsFile logFile;
 static bool enableLog;
-static Metro retrySDTimer = Metro(FLUSH_MS);
+static Metro flushTimer = Metro(FLUSH_MS);
 
 void DataSDLogger::setup()
 {
@@ -40,31 +40,25 @@ void DataSDLogger::logComment(const String line)
 
 bool DataSDLogger::logData(const char* data, size_t len)
 {
-    bool tick = retrySDTimer.check();
-    if (!enableLog)
-    {
-        if (tick)
-        {
-            DataSDLogger::setup();
+    if (!enableLog) {
+        DataSDLogger::setup();
+        if (!enableLog) {
+            return false;
         }
+    }
+
+    uint32_t written = logFile.write(data, len);
+    if (written != len) {
+        LOG_WARN("Failed write, bytes written", written, "desired length", len);
         return false;
     }
 
-    uint32_t m = logFile.write(data, len);
-    if (m != len)
-    {
-        LOG_INFO("Failed write, bytes written", m, "desired length", len);
-        enableLog = false;
-        return false;
+#if FLUSH_MS
+    if (flushTimer.check()) {
+        logFile.flush();
+        return true;
     }
-
-    #if FLUSH_MS
-        if (tick)
-        {
-            logFile.flush();
-            return true;
-        }
-    #endif
+#endif
 
     return false;
 }

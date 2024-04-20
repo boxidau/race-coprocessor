@@ -18,7 +18,7 @@ private:
     uint32_t lastFlowPulseDisplayed { 0 };
     uint8_t pulseDivider { 0 };
 
-    PWMOutput systemStatusLED;
+    uint8_t systemStatusLEDPin;
     uint32_t faultBlinks { 0 };
     uint32_t currentBlink { 0 };
     uint32_t lastBlinkTime { 0 };
@@ -38,7 +38,7 @@ public:
         , display { Display(_displayPin) }
         , uiButtonPin { _uiButtonPin }
         , uiButton { Bounce(_uiButtonPin, 20) }
-        , systemStatusLED(_systemStatusLEDPin)
+        , systemStatusLEDPin(_systemStatusLEDPin)
     {
     };
 

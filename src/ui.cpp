@@ -16,7 +16,8 @@ void CoolerUI::setup() {
     display.setLED(ScreenLED::RED, true);
     display.setLED(ScreenLED::YELLOW, true);
     display.setLED(ScreenLED::GREEN, true);
-    systemStatusLED.setBoolean(true);
+    pinMode(systemStatusLEDPin, OUTPUT);
+    digitalWriteFast(systemStatusLEDPin, LOW);
 };
 
 bool CoolerUI::shouldDisplayName() {
@@ -33,7 +34,6 @@ void CoolerUI::loop() {
         display.setLED(ScreenLED::RED, false);
         display.setLED(ScreenLED::YELLOW, false);
         display.setLED(ScreenLED::GREEN, false);
-        systemStatusLED.setBoolean(false);
         coolerSystem.getSystemData(rtData);
     }
 
@@ -59,8 +59,8 @@ void CoolerUI::loop() {
 
     // blink error codes to red LED and external status LED
     bool statusLEDState = getSystemStatusLEDState();
-    if (!!systemStatusLED.value() != statusLEDState) {
-        systemStatusLED.setBoolean(statusLEDState);
+    if (display.getLED(ScreenLED::RED) != statusLEDState) {
+        digitalWriteFast(systemStatusLEDPin, statusLEDState);
         display.setLED(ScreenLED::RED, statusLEDState);
     }
 
