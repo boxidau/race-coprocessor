@@ -19,7 +19,6 @@
 #include "flowsensor.h"
 #include "compressorfault.h"
 #include "samplelogger.h"
-#include "looptimer.h"
 #include "stringformat.h"
 #include "timer.h"
 #include "analyzenotefrequency.h"
@@ -182,8 +181,8 @@ private:
     CoolerSystemStatus systemStatus { CoolerSystemStatus::STARTUP };
     CoolerSwitchPosition switchPosition { CoolerSwitchPosition::UNKNOWN };
 
-    LoopTimer loopTimer;
     uint32_t sampleCounter { 0 };
+    uint32_t loggedSampleCounter { 0 };
     MetroTimer msTick = { MetroTimer(1) };
     MetroTimer updateStateTimer = { MetroTimer(UPDATE_STATE_TIMER_MS) };
     MetroTimer dataLogTimer = { MetroTimer(DATA_LOG_INTERVAL_MS) };
@@ -329,5 +328,6 @@ public:
     void getSystemData(CoolerSystemData &data);
     uint32_t lastFlowPulseMicros();
     void setCompressorSpeedPercent(uint32_t percent);
+    void setCompressorSpeedPercentOffset(int32_t offset);
     void toggleFlush();
 };

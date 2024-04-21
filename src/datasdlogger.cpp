@@ -11,7 +11,9 @@
 static char lineBuffer[512];
 static FsFile logFile;
 static bool enableLog;
+static bool logFull;
 static Metro flushTimer = Metro(FLUSH_MS);
+static uint32_t bytesWritten;
 
 void DataSDLogger::setup()
 {
@@ -27,6 +29,7 @@ void DataSDLogger::setup()
 #endif
 
     enableLog = true;
+    logFull = false;
 }
 
 void DataSDLogger::logComment(const String line)
@@ -40,6 +43,10 @@ void DataSDLogger::logComment(const String line)
 
 bool DataSDLogger::logData(const char* data, size_t len)
 {
+    if (logFull) {
+        return false;
+    }
+
     if (!enableLog) {
         DataSDLogger::setup();
         if (!enableLog) {
@@ -47,7 +54,14 @@ bool DataSDLogger::logData(const char* data, size_t len)
         }
     }
 
+    if (bytesWritten + len > PREALLOC_MB * 1000000) {
+        LOG_WARN("Log file full, logging stopped");
+        logFull = true;
+        return false;
+    }
+
     uint32_t written = logFile.write(data, len);
+    bytesWritten += written;
     if (written != len) {
         LOG_WARN("Failed write, bytes written", written, "desired length", len);
         return false;

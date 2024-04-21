@@ -8,6 +8,87 @@ const uint PAGES = 10;
 Metro pageTurner = Metro(5000);
 bool startup = true;
 
+#define INT_TO_CHAR(in) (0x30 + (in))
+
+// format an unsigned int into 3 chars, right justified
+void uito3a(char* out, uint32_t i) {
+    if (i >= 1000) {
+        // overflow
+        out[0] = '-';
+        out[1] = '-';
+        out[2] = '-';
+        out[3] = '\0';
+        return;
+    }
+
+    out[3] = '\0';
+    out[2] = INT_TO_CHAR(i % 10);
+    i /= 10;
+
+    if (i != 0) {
+        out[1] = INT_TO_CHAR(i % 10);
+    } else {
+        out[1] = ' ';
+    }
+    i /= 10;
+
+    if (i != 0) {
+        out[0] = INT_TO_CHAR(i);
+    } else {
+        out[0] = ' ';
+    }
+}
+
+// format a float into 4 chars, including decimal point.
+// this will mean 3 significant figures if positive, 2 if negative.
+void dto3a(char* out, float in) {
+    if (in >= 1000 || in <= -100) {
+        // overflow
+        out[0] = '-';
+        out[1] = '-';
+        out[2] = '-';
+        out[3] = '\0';
+        return;
+    }
+
+    out[4] = '\0';
+
+    uint32_t index = 0;
+    bool isNegative = in < 0;
+    if (isNegative) {
+        out[index++] = '-';
+        in = -in;
+    }
+
+    uint32_t decimalPointIndex;
+    if (in >= 100) {
+        decimalPointIndex = 2;
+    } else if (in >= 10) {
+        decimalPointIndex = 1;
+        in *= 10;
+    } else {
+        decimalPointIndex = 0;
+        in *= 100;
+    }
+
+    uint32_t val = (uint32_t) in;
+    out[index++] = INT_TO_CHAR(val / 100);
+    if (decimalPointIndex == 0) {
+        out[index++] = '.';
+    }
+    out[index++] = INT_TO_CHAR((val / 10) % 10);
+    if (decimalPointIndex == 1) {
+        out[index++] = '.';
+    }
+    if (isNegative) {
+        return;
+    }
+    out[index++] = INT_TO_CHAR(val % 10);
+    if (decimalPointIndex == 2) {
+        out[index++] = '.';
+    }
+}
+
 void CoolerUI::setup() {
     display.setup();
     pinMode(uiButtonPin, INPUT);
@@ -96,7 +177,7 @@ void CoolerUI::loop() {
         return;
     }
         
-    if (page == 8) {
+    if (page == 9) {
         display.displayError(rtData.fault);
         return;
     }
@@ -104,38 +185,38 @@ void CoolerUI::loop() {
     // output buffer size is 5 screen size is 3, why?
     // decimal point chars are collapsed to prior char
     // so they don't count and c_strs are null terminated
-    char buf[5] = {0, 0, 0, 0, 0};
+    char buf[5];
     switch (page) {
         case 0:
-            snprintf(buf, 5, "%4.2f", rtData.evaporatorInletTemp);
+            dto3a(buf, rtData.evaporatorInletTemp);
             break;
         case 1:
-            snprintf(buf, 5, "%4.2f", rtData.evaporatorOutletTemp);
+            dto3a(buf, rtData.evaporatorOutletTemp);
             break;
         case 2:
-            snprintf(buf, 5, "%4.2f", rtData.condenserInletTemp);
+            dto3a(buf, rtData.condenserInletTemp);
             break;
         case 3:
-            snprintf(buf, 5, "%4.2f", rtData.condenserOutletTemp);
+            dto3a(buf, rtData.condenserOutletTemp);
             break;
         case 4:
-            snprintf(buf, 5, "%d", int(rtData.compressorSpeed * 100));
+            uito3a(buf, rtData.compressorSpeed * 100);
             break;
         case 5:
-            snprintf(buf, 5, "%4.2f", rtData.compressorCurrent);
+            dto3a(buf, rtData.compressorCurrent);
             break;
         case 6:
-            if (rtData.compressorFrequency && roundf(rtData.compressorFrequency) < 1000) {
-                snprintf(buf, 5, "%d", (int) roundf(rtData.compressorFrequency));
+            if (rtData.compressorFrequency) {
+                dto3a(buf, rtData.compressorFrequency);
             } else {
                 strcpy(buf, "---");
             }
             break;
         case 7:
-            snprintf(buf, 5, "%4.2f", rtData.flowRate / 1000.0);
+            dto3a(buf, rtData.flowRate);
             break;
         case 8:
-            snprintf(buf, 5, "%d", min(rtData.systemPressure, 999));
+            uito3a(buf, rtData.systemPressure);
             break;
     }
     display.setString(buf);

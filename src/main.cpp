@@ -106,7 +106,7 @@ void setup()
     cooler.setupLogging();
 
     LOG_INFO("System Boot OK");
-    LOG_INFO("Type 1, 2, 3, 4, 5, 6 = 50%, 60%, 70%, 80%, 90%, 100% compressor speed, f = flush coolant");
+    LOG_INFO("Type 1, 2, 3, 4, 5, 6 = 50%, 60%, 70%, 80%, 90%, 100% compressor speed, +/- = increment compressor speed, f = flush coolant");
 }
 
 void processRXCANMessage()
@@ -126,6 +126,10 @@ void loop()
         LOG_INFO("Received input", input);
         if (input >= '1' && input <= '6') {
             cooler.setCompressorSpeedPercent(mapInputToCompressorSpeed(input));
+        } else if (input == '+' || input == '=') {
+            cooler.setCompressorSpeedPercentOffset(1);
+        } else if (input == '-') {
+            cooler.setCompressorSpeedPercentOffset(-1);
         } else if (input == 'f') {
             cooler.toggleFlush();
         }

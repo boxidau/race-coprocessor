@@ -326,7 +326,7 @@ void CoolerSystem::updateState()
 {
     switch (systemStatus) {
         case CoolerSystemStatus::STARTUP:
-            if (sampleCounter <= STARTUP_STABILIZATION_SAMPLES) {
+            if (sampleCounter < STARTUP_STABILIZATION_SAMPLES) {
                 return;
             }
 
@@ -650,6 +650,10 @@ void CoolerSystem::setCompressorSpeedPercent(uint32_t percent) {
     LOG_INFO("Setting compressor speed to", percent, "%");
 }
 
+void CoolerSystem::setCompressorSpeedPercentOffset(int32_t offset) {
+    setCompressorSpeedPercent(roundf(compressorSpeed * 100) + offset);
+}
+
 void CoolerSystem::toggleFlush() {
     shouldFlush = systemStatus != CoolerSystemStatus::FLUSH;
 }
@@ -718,7 +722,7 @@ void CoolerSystem::logData() {
 }
 
 const char* CoolerSystem::getLogHeader() {
-    return "time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapInletTempStdev,flowRate,instantaneousFlowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,coolantLevel,12v,5v,3v3,p3v3,coolingPower,powerDraw,switchPos,switchADC,status,systemEnable,chillerPumpSpeed,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,compressorFault\n";
+    return "time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapInletTempStdev,flowRate,instantaneousFlowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,coolantLevel,12v,5v,3v3,p3v3,coolingPower,powerDraw,switchPos,switchADC,status,systemEnable,chillerPumpSpeed,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,compressorFault,acquiredSamples\n";
 }
 
 void CoolerSystem::getLogMessage(StringFormatCSV& format)
@@ -761,4 +765,7 @@ void CoolerSystem::getLogMessage(StringFormatCSV& format)
     format.formatBool(undertempCutoff);
     format.formatBinary(_systemFault);
     format.formatUnsignedInt((uint32_t) compressorFaultCode);
+    format.formatUnsignedInt(sampleCounter - loggedSampleCounter);
+
+    loggedSampleCounter = sampleCounter;
 };
