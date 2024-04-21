@@ -101,6 +101,7 @@ class StringFormatCSV {
             if ((int32_t) n - (next - str) < max + REMAIN_PAD) {
                 return false;
             }
+
             if (!begin && delim) {
                 *next++ = delim;
             }
@@ -109,7 +110,7 @@ class StringFormatCSV {
         };
 
         static char* uitoa(char* out, uint32_t i) {
-            unsigned int d = i, extraDigits = 0;
+            uint32_t d = i, extraDigits = 0;
             while (d /= 10) {
                 extraDigits++;
             }
@@ -152,8 +153,10 @@ class StringFormatCSV {
         static char* d3toa(char* out, float in) {
             int32_t integer1000 = roundf(in * 1000);
             out = itoa(out, integer1000 / 1000);
-            out = uitoa(out, abs(integer1000) % 1000 + 1000);
-            out[-4] = '.';
+            *out++ = '.';
+            *out++ = INT_TO_CHAR((abs(integer1000) / 100) % 10);
+            *out++ = INT_TO_CHAR((abs(integer1000) / 10) % 10);
+            *out++ = INT_TO_CHAR(abs(integer1000) % 10);
             return out;
         }
 };
