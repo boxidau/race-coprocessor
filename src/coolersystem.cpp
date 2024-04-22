@@ -103,6 +103,9 @@ void CoolerSystem::runChillerPump()
                 pumpStartTime = millis();
                 chillerPumpSpeed = CHILLER_PUMP_DEFAULT_SPEED;
 #if USE_CHILLER_PUMP_PID
+                // initialize speed to 0 so PID controller doesn't start bumpless control starting at the default speed.
+                // consider initializing to max for faster response?
+                chillerPumpSpeed = 0;
                 chillerPumpPID.SetMode(AUTOMATIC);
 #endif
 #if FLOW_DEBUG
@@ -111,6 +114,7 @@ void CoolerSystem::runChillerPump()
 #endif
             }
 
+            chillerPumpPID.Compute();
             chillerPumpPWM.set(roundf(chillerPumpSpeed * ADC_MAX));
             return;
 
@@ -162,7 +166,7 @@ void CoolerSystem::runCompressor()
     
     startupCompressor();
 
-    // update compressor speed output every cycle with PID output
+    compressorPID.Compute();
     analogWrite(compressorSpeedPin, roundf(compressorSpeed * COMPRESSOR_SPEED_RATIO_TO_ANALOG));
 }
 
@@ -186,6 +190,8 @@ void CoolerSystem::startupCompressor()
         systemEnableOutput.setBoolean(true);
         compressorSpeed = COMPRESSOR_DEFAULT_SPEED;
 #if USE_COMPRESSOR_PID
+        // initialize speed to 0 so PID controller doesn't start bumpless control starting at the default speed
+        compressorSpeed = 0;
         compressorPID.SetMode(AUTOMATIC);
 #endif
 
@@ -417,9 +423,6 @@ void CoolerSystem::updateOutputs()
             return;
 
         default:
-            compressorPID.Compute();
-            chillerPumpPID.Compute();
-
             runChillerPump();
             runCompressor();
             runCoolshirtPump();

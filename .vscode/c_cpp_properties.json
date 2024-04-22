@@ -253,7 +253,7 @@
                 "NTC_DEBUG=0",
                 "FLOW_DEBUG=0",
                 "ANF_SAMPLES_TEST=0",
-                "PREALLOC_MB=2",
+                "PREALLOC_MB=3",
                 "USB_SERIAL",
                 "ARDUINO=10805",
                 "TEENSYDUINO=159",

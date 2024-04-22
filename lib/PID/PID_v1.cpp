@@ -157,7 +157,7 @@ void PID::SetOutputLimits(float Min, float Max)
 	   else if(*myOutput < outMin) *myOutput = outMin;
 
 	   if(outputSum > outMax) outputSum= outMax;
-	   else if(outputSum < outMin) outputSum= outMin;
+      else if(outMin <= 0 && outputSum < outMin) outputSum= outMin; // don't floor outputSum if outMin > 0, otherwise we introduce a persistent integral term
    }
 }
 
@@ -185,7 +185,7 @@ void PID::Initialize()
    outputSum = *myOutput;
    lastInput = *myInput;
    if(outputSum > outMax) outputSum = outMax;
-   else if(outputSum < outMin) outputSum = outMin;
+   else if(outMin <= 0 && outputSum < outMin) outputSum= outMin; // don't floor outputSum if outMin > 0, otherwise we introduce a persistent integral term
 }
 
 /* SetControllerDirection(...)*************************************************
