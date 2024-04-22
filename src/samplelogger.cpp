@@ -50,8 +50,7 @@ void SampleLogger::flush()
     for (size_t i = 0; i < sampleData.size(); i++) {
         const SampleData& data = sampleData[i];
 
-        char message[128];
-        StringFormatCSV format(message, sizeof(message));
+        StringFormat<128, ','> format;
         format.formatUnsignedInt(data.time);
         format.formatUnsignedInt(data.sample1);
         format.formatUnsignedInt(data.sample2);

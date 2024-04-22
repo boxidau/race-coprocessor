@@ -7,20 +7,15 @@
 #define MAX_FLOAT_3DP_CHARS (MAX_INT32_CHARS + 4)
 #define REMAIN_PAD 3
 
-class StringFormatCSV {
+template <size_t Size, char Delim = '\0'> class StringFormat {
     private:
-        char* str;
+        char str[Size];
         char* next;
-        uint32_t n;
-        char delim;
         bool begin;
 
     public:
-        StringFormatCSV(char* _str, uint32_t _n, char _delim = ',')
-            : str(_str)
-            , next(_str)
-            , n(_n)
-            , delim(_delim)
+        StringFormat()
+            : next(str)
             , begin(true)
         {
         }
@@ -98,14 +93,16 @@ class StringFormatCSV {
 
     private:
         bool checkLenAndWriteDelim(int max) {
-            if ((int32_t) n - (next - str) < max + REMAIN_PAD) {
+            if ((int32_t) Size - REMAIN_PAD - (next - str) < max) {
                 return false;
             }
 
-            if (!begin && delim) {
-                *next++ = delim;
+            if (Delim) {
+                if (!begin) {
+                    *next++ = Delim;
+                }
+                begin = false;
             }
-            begin = false;
             return true;
         };
 

@@ -75,6 +75,9 @@
 #define DATA_LOG_INTERVAL_MS 100
 #define DISPLAY_INFO_MS 2000
 
+typedef StringFormat<512, ','> StringFormatLog;
+typedef StringFormat<2048> StringFormatDisplay;
+
 enum class CoolerSystemStatus {
     STARTUP         = 0,
     REQUIRES_RESET  = 1,
@@ -263,7 +266,7 @@ private:
     void updateState();
     void updateOutputs();
     void displayInfo();
-    void getLogMessage(StringFormatCSV& format);
+    void getLogMessage(StringFormatLog& format);
     void getCANMessage(CAN_message_t &msg);
     void logData();
     const char* getLogHeader();

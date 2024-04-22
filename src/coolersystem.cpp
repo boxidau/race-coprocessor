@@ -6,7 +6,7 @@
 #include "../test/compressorcurrentsamples.h"
 #endif
 
-void printFaultLine(StringFormatCSV& format, SystemFault f, byte systemFault) {
+void printFaultLine(StringFormatDisplay& format, SystemFault f, byte systemFault) {
     const char* faultName = SystemFaultToString(f);
     size_t faultLen = strlen(faultName);
     size_t prefLength = faultLen + ((uint32_t) f > 10 ? 2 : 1);
@@ -437,8 +437,7 @@ void CoolerSystem::displayInfo()
         return;
     }
 
-    char str[2048];
-    StringFormatCSV format(str, sizeof(str), 0);
+    StringFormatDisplay format;
 
     format.formatLiteral("----------------- Cooler Statistics -------------------\n");
     format.formatLiteral("Time                             ");
@@ -712,8 +711,7 @@ void CoolerSystem::logData() {
         return;
     }
 
-    char data[512];
-    StringFormatCSV format(data, sizeof(data));
+    StringFormatLog format;
     getLogMessage(format);
     DataSDLogger::logData(format.finish(), format.length());
 
@@ -728,7 +726,7 @@ const char* CoolerSystem::getLogHeader() {
     return "time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapInletTempStdev,flowRate,instantaneousFlowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,coolantLevel,12v,5v,3v3,p3v3,coolingPower,powerDraw,switchPos,switchADC,status,systemEnable,chillerPumpSpeed,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,compressorFault,acquiredSamples\n";
 }
 
-void CoolerSystem::getLogMessage(StringFormatCSV& format)
+void CoolerSystem::getLogMessage(StringFormatLog& format)
 {
     format.formatFloat3DP(ClockTime::secSinceEpoch());
     format.formatFloat3DP(evaporatorInletTemp);
