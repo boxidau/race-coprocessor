@@ -558,7 +558,7 @@ void CoolerSystem::displayInfo()
         format.formatLiteral("\n");
     } else {
         format.formatLiteral("  Compressor Frequency:          ---\n");
-        format.formatLiteral("  Compressor Probability:        ---\n");
+        format.formatLiteral("  Frequency Probability:         ---\n");
     }
 
     format.formatLiteral("Faults ------------------------------------------------\n");
