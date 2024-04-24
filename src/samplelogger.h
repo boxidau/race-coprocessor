@@ -2,7 +2,11 @@
 #include <SD.h>
 #include <Array.h>
 
+#if NTC_DEBUG
+#define SAMPLE_ARRAY_SIZE 10000
+#else
 #define SAMPLE_ARRAY_SIZE 1000
+#endif
 
 struct SampleData {
     uint32_t time;

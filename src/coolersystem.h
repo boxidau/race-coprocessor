@@ -24,7 +24,7 @@
 #include "analyzenotefrequency.h"
 
 #define OVERPRESSURE_THRESHOLD_KPA 250 // operating pressure ~170 - 200kPa
-#define PRESSURE_SENSOR_CALIBRATION_LOW_ADC 5900 // 0.5V = 0psig = 101kPa
+#define PRESSURE_SENSOR_CALIBRATION_LOW_ADC 5674 // 0.5V = 0psig = 101kPa
 #define PRESSURE_SENSOR_CALIBRATION_HIGH_ADC 51063  // 4.5V = 100psig = 791kPa
 #define PRESSURE_SENSOR_CALIBRATION_LOW_KPA 101
 #define PRESSURE_SENSOR_CALIBRATION_HIGH_KPA 791
@@ -40,12 +40,12 @@
 #define FLOW_RATE_MISSING_PULSE_TIME 1000 // ms allowed since the last pulse seen
 #define SPECIFIC_HEAT 4033 // J/kgK of chiller fluid (90% water / 10% IPA @ 3C)
 #define FLOW_RATE_TARGET 3.5 // Lpm
-#define CHILLER_PUMP_DEFAULT_SPEED 0.6
-#define CHILLER_PUMP_PID_KP 0.05
-#define CHILLER_PUMP_PID_KI 0.25 // can try as high as 0.5 if stability is good
+#define CHILLER_PUMP_DEFAULT_SPEED 5 // Volts
+#define CHILLER_PUMP_PID_KP (0.05 * 12) // multiply by 12 since gains were tested at that value
+#define CHILLER_PUMP_PID_KI (0.25 * 12) // 0.5 also stable but has overshoot
 #define CHILLER_PUMP_PID_KD 0
-#define CHILLER_PUMP_MIN_SPEED 0
-#define CHILLER_PUMP_MAX_SPEED 0.8
+#define CHILLER_PUMP_MIN_SPEED 4.5 // Volts, try 4.5 here if things work ok. pump is specced down to 5V and drops out at 4V
+#define CHILLER_PUMP_MAX_SPEED 9 // Volts
 
 #define COMPRESSOR_UNDER_TEMP_CUTOFF_HIGH 3.5
 #define COMPRESSOR_RESTART_TEMP_HIGH 6.5
@@ -55,11 +55,13 @@
 #define COMPRESSOR_RESTART_TEMP_LOW 16.5
 #define EVAPORATOR_OUTLET_PANIC_TEMPERATURE 0.0
 
-// valid range of compressor speed output is 4.5V = 50%, 9V = 100%
-#define COMPRESSOR_MIN_SPEED_RATIO 0.5
+// valid range of compressor speed output is 4.16V = 47%, 8.40V = 96%
+// speed steps are 0.47 (zero below this), 0.56, 0.64, 0.72, 0.80, 0.88, 0.96.
+// midpoints are 0.52, 0.60, 0.68, 0.76, 0.84, 0.92, 1.0.
+#define COMPRESSOR_MIN_SPEED_RATIO 0.52
 #define COMPRESSOR_MAX_SPEED_RATIO 1.0
-#define COMPRESSOR_DEFAULT_SPEED 0.75
-#define COMPRESSOR_SPEED_RATIO_TO_ANALOG (9 / (3.3 * 3.717) * ADC_MAX)
+#define COMPRESSOR_DEFAULT_SPEED 0.76
+#define COMPRESSOR_SPEED_RATIO_TO_ANALOG (9 / (3.3 * 3.717) * ADC_MAX * 0.97)
 #define COMPRESSOR_MIN_COOLDOWN_MS 60000
 #define COMPRESSOR_PID_KP 0.5
 #define COMPRESSOR_PID_KI 0
@@ -210,6 +212,7 @@ private:
     float condenserOutletTemp { -100.0 };
     float ambientTemp { -100.0 };
     float coolingPower { 0 };
+    float powerDraw { 0 };
     uint32_t compressorShutoffTime { 0 };
 
     // PID control inputs/outputs
@@ -263,7 +266,7 @@ private:
     void acquireSamples();
     void updateCoolerData();
     void updateFaults();
-    void updateState();
+    bool updateState();
     void updateOutputs();
     void displayInfo();
     void getLogMessage(StringFormatLog& format);

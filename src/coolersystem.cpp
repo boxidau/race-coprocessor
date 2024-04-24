@@ -93,36 +93,41 @@ void CoolerSystem::pollCoolantLevel()
 
 void CoolerSystem::runChillerPump()
 {
-    switch (systemStatus) {
-        case CoolerSystemStatus::PRECHILL:
-        case CoolerSystemStatus::PUMP_LOW:
-        case CoolerSystemStatus::PUMP_MEDIUM:
-        case CoolerSystemStatus::PUMP_HIGH:
-        case CoolerSystemStatus::FLUSH:
-            if (chillerPumpPWM.value() == 0) {
-                pumpStartTime = millis();
-                chillerPumpSpeed = CHILLER_PUMP_DEFAULT_SPEED;
+    // run chiller pump whenever the compressor is on
+    if (systemEnableOutput.value()) {
+        if (!chillerPumpPWM.value()) {
+            pumpStartTime = millis();
+            chillerPumpSpeed = CHILLER_PUMP_DEFAULT_SPEED;
 #if USE_CHILLER_PUMP_PID
-                // initialize speed to 0 so PID controller doesn't start bumpless control starting at the default speed.
-                // consider initializing to max for faster response?
-                chillerPumpSpeed = 0;
-                chillerPumpPID.SetMode(AUTOMATIC);
+            // initialize speed to 0 so PID controller doesn't start bumpless control starting at the default speed.
+            // consider initializing to max for faster response?
+            chillerPumpSpeed = 0;
+            chillerPumpPID.SetMode(AUTOMATIC);
 #endif
 #if FLOW_DEBUG
-                // log the exact time the pump started running
-                sampleLogger.logSamples(ClockTime::millisSinceEpoch(), 0, 0, 1, 0);
+            // log the exact time the pump started running
+            sampleLogger.logSamples(ClockTime::millisSinceEpoch(), 0, 0, 1, 0);
 #endif
-            }
+        }
 
-            chillerPumpPID.Compute();
-            chillerPumpPWM.set(roundf(chillerPumpSpeed * ADC_MAX));
-            return;
+        chillerPumpPID.Compute();
+        // scale PWM output by the system voltage, with safety net in case it glitches low
+        chillerPumpPWM.set(roundf(chillerPumpSpeed / max(voltageMonitor.get12vMilliVolts(), 10000) * 1000 * ADC_MAX));
+        //LOG_INFO(ClockTime::secSinceEpoch(), chillerPumpSpeed, instantaneousFlowRate, flowRate);
+        return;
+    }
 
-        default:
-            chillerPumpPID.SetMode(MANUAL);
-            chillerPumpPWM.set(0);
-            chillerPumpSpeed = 0;
-            return;
+    // compressor is off
+    if (chillerPumpPWM.value()) {
+        // shut down pump
+#if FLOW_DEBUG
+        sampleLogger.logSamples(ClockTime::millisSinceEpoch(), 0, 0, 0, 0);
+#endif
+
+        chillerPumpPID.SetMode(MANUAL);
+        chillerPumpPWM.set(0);
+        chillerPumpSpeed = 0;
+        return;
     }
 }
 
@@ -136,11 +141,11 @@ void CoolerSystem::runCompressor()
             restartTemp = COMPRESSOR_RESTART_TEMP_LOW;
             break;
         case CoolerSystemStatus::PUMP_MEDIUM:
+        case CoolerSystemStatus::PRECHILL:
             cutoffTemp = COMPRESSOR_UNDER_TEMP_CUTOFF_MED;
             restartTemp = COMPRESSOR_RESTART_TEMP_MED;
             break;            
         case CoolerSystemStatus::PUMP_HIGH:
-        case CoolerSystemStatus::PRECHILL:
             cutoffTemp = COMPRESSOR_UNDER_TEMP_CUTOFF_HIGH;
             restartTemp = COMPRESSOR_RESTART_TEMP_HIGH;
             break;
@@ -167,6 +172,7 @@ void CoolerSystem::runCompressor()
     startupCompressor();
 
     compressorPID.Compute();
+    //LOG_INFO(ClockTime::secSinceEpoch(), compressorSpeed, evaporatorInletTemp);
     analogWrite(compressorSpeedPin, roundf(compressorSpeed * COMPRESSOR_SPEED_RATIO_TO_ANALOG));
 }
 
@@ -180,6 +186,8 @@ void CoolerSystem::shutdownCompressor()
         compressorPID.SetMode(MANUAL);
 
         analyzeNoteFrequency.stop();
+        compressorFrequency = 0;
+        compressorFrequencyProbability = 0;
     }
 }
 
@@ -298,9 +306,12 @@ void CoolerSystem::updateCoolerData() {
     condenserOutletTemp = condenserOutletNTC.temperature();
     ambientTemp = ambientNTC.temperature();
     coolingPower = (evaporatorInletTemp - evaporatorOutletTemp) * SPECIFIC_HEAT * flowRate / 60; // Watts
+    // adjust system voltage by the relative IR drop between the measured system voltage and the compressor
+    powerDraw = compressorCurrent * (voltageMonitor.get12vMilliVolts() / 1000.0 - 0.0175 * compressorCurrent + 0.05 + 0.05 * coolshirtPWM.percent() / 100);
 
     if (analyzeNoteFrequency.available()) {
-        if (analyzeNoteFrequency.validResult()) {
+        // only log data if there's a valid result and current is > 2A
+        if (analyzeNoteFrequency.validResult() && compressorCurrent > 2.0) {
             compressorFrequency = analyzeNoteFrequency.read();
             compressorFrequencyProbability = analyzeNoteFrequency.probability();            
         } else {
@@ -328,12 +339,12 @@ void CoolerSystem::updateFaults() {
     }
 }
 
-void CoolerSystem::updateState()
+bool CoolerSystem::updateState()
 {
     switch (systemStatus) {
         case CoolerSystemStatus::STARTUP:
             if (sampleCounter < STARTUP_STABILIZATION_SAMPLES) {
-                return;
+                return false;
             }
 
             // align clock and timers to when sample stabilization is complete and we're ready
@@ -350,7 +361,7 @@ void CoolerSystem::updateState()
         default:
             // this will fire on the first call, and thereafter on every interval period
             if (!updateStateTimer.check()) {
-                return;
+                return false;
             }
 
             updateCoolerData();
@@ -361,11 +372,11 @@ void CoolerSystem::updateState()
                 // start flushing
                 systemStatus = CoolerSystemStatus::FLUSH;
                 pumpStartTime = millis();
-                return;
+                return true;
             }
             if (systemStatus == CoolerSystemStatus::FLUSH && shouldFlush && millis() < pumpStartTime + FLUSH_TIMEOUT_MS) {
                 // continue flushing, ignore faults and other inputs
-                return;
+                return true;
             }
             if (systemStatus == CoolerSystemStatus::FLUSH) {
                 // end flushing and fall through to switch handling
@@ -384,34 +395,34 @@ void CoolerSystem::updateState()
                 compressorFaultCode = CompressorFaultCode::OK;
                 compressorFault.reset();
                 systemStatus = CoolerSystemStatus::RESET;
-                return;
+                return true;
             }
 
             if (systemStatus == CoolerSystemStatus::REQUIRES_RESET) {
                 // don't exit this state unless switch is returned to RESET position
-                return;
+                return true;
             }
 
             switch (switchPosition) {
                 case CoolerSwitchPosition::PRECHILL:
                     systemStatus = CoolerSystemStatus::PRECHILL;
-                    return;
+                    return true;
 
                 case CoolerSwitchPosition::PUMP_LOW:
                     systemStatus = CoolerSystemStatus::PUMP_LOW;
-                    return;
+                    return true;
 
                 case CoolerSwitchPosition::PUMP_MEDIUM:
                     systemStatus = CoolerSystemStatus::PUMP_MEDIUM;
-                    return;
+                    return true;
 
                 case CoolerSwitchPosition::PUMP_HIGH:
                     systemStatus = CoolerSystemStatus::PUMP_HIGH;
-                    return;
+                    return true;
 
                 default:
                     // do nothing
-                    return;
+                    return true;
             }
     }
 }
@@ -531,8 +542,8 @@ void CoolerSystem::displayInfo()
     coolshirtPWM.value() ? format.formatLiteral("ON\n") : format.formatLiteral("OFF\n");
 
     format.formatLiteral("  Chiller Pump Speed:            ");
-    format.formatUnsignedInt(roundf(chillerPumpSpeed * 100));
-    format.formatLiteral(" %\n");
+    format.formatFloat3DP(chillerPumpSpeed);
+    format.formatLiteral(" V\n");
 
     format.formatLiteral("  Compressor Speed:              ");
     format.formatUnsignedInt(roundf(compressorSpeed * 100));
@@ -601,7 +612,7 @@ void CoolerSystem::loop()
     }
 
     CoolerSystemStatus prevStatus = systemStatus;
-    updateState();
+    bool stateComputed = updateState();
     if (systemStatus != prevStatus) {
         LOG_INFO("[", ClockTime::secSinceEpoch(), " s] status changed from", CoolerSystemStatusToString(prevStatus), "to", CoolerSystemStatusToString(systemStatus));
     }
@@ -620,7 +631,10 @@ void CoolerSystem::loop()
 #endif
     }
 
-    updateOutputs();
+    if (stateComputed) {
+        updateOutputs();
+    }
+
     logData();
     displayInfo();
 };
@@ -755,7 +769,7 @@ void CoolerSystem::getLogMessage(StringFormatLog& format)
     format.formatFloat3DP(voltageMonitor.get3v3MilliVolts() / 1000.0);
     format.formatFloat3DP(voltageMonitor.getp3v3MilliVolts() / 1000.0);
     format.formatFloat3DP(coolingPower);
-    format.formatFloat3DP(compressorCurrent * voltageMonitor.get12vMilliVolts() / 1000.0);
+    format.formatFloat3DP(powerDraw);
     format.formatInt((int32_t) switchADC.position());
     format.formatUnsignedInt(switchADC.adc());
     format.formatInt((int32_t) systemStatus);
