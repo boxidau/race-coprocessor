@@ -769,7 +769,7 @@ void CoolerSystem::logData() {
 }
 
 const char* CoolerSystem::getLogHeader() {
-    return "time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapInletTempStdev,flowRate,instantaneousFlowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,coolantLevel,12v,5v,3v3,p3v3,coolingPower,powerDraw,switchPos,switchADC,status,systemEnable,chillerPumpSpeed,coolshirtEnable,compressorSpeed,underTempCutoff,systemFault,compressorFault,acquiredSamples\n";
+    return "time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapInletTempStdev,flowRate,instantaneousFlowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,12v,5v,3v3,p3v3,coolingPower,powerDraw,switchPos,switchADC,status,chillerPumpSpeed,coolshirtEnable,compressorSpeed,underTempCutoff,lowCoolant,flowRateLow,overPressure,underVolt,overVolt,compressorFault,acquiredSamples\n";
 }
 
 void CoolerSystem::getLogMessage(StringFormatLog& format)
@@ -795,7 +795,6 @@ void CoolerSystem::getLogMessage(StringFormatLog& format)
         format.formatLiteral("");
     }
 
-    format.formatBool(coolantLevel);
     format.formatFloat3DP(voltageMonitor.get12vMilliVolts() / 1000.0);
     format.formatFloat3DP(voltageMonitor.get5vMilliVolts() / 1000.0);
     format.formatFloat3DP(voltageMonitor.get3v3MilliVolts() / 1000.0);
@@ -805,12 +804,15 @@ void CoolerSystem::getLogMessage(StringFormatLog& format)
     format.formatInt((int32_t) switchADC.position());
     format.formatUnsignedInt(switchADC.adc());
     format.formatInt((int32_t) systemStatus);
-    format.formatBool(systemEnableOutput.value());
     format.formatFloat3DP(chillerPumpSpeed);
     format.formatBool(coolshirtPWM.value());
     format.formatFloat3DP(compressorSpeed);
     format.formatBool(undertempCutoff);
-    format.formatBinary(_systemFault);
+    format.formatBool(_systemFault & (byte) SystemFault::LOW_COOLANT);
+    format.formatBool(_systemFault & (byte) SystemFault::FLOW_RATE_LOW);
+    format.formatBool(_systemFault & (byte) SystemFault::SYSTEM_OVER_PRESSURE);
+    format.formatBool(_systemFault & (byte) SystemFault::SYSTEM_UNDERVOLT);
+    format.formatBool(_systemFault & (byte) SystemFault::SYSTEM_OVERVOLT);
     format.formatUnsignedInt((uint32_t) compressorFaultCode);
     format.formatUnsignedInt(sampleCounter - loggedSampleCounter);
 
