@@ -86,7 +86,7 @@ void setup()
     ADC *adc = SingletonADC::getADC();
     adc->adc0->setResolution(16);
     adc->adc0->setReference(ADC_REFERENCE::REF_EXT);
-    adc->adc0->setAveraging(16);
+    adc->adc0->setAveraging(32);
     adc->adc0->setConversionSpeed(ADC_CONVERSION_SPEED::HIGH_SPEED);
     adc->adc0->setSamplingSpeed(ADC_SAMPLING_SPEED::VERY_LOW_SPEED);
 
@@ -106,7 +106,7 @@ void setup()
     cooler.setupLogging();
 
     LOG_INFO("System Boot OK");
-    LOG_INFO("Type 1, 2, 3, 4, 5, 6 = 50%, 60%, 70%, 80%, 90%, 100% compressor speed, +/- = increment compressor speed, f = flush coolant");
+    LOG_INFO("Type 0 - 7 for compressor speed (0 = off, 1 = 50%, 7 = 100%), +/- = increment compressor speed, f = flush coolant");
 }
 
 void processRXCANMessage()
@@ -124,8 +124,8 @@ void loop()
     if (Serial.available()) {
         char input = Serial.read();
         LOG_INFO("Received input", input);
-        if (input >= '1' && input <= '6') {
-            cooler.setCompressorSpeedPercent(mapInputToCompressorSpeed(input));
+        if (input >= '0' && input <= '7') {
+            cooler.setCompressorSpeed(input - '0');
         } else if (input == '+' || input == '=') {
             cooler.setCompressorSpeedPercentOffset(1);
         } else if (input == '-') {

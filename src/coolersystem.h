@@ -47,12 +47,12 @@
 #define CHILLER_PUMP_MIN_SPEED 4.5 // Volts, try 4.5 here if things work ok. pump is specced down to 5V and drops out at 4V
 #define CHILLER_PUMP_MAX_SPEED 9 // Volts
 
-#define COMPRESSOR_UNDER_TEMP_CUTOFF_HIGH 3.5
-#define COMPRESSOR_RESTART_TEMP_HIGH 6.5
-#define COMPRESSOR_UNDER_TEMP_CUTOFF_MED 8.5
-#define COMPRESSOR_RESTART_TEMP_MED 11.5
-#define COMPRESSOR_UNDER_TEMP_CUTOFF_LOW 13.5
-#define COMPRESSOR_RESTART_TEMP_LOW 16.5
+#define COMPRESSOR_UNDER_TEMP_CUTOFF_HIGH 3
+#define COMPRESSOR_RESTART_TEMP_HIGH 7
+#define COMPRESSOR_UNDER_TEMP_CUTOFF_MED 8
+#define COMPRESSOR_RESTART_TEMP_MED 12
+#define COMPRESSOR_UNDER_TEMP_CUTOFF_LOW 13
+#define COMPRESSOR_RESTART_TEMP_LOW 17
 #define EVAPORATOR_OUTLET_PANIC_TEMPERATURE 0.0
 
 // valid range of compressor speed output is 4.16V = 47%, 8.40V = 96%
@@ -60,12 +60,22 @@
 // midpoints are 0.52, 0.60, 0.68, 0.76, 0.84, 0.92, 1.0.
 #define COMPRESSOR_MIN_SPEED_RATIO 0.52
 #define COMPRESSOR_MAX_SPEED_RATIO 1.0
-#define COMPRESSOR_DEFAULT_SPEED 0.76
+#define COMPRESSOR_DEFAULT_SPEED 0.84
 #define COMPRESSOR_SPEED_RATIO_TO_ANALOG (9 / (3.3 * 3.717) * ADC_MAX * 0.97)
 #define COMPRESSOR_MIN_COOLDOWN_MS 60000
 #define COMPRESSOR_PID_KP 0.5
 #define COMPRESSOR_PID_KI 0
 #define COMPRESSOR_PID_KD 0
+
+const float CompressorSpeeds[7] = {
+    0.52,
+    0.60,
+    0.68,
+    0.76,
+    0.84,
+    0.92,
+    1.00
+};
 
 // max flush time with pumps running, don't want to let them run dry for long
 #define FLUSH_TIMEOUT_MS 30000
@@ -218,6 +228,7 @@ private:
     // PID control inputs/outputs
     float evaporatorInletTemp { -100.0 };
     float compressorSpeed { 0 };
+    uint32_t compressorSpeedIndex { 0 };
     float compressorTempTarget { 5 };
     bool undertempCutoff { false };
     PID compressorPID {
@@ -333,7 +344,7 @@ public:
     void loop();
     void getSystemData(CoolerSystemData &data);
     uint32_t lastFlowPulseMicros();
-    void setCompressorSpeedPercent(uint32_t percent);
+    void setCompressorSpeed(uint32_t speed);
     void setCompressorSpeedPercentOffset(int32_t offset);
     void toggleFlush();
 };

@@ -171,6 +171,11 @@ void CoolerSystem::runCompressor()
     
     startupCompressor();
 
+    if (evaporatorInletTemp >= restartTemp + 2.0 && compressorSpeed < COMPRESSOR_DEFAULT_SPEED) {
+        // current speed isn't cutting it, kick to something higher
+        compressorSpeed = COMPRESSOR_DEFAULT_SPEED;
+    }
+
     compressorPID.Compute();
     //LOG_INFO(ClockTime::secSinceEpoch(), compressorSpeed, evaporatorInletTemp);
     analogWrite(compressorSpeedPin, roundf(compressorSpeed * COMPRESSOR_SPEED_RATIO_TO_ANALOG));
@@ -196,7 +201,25 @@ void CoolerSystem::startupCompressor()
     if (!systemEnableOutput.value() &&
         (!compressorShutoffTime || millis() >= compressorShutoffTime + COMPRESSOR_MIN_COOLDOWN_MS)) {
         systemEnableOutput.setBoolean(true);
-        compressorSpeed = COMPRESSOR_DEFAULT_SPEED;
+
+        // rotate through compressor speeds to gather data on each one,
+        // unless we're in prechill
+        switch(systemStatus) {
+            case CoolerSystemStatus::PUMP_LOW:
+            case CoolerSystemStatus::PUMP_MEDIUM:
+            case CoolerSystemStatus::PUMP_HIGH:
+                compressorSpeed = CompressorSpeeds[compressorSpeedIndex];
+                compressorSpeedIndex++;
+                if (compressorSpeedIndex == sizeof(CompressorSpeeds)) {
+                    compressorSpeedIndex = 0;
+                }
+                break;
+
+            default:
+                compressorSpeed = COMPRESSOR_DEFAULT_SPEED;
+                break;
+        }
+
 #if USE_COMPRESSOR_PID
         // initialize speed to 0 so PID controller doesn't start bumpless control starting at the default speed
         compressorSpeed = 0;
@@ -434,8 +457,8 @@ void CoolerSystem::updateOutputs()
             return;
 
         default:
-            runChillerPump();
             runCompressor();
+            runChillerPump();
             runCoolshirtPump();
             return;
     }
@@ -660,14 +683,23 @@ uint32_t CoolerSystem::lastFlowPulseMicros() {
     return flowSensor.lastPulseMicros();
 }
 
-void CoolerSystem::setCompressorSpeedPercent(uint32_t percent) {
-    compressorSpeed = (float) percent / 100;
+void CoolerSystem::setCompressorSpeed(uint32_t speed) {
+    if (speed == 0) {
+        compressorSpeed = 0;
+    } else if (speed >= 1 && speed <= 7) {
+        compressorSpeed = CompressorSpeeds[speed - 1];
+    } else {
+        return;
+    }
+
     analogWrite(compressorSpeedPin, compressorSpeed * COMPRESSOR_SPEED_RATIO_TO_ANALOG);
-    LOG_INFO("Setting compressor speed to", percent, "%");
+    LOG_INFO("Setting compressor speed to", roundf(compressorSpeed * 100), "%");
 }
 
 void CoolerSystem::setCompressorSpeedPercentOffset(int32_t offset) {
-    setCompressorSpeedPercent(roundf(compressorSpeed * 100) + offset);
+    compressorSpeed = roundf(compressorSpeed * 100 + offset) / 100;
+    analogWrite(compressorSpeedPin, compressorSpeed * COMPRESSOR_SPEED_RATIO_TO_ANALOG);
+    LOG_INFO("Setting compressor speed to", roundf(compressorSpeed * 100), "%");
 }
 
 void CoolerSystem::toggleFlush() {
