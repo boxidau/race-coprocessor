@@ -8,10 +8,11 @@
 #include "sdlogger.h"
 #include "clocktime.h"
 
+#define PREALLOC_BYTES (PREALLOC_MB * 1000000)
+
 static char lineBuffer[512];
 static FsFile logFile;
 static bool enableLog;
-static bool logFull;
 static Metro flushTimer = Metro(FLUSH_MS);
 static uint32_t bytesWritten;
 
@@ -22,14 +23,19 @@ void DataSDLogger::setup()
     }
 
 #if PREALLOC_MB
-    bool didPrealloc = SDLogger::preAlloc(logFile, PREALLOC_MB * 1000000);
+uint32_t m = micros();
+    if (SD.totalSize() - SD.usedSize() < PREALLOC_BYTES) {
+        return;
+    }
+    LOG_INFO("time to check free space", micros()-m);
+
+    bool didPrealloc = SDLogger::preAlloc(logFile, PREALLOC_BYTES);
     if (!didPrealloc) {
         return;
     }
 #endif
 
     enableLog = true;
-    logFull = false;
 }
 
 void DataSDLogger::logComment(const String line)
@@ -43,10 +49,6 @@ void DataSDLogger::logComment(const String line)
 
 bool DataSDLogger::logData(const char* data, size_t len)
 {
-    if (logFull) {
-        return false;
-    }
-
     if (!enableLog) {
         DataSDLogger::setup();
         if (!enableLog) {
@@ -54,10 +56,16 @@ bool DataSDLogger::logData(const char* data, size_t len)
         }
     }
 
-    if (bytesWritten + len > PREALLOC_MB * 1000000) {
-        LOG_WARN("Log file full, logging stopped");
-        logFull = true;
-        return false;
+    if (bytesWritten + len > PREALLOC_BYTES) {
+        LOG_WARN("Log file full, creating new file");
+        logFile.flush();
+        logFile.close();
+        bytesWritten = 0;
+        enableLog = false;
+        DataSDLogger::setup();
+        if (!enableLog) {
+            return false;
+        }
     }
 
     uint32_t written = logFile.write(data, len);
