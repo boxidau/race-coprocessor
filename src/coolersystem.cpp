@@ -169,15 +169,17 @@ void CoolerSystem::runCompressor()
         return;
     }
     
-    startupCompressor();
-
-    if (evaporatorInletTemp >= restartTemp + 2.0 && compressorSpeed < COMPRESSOR_DEFAULT_SPEED) {
-        // current speed isn't cutting it, kick to something higher
-        compressorSpeed = COMPRESSOR_DEFAULT_SPEED;
+    if (!systemEnableOutput.value()) {
+        startupCompressor();
     }
 
-    compressorPID.Compute();
+    adjustCompressorSpeed(compressorTempTarget);
+    compressorSpeed = CompressorSpeeds[compressorSpeedIndex];
+
     //LOG_INFO(ClockTime::secSinceEpoch(), compressorSpeed, evaporatorInletTemp);
+#if USE_COMPRESSOR_PID
+    compressorPID.Compute();
+#endif
     analogWrite(compressorSpeedPin, roundf(compressorSpeed * COMPRESSOR_SPEED_RATIO_TO_ANALOG));
 }
 
@@ -198,25 +200,25 @@ void CoolerSystem::shutdownCompressor()
 
 void CoolerSystem::startupCompressor()
 {
-    if (!systemEnableOutput.value() &&
-        (!compressorShutoffTime || millis() >= compressorShutoffTime + COMPRESSOR_MIN_COOLDOWN_MS)) {
+    uint32_t now = millis();
+    if (!compressorShutoffTime || now >= compressorShutoffTime + COMPRESSOR_MIN_COOLDOWN_MS) {
         systemEnableOutput.setBoolean(true);
 
-        // rotate through compressor speeds to gather data on each one,
-        // unless we're in prechill
         switch(systemStatus) {
             case CoolerSystemStatus::PUMP_LOW:
             case CoolerSystemStatus::PUMP_MEDIUM:
             case CoolerSystemStatus::PUMP_HIGH:
-                compressorSpeed = CompressorSpeeds[compressorSpeedIndex];
-                compressorSpeedIndex++;
-                if (compressorSpeedIndex == sizeof(CompressorSpeeds)) {
-                    compressorSpeedIndex = 0;
-                }
+                // start with last compressor speed minus one
+                compressorSpeedIndex = lastCompressorSpeedIndex > 1 ? lastCompressorSpeedIndex - 1 : 0;
+                lastCompressorSpeedIndex = compressorSpeedIndex;
+                compressorNextSpeedUpdateTime = now + COMPRESSOR_MEASUREMENT_DEADTIME;
                 break;
 
             default:
-                compressorSpeed = COMPRESSOR_DEFAULT_SPEED;
+                compressorSpeedIndex = COMPRESSOR_DEFAULT_SPEED_INDEX;
+                // reset last speed index so if we switch out of prechill, we start from the lowest speed
+                lastCompressorSpeedIndex = 0;
+                compressorNextSpeedUpdateTime = 0;
                 break;
         }
 
@@ -229,6 +231,44 @@ void CoolerSystem::startupCompressor()
         // reset note frequency analyzer to start with fresh data
         analyzeNoteFrequency.begin();
     }
+}
+
+void CoolerSystem::adjustCompressorSpeed(float targetTemp) {
+    // in prechill mode, no need to update speed
+    if (!compressorNextSpeedUpdateTime) {
+        return;
+    }
+
+    if (sampleCounter % COMPRESSOR_MEASUREMENT_TEMP_LAG_TIME == 0) {
+        evaporatorInletTempPrev2 = evaporatorInletTempPrev1;
+        evaporatorInletTempPrev1 = evaporatorInletTemp;
+    }
+
+    uint32_t now = millis();
+    if (now < compressorNextSpeedUpdateTime) {
+        return;
+    }
+
+    // don't adjust speed unless we're above the target temp
+    if (evaporatorInletTemp < targetTemp) {
+        return;
+    }
+
+    // measure the net heating/cooling rate
+    if (evaporatorInletTempPrev1 <= evaporatorInletTempPrev2) {
+        // net cooling, do nothing
+        return;
+    }
+
+    // net heating, go up a speed
+    if (compressorSpeedIndex == NUM_COMPRESSOR_SPEEDS - 1) {
+        // can't go higher
+        return;
+    }
+
+    compressorSpeedIndex++;
+    lastCompressorSpeedIndex = compressorSpeedIndex;
+    compressorNextSpeedUpdateTime = now + COMPRESSOR_MEASUREMENT_DEADTIME;
 }
 
 void CoolerSystem::runCoolshirtPump()

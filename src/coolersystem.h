@@ -47,29 +47,32 @@
 #define CHILLER_PUMP_MIN_SPEED 4.5 // Volts, try 4.5 here if things work ok. pump is specced down to 5V and drops out at 4V
 #define CHILLER_PUMP_MAX_SPEED 9 // Volts
 
-#define COMPRESSOR_UNDER_TEMP_CUTOFF_HIGH 3
-#define COMPRESSOR_RESTART_TEMP_HIGH 7
-#define COMPRESSOR_UNDER_TEMP_CUTOFF_MED 8
-#define COMPRESSOR_RESTART_TEMP_MED 12
-#define COMPRESSOR_UNDER_TEMP_CUTOFF_LOW 13
-#define COMPRESSOR_RESTART_TEMP_LOW 17
-#define EVAPORATOR_OUTLET_PANIC_TEMPERATURE 0.0
+#define COMPRESSOR_UNDER_TEMP_CUTOFF_HIGH 3.5
+#define COMPRESSOR_RESTART_TEMP_HIGH 6.5
+#define COMPRESSOR_UNDER_TEMP_CUTOFF_MED 8.5
+#define COMPRESSOR_RESTART_TEMP_MED 11.5
+#define COMPRESSOR_UNDER_TEMP_CUTOFF_LOW 13.5
+#define COMPRESSOR_RESTART_TEMP_LOW 16.5
+#define EVAPORATOR_OUTLET_PANIC_TEMPERATURE 0
 
 // valid range of compressor speed output is 4.16V = 47%, 8.40V = 96%
 // speed steps are 0.47 (zero below this), 0.56, 0.64, 0.72, 0.80, 0.88, 0.96.
 // midpoints are 0.52, 0.60, 0.68, 0.76, 0.84, 0.92, 1.0.
 #define COMPRESSOR_MIN_SPEED_RATIO 0.52
 #define COMPRESSOR_MAX_SPEED_RATIO 1.0
-#define COMPRESSOR_DEFAULT_SPEED 0.84
+#define COMPRESSOR_DEFAULT_SPEED_INDEX 2
 #define COMPRESSOR_SPEED_RATIO_TO_ANALOG (9 / (3.3 * 3.717) * ADC_MAX * 0.97)
 #define COMPRESSOR_MIN_COOLDOWN_MS 60000
 #define COMPRESSOR_PID_KP 0.5
 #define COMPRESSOR_PID_KI 0
 #define COMPRESSOR_PID_KD 0
+#define COMPRESSOR_MEASUREMENT_DEADTIME 200000 // ms
+#define COMPRESSOR_MEASUREMENT_TEMP_LAG_TIME 10000 // ms
 
-const float CompressorSpeeds[7] = {
-    0.52,
-    0.60,
+#define NUM_COMPRESSOR_SPEEDS 5
+const float CompressorSpeeds[NUM_COMPRESSOR_SPEEDS] = {
+    // 0.52,
+    // 0.60,
     0.68,
     0.76,
     0.84,
@@ -224,13 +227,17 @@ private:
     float coolingPower { 0 };
     float powerDraw { 0 };
     uint32_t compressorShutoffTime { 0 };
+    uint32_t compressorSpeedIndex { 0 };
+    bool undertempCutoff { false };
+    uint32_t lastCompressorSpeedIndex { 0 };
+    uint32_t compressorNextSpeedUpdateTime { 0 };
+    float evaporatorInletTempPrev1 { 0 };
+    float evaporatorInletTempPrev2 { 0 };
 
     // PID control inputs/outputs
     float evaporatorInletTemp { -100.0 };
     float compressorSpeed { 0 };
-    uint32_t compressorSpeedIndex { 0 };
     float compressorTempTarget { 5 };
-    bool undertempCutoff { false };
     PID compressorPID {
         &evaporatorInletTemp,
         &compressorSpeed,
@@ -271,6 +278,7 @@ private:
     void runCompressor();
     void shutdownCompressor();
     void startupCompressor();
+    void adjustCompressorSpeed(float targetTemp);
     void runCoolshirtPump();
     void check(bool assertionResult, SystemFault fault);
 
