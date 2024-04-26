@@ -75,8 +75,9 @@ void CoolerSystem::setupIO()
 void CoolerSystem::setupLogging()
 {
 #if NTC_DEBUG
+    sampleLogger.ensureSetup("time,12v,5v,3v3");
     //sampleLogger.ensureSetup("time,current,biquad,12V");
-    sampleLogger.ensureSetup("time,inlet,outlet");
+    // sampleLogger.ensureSetup("time,inlet,outlet");
 #elif FLOW_DEBUG
     sampleLogger.ensureSetup("time,index,duration,chillerPump,coolantLevel");
 #endif
@@ -667,7 +668,7 @@ void CoolerSystem::loop()
     }
 
     acquireSamples();
-    
+
     // sanity check in case of logic bugs or unexpected system conditions: if evaporator outlet temp drops below 0C,
     // panic and shut the compressor down
     if (evaporatorOutletNTC.temperature() <= EVAPORATOR_OUTLET_PANIC_TEMPERATURE && systemEnableOutput.value()) {
@@ -678,6 +679,21 @@ void CoolerSystem::loop()
         return;
     }
 
+#if 0 // RC_DEBUG
+    static bool alternatorOn;
+    if (voltageMonitor.get12vMilliVolts() > 13000) {
+        alternatorOn = true;
+    }
+
+    if (voltageMonitor.getLatest12vMilliVolts() < 12000) {
+        uint32_t m = micros();
+        while (voltageMonitor.getLatest12vMilliVolts() < 12200 && voltageMonitor.getLatest12vMilliVolts() > 2000) {
+            voltageMonitor.loop();
+            LOG_INFO("Time", micros() - m, "us, 12V", voltageMonitor.getLatest12vMilliVolts(), "5V", voltageMonitor.getLatest5vMilliVolts(), "3.3V", voltageMonitor.getLatest3v3MilliVolts());
+        }
+    }
+#endif
+
     CoolerSystemStatus prevStatus = systemStatus;
     bool stateComputed = updateState();
     if (systemStatus != prevStatus) {
@@ -686,7 +702,8 @@ void CoolerSystem::loop()
 
     if (systemStatus != CoolerSystemStatus::STARTUP) {
 #if NTC_DEBUG
-        sampleLogger.logSamples(ClockTime::millisSinceEpoch(), evaporatorInletNTC.latest(), evaporatorOutletNTC.latest(), 0, 0);
+        sampleLogger.logSamples(ClockTime::millisSinceEpoch(), voltageMonitor.getLatest12vMillivolts(), voltageMonitor.getLatest5vMillivolts(), voltageMonitor.getLatest3v3Millivolts(), 0);
+        // sampleLogger.logSamples(ClockTime::millisSinceEpoch(), evaporatorInletNTC.latest(), evaporatorOutletNTC.latest(), 0, 0);
         //sampleLogger.logSamples(sampleTime, currentSensor.latest(), compressorCurrentBiquadOutput + 30000, analogRead(ADC_SYSTEM_12V), 0);
         //sampleLogger.logSamples(sampleTime, currentSensor.latest(), compressorCurrentBiquadOutput + 30000, analyzeNoteFrequency.read() * 100, analyzeNoteFrequency.probability() * 1000);
 #elif FLOW_DEBUG

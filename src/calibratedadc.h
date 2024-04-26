@@ -11,6 +11,8 @@ private:
     uint16_t calibrationHighADC, calibrationHighValue;
     bool constrainCalibration { false };
 
+    uint16_t calibrate(uint16_t value);
+
 public:
     CalibratedADC(const uint8_t _pin, const uint8_t _adcNum) : 
         BaseADC(_pin, _adcNum)
@@ -26,4 +28,5 @@ public:
     );
 
     uint16_t calibratedValue();
+    uint16_t calibratedLatestValue();
 };

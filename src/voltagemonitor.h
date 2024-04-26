@@ -50,4 +50,7 @@ class VoltageMonitor {
         const uint16_t getp3v3MilliVolts();
         const uint16_t get5vMilliVolts();
         const uint16_t get12vMilliVolts();
+        const uint16_t getLatest3v3MilliVolts();
+        const uint16_t getLatest5vMilliVolts();
+        const uint16_t getLatest12vMilliVolts();
 };

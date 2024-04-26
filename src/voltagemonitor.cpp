@@ -62,3 +62,15 @@ const uint16_t VoltageMonitor::get5vMilliVolts() {
 const uint16_t VoltageMonitor::get12vMilliVolts() {
     return sys12v.calibratedValue();
 };
+
+const uint16_t VoltageMonitor::getLatest3v3MilliVolts() {
+    return sys3v3.calibratedLatestValue();
+};
+
+const uint16_t VoltageMonitor::getLatest5vMilliVolts() {
+    return sys5v.calibratedLatestValue();
+};
+
+const uint16_t VoltageMonitor::getLatest12vMilliVolts() {
+    return sys12v.calibratedLatestValue();
+};

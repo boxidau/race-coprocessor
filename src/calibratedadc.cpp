@@ -14,17 +14,24 @@ void CalibratedADC::setCalibration(
     constrainCalibration = constrain;
 }
 
-uint16_t CalibratedADC::calibratedValue() {
-    uint16_t _adc = this->adc();
+uint16_t CalibratedADC::calibrate(uint16_t value) {
     if (constrainCalibration) {
-        _adc = constrain(_adc, calibrationLowADC, calibrationHighADC);
+        value = constrain(value, calibrationLowADC, calibrationHighADC);
     }
 
     return map(
-        _adc,
+        value,
         calibrationLowADC,
         calibrationHighADC,
         calibrationLowValue,
         calibrationHighValue
     );
+}
+
+uint16_t CalibratedADC::calibratedValue() {
+    return calibrate(this->adc());
+}
+
+uint16_t CalibratedADC::calibratedLatestValue() {
+    return calibrate(this->latest());
 }
