@@ -1,4 +1,5 @@
 #include "coolersystem.h"
+#include "watchdog.h"
 #include "clocktime.h"
 #include "datasdlogger.h"
 
@@ -133,6 +134,9 @@ void CoolerSystem::runChillerPump()
 
 void CoolerSystem::runCompressor()
 {
+    // reset watchdog at the point we handle compressor control
+    watchdog_reset();
+
     // calculate temperature thresholds
     float cutoffTemp = COMPRESSOR_UNDER_TEMP_CUTOFF_HIGH, restartTemp = COMPRESSOR_RESTART_TEMP_HIGH;
     switch (systemStatus) {
@@ -662,7 +666,7 @@ void CoolerSystem::loop()
         return;
     }
 
-    acquireSamples();    
+    acquireSamples();
     
     // sanity check in case of logic bugs or unexpected system conditions: if evaporator outlet temp drops below 0C,
     // panic and shut the compressor down

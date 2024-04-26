@@ -6,6 +6,7 @@
 #include <FlexCAN.h>
 #include <ADC.h>
 
+#include "watchdog.h"
 #include "canlogger.h"
 #include "clocktime.h"
 #include "utils.h"
@@ -135,6 +136,8 @@ void loop()
         }
     }
 #endif
+
+    watchdog_ensure_init();
 
     // tick functions for all modules
     cooler.loop();
