@@ -95,41 +95,45 @@ void CoolerSystem::pollCoolantLevel()
 
 void CoolerSystem::runChillerPump()
 {
-    // run chiller pump whenever the compressor is on
-    if (systemEnableOutput.value()) {
-        if (!chillerPumpPWM.value()) {
-            pumpStartTime = millis();
-            chillerPumpSpeed = CHILLER_PUMP_DEFAULT_SPEED;
+    switch (systemStatus) {
+        case CoolerSystemStatus::PRECHILL:
+        case CoolerSystemStatus::PUMP_LOW:
+        case CoolerSystemStatus::PUMP_MEDIUM:
+        case CoolerSystemStatus::PUMP_HIGH:
+        case CoolerSystemStatus::FLUSH:
+            if (!chillerPumpPWM.value()) {
+                pumpStartTime = millis();
+                chillerPumpSpeed = CHILLER_PUMP_DEFAULT_SPEED;
 #if USE_CHILLER_PUMP_PID
-            // initialize speed to 0 so PID controller doesn't start bumpless control starting at the default speed.
-            // consider initializing to max for faster response?
-            chillerPumpSpeed = 0;
-            chillerPumpPID.SetMode(AUTOMATIC);
+                // initialize speed to 0 so PID controller doesn't start bumpless control starting at the default speed.
+                // consider initializing to max for faster response?
+                chillerPumpSpeed = 0;
+                chillerPumpPID.SetMode(AUTOMATIC);
 #endif
 #if FLOW_DEBUG
-            // log the exact time the pump started running
-            sampleLogger.logSamples(ClockTime::millisSinceEpoch(), 0, 0, 1, 0);
+                // log the exact time the pump started running
+                sampleLogger.logSamples(ClockTime::millisSinceEpoch(), 0, 0, 1, 0);
 #endif
-        }
+            }
 
-        chillerPumpPID.Compute();
-        // scale PWM output by the system voltage, with safety net in case it glitches low
-        chillerPumpPWM.set(roundf(chillerPumpSpeed / max(voltageMonitor.get12vMilliVolts(), 10000) * 1000 * ADC_MAX));
-        //LOG_INFO(ClockTime::secSinceEpoch(), chillerPumpSpeed, instantaneousFlowRate, flowRate);
-        return;
-    }
+            chillerPumpPID.Compute();
+            // scale PWM output by the system voltage, with safety net in case it glitches low
+            chillerPumpPWM.set(roundf(chillerPumpSpeed / max(voltageMonitor.get12vMilliVolts(), 10000) * 1000 * ADC_MAX));
+            //LOG_INFO(ClockTime::secSinceEpoch(), chillerPumpSpeed, instantaneousFlowRate, flowRate);
+            return;
 
-    // compressor is off
-    if (chillerPumpPWM.value()) {
-        // shut down pump
+        default:
+            if (chillerPumpPWM.value()) {
+                // shut down pump
 #if FLOW_DEBUG
-        sampleLogger.logSamples(ClockTime::millisSinceEpoch(), 0, 0, 0, 0);
+                sampleLogger.logSamples(ClockTime::millisSinceEpoch(), 0, 0, 0, 0);
 #endif
 
-        chillerPumpPID.SetMode(MANUAL);
-        chillerPumpPWM.set(0);
-        chillerPumpSpeed = 0;
-        return;
+                chillerPumpPID.SetMode(MANUAL);
+                chillerPumpPWM.set(0);
+                chillerPumpSpeed = 0;
+            }
+            return;
     }
 }
 
@@ -174,8 +178,10 @@ void CoolerSystem::runCompressor()
         return;
     }
     
+    startupCompressor();
     if (!systemEnableOutput.value()) {
-        startupCompressor();
+        // compressor not started yet, waiting on cooldown or startup delays
+        return;
     }
 
     adjustCompressorSpeed(compressorTempTarget);
@@ -212,7 +218,9 @@ void CoolerSystem::shutdownCompressor()
 void CoolerSystem::startupCompressor()
 {
     uint32_t now = millis();
-    if (!compressorShutoffTime || now >= compressorShutoffTime + COMPRESSOR_MIN_COOLDOWN_MS) {
+    if (!systemEnableOutput.value() &&
+        chillerPumpPWM.value() && now >= pumpStartTime + COMPRESSOR_STARTUP_DELAY_MS &&
+        (!compressorShutoffTime || now >= compressorShutoffTime + COMPRESSOR_MIN_COOLDOWN_MS)) {
         systemEnableOutput.setBoolean(true);
 
         switch(systemStatus) {
@@ -508,8 +516,8 @@ void CoolerSystem::updateOutputs()
             return;
 
         default:
-            runCompressor();
             runChillerPump();
+            runCompressor();
             runCoolshirtPump();
             return;
     }

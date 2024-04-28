@@ -54,6 +54,7 @@
 #define COMPRESSOR_UNDER_TEMP_CUTOFF_LOW 13.5
 #define COMPRESSOR_RESTART_TEMP_LOW 16.5
 #define EVAPORATOR_OUTLET_PANIC_TEMPERATURE 0
+#define COMPRESSOR_STARTUP_DELAY_MS 2000
 
 // valid range of compressor speed output is 4.16V = 47%, 8.40V = 96%
 // speed steps are 0.47 (zero below this), 0.56, 0.64, 0.72, 0.80, 0.88, 0.96.

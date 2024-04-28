@@ -129,13 +129,19 @@ void CoolerUI::loop() {
         displayPageNameUntil = millis() + 1000; 
     }
 
+    coolerSystem.getSystemData(rtData);
+
     // pulse the green LED with period = flow rate / 4
-    uint32_t lastFlowPulse = coolerSystem.lastFlowPulseMicros();
-    if (lastFlowPulse != lastFlowPulseDisplayed) {
-        if (pulseDivider++ % 2) {
-            display.setLED(ScreenLED::GREEN, !display.getLED(ScreenLED::GREEN));
+    if (rtData.flowRate > 0) {
+        uint32_t lastFlowPulse = coolerSystem.lastFlowPulseMicros();
+        if (lastFlowPulse != lastFlowPulseDisplayed) {
+            if (pulseDivider++ % 2) {
+                display.setLED(ScreenLED::GREEN, !display.getLED(ScreenLED::GREEN));
+            }
+            lastFlowPulseDisplayed = lastFlowPulse;
         }
-        lastFlowPulseDisplayed = lastFlowPulse;
+    } else {
+        display.setLED(ScreenLED::GREEN, false);
     }
 
     // blink error codes to red LED and external status LED
@@ -148,8 +154,6 @@ void CoolerUI::loop() {
     if (!displayUpdate.check()) {
         return;
     }
-
-    coolerSystem.getSystemData(rtData);
 
     if (shouldDisplayName()) {
         switch (page) {
