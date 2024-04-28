@@ -66,13 +66,24 @@
 #define COMPRESSOR_PID_KP 0.5
 #define COMPRESSOR_PID_KI 0
 #define COMPRESSOR_PID_KD 0
-#define COMPRESSOR_MEASUREMENT_DEADTIME 200000 // ms
 #define COMPRESSOR_MEASUREMENT_TEMP_LAG_TIME 10000 // ms
 
-#define NUM_COMPRESSOR_SPEEDS 5
+#define LOWEST_USABLE_COMPRESSOR_SPEED 1
+#define NUM_COMPRESSOR_SPEEDS 7
+
+const float CompressorDeadTimeMeasurements[NUM_COMPRESSOR_SPEEDS] = {
+    400,
+    400,
+    400,
+    350,
+    300,
+    250,
+    200
+};
+
 const float CompressorSpeeds[NUM_COMPRESSOR_SPEEDS] = {
-    // 0.52,
-    // 0.60,
+    0.52,
+    0.60,
     0.68,
     0.76,
     0.84,
@@ -233,6 +244,7 @@ private:
     uint32_t compressorNextSpeedUpdateTime { 0 };
     float evaporatorInletTempPrev1 { 0 };
     float evaporatorInletTempPrev2 { 0 };
+    bool compressorManualControl { false };
 
     // PID control inputs/outputs
     float evaporatorInletTemp { -100.0 };
@@ -250,7 +262,7 @@ private:
     };
 
     float instantaneousFlowRate { 0 };
-    float chillerPumpSpeed { CHILLER_PUMP_DEFAULT_SPEED };
+    float chillerPumpSpeed { 0 };
     float flowRateTarget { FLOW_RATE_TARGET };
     PID chillerPumpPID {
         &instantaneousFlowRate,
@@ -354,5 +366,6 @@ public:
     uint32_t lastFlowPulseMicros();
     void setCompressorSpeed(uint32_t speed);
     void setCompressorSpeedPercentOffset(int32_t offset);
+    void resumeCompressorControl();
     void toggleFlush();
 };

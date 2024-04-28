@@ -179,6 +179,11 @@ void CoolerSystem::runCompressor()
     }
 
     adjustCompressorSpeed(compressorTempTarget);
+
+    if (compressorManualControl) {
+        return;
+    }
+
     compressorSpeed = CompressorSpeeds[compressorSpeedIndex];
 
     //LOG_INFO(ClockTime::secSinceEpoch(), compressorSpeed, evaporatorInletTemp);
@@ -192,6 +197,7 @@ void CoolerSystem::shutdownCompressor()
 {
     if (systemEnableOutput.value()) {
         compressorShutoffTime = millis();
+        compressorManualControl = false;
         compressorSpeed = 0;
         systemEnableOutput.setBoolean(false);
         analogWrite(compressorSpeedPin, 0);
@@ -214,15 +220,15 @@ void CoolerSystem::startupCompressor()
             case CoolerSystemStatus::PUMP_MEDIUM:
             case CoolerSystemStatus::PUMP_HIGH:
                 // start with last compressor speed minus one
-                compressorSpeedIndex = lastCompressorSpeedIndex > 1 ? lastCompressorSpeedIndex - 1 : 0;
+                compressorSpeedIndex = lastCompressorSpeedIndex > LOWEST_USABLE_COMPRESSOR_SPEED + 1 ? lastCompressorSpeedIndex - 1 : LOWEST_USABLE_COMPRESSOR_SPEED;
                 lastCompressorSpeedIndex = compressorSpeedIndex;
-                compressorNextSpeedUpdateTime = now + COMPRESSOR_MEASUREMENT_DEADTIME;
+                compressorNextSpeedUpdateTime = now + CompressorDeadTimeMeasurements[compressorSpeedIndex] * 1000;
                 break;
 
             default:
                 compressorSpeedIndex = COMPRESSOR_DEFAULT_SPEED_INDEX;
                 // reset last speed index so if we switch out of prechill, we start from the lowest speed
-                lastCompressorSpeedIndex = 0;
+                lastCompressorSpeedIndex = LOWEST_USABLE_COMPRESSOR_SPEED;
                 compressorNextSpeedUpdateTime = 0;
                 break;
         }
@@ -273,7 +279,7 @@ void CoolerSystem::adjustCompressorSpeed(float targetTemp) {
 
     compressorSpeedIndex++;
     lastCompressorSpeedIndex = compressorSpeedIndex;
-    compressorNextSpeedUpdateTime = now + COMPRESSOR_MEASUREMENT_DEADTIME;
+    compressorNextSpeedUpdateTime = now + CompressorDeadTimeMeasurements[compressorSpeedIndex] * 1000;
 }
 
 void CoolerSystem::runCoolshirtPump()
@@ -617,6 +623,15 @@ void CoolerSystem::displayInfo()
     format.formatUnsignedInt(roundf(compressorSpeed * 100));
     format.formatLiteral(" %\n");
 
+    format.formatLiteral("  Compressor Cooldown Time:      ");
+    uint32_t now = millis();
+    if (compressorShutoffTime && now < compressorShutoffTime + COMPRESSOR_MIN_COOLDOWN_MS) {
+        format.formatUnsignedInt(ceilf((float) (compressorShutoffTime + COMPRESSOR_MIN_COOLDOWN_MS - now) / 1000));
+        format.formatLiteral(" s\n");
+    } else {
+        format.formatLiteral("---\n");
+    }
+
     format.formatLiteral("  Undertemp Cutoff:              ");
     undertempCutoff ? format.formatLiteral("CUTOFF\n") : format.formatLiteral("OK\n");
 
@@ -680,6 +695,11 @@ void CoolerSystem::loop()
     }
 
 #if 0 // RC_DEBUG
+    if (voltageMonitor.isKillswitchOff()) {
+        // immediately flush logs, and throw a fault
+        DataSDLogger::finish();
+    }
+
     static bool alternatorOn;
     if (voltageMonitor.get12vMilliVolts() > 13000) {
         alternatorOn = true;
@@ -745,9 +765,11 @@ uint32_t CoolerSystem::lastFlowPulseMicros() {
 }
 
 void CoolerSystem::setCompressorSpeed(uint32_t speed) {
+    compressorManualControl = true;
+
     if (speed == 0) {
         compressorSpeed = 0;
-    } else if (speed >= 1 && speed <= 7) {
+    } else if (speed >= 1 && speed <= NUM_COMPRESSOR_SPEEDS) {
         compressorSpeed = CompressorSpeeds[speed - 1];
     } else {
         return;
@@ -758,9 +780,14 @@ void CoolerSystem::setCompressorSpeed(uint32_t speed) {
 }
 
 void CoolerSystem::setCompressorSpeedPercentOffset(int32_t offset) {
+    compressorManualControl = true;
     compressorSpeed = roundf(compressorSpeed * 100 + offset) / 100;
     analogWrite(compressorSpeedPin, compressorSpeed * COMPRESSOR_SPEED_RATIO_TO_ANALOG);
     LOG_INFO("Setting compressor speed to", roundf(compressorSpeed * 100), "%");
+}
+
+void CoolerSystem::resumeCompressorControl() {
+    compressorManualControl = false;
 }
 
 void CoolerSystem::toggleFlush() {

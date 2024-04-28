@@ -20,16 +20,20 @@ void VoltageMonitor::loop() {
     // if 12V out of range, wait for timeout before we report it
     // this is so the car can start without undervolting
     uint16_t sys12vMillivolts = get12vMilliVolts();
-    uint32_t ms = millis();
-    if (sys12vMillivolts < UNDERVOLT_12V) {
-        millisSince12vUndervolt = millisSince12vUndervolt || ms;
-    } else {
+    uint32_t now = millis();
+    if (!millisSince12vUndervolt && sys12vMillivolts <= UNDERVOLT_12V) {
+        millisSince12vUndervolt = now;
+    } else if (sys12vMillivolts > UNDERVOLT_12V) {
         millisSince12vUndervolt = 0;
     }
-    if (sys12vMillivolts > OVERVOLT_12V) {
-        millisSince12vOvervolt = millisSince12vOvervolt || ms;
-    } else {
+    if (!millisSince12vOvervolt && sys12vMillivolts >= OVERVOLT_12V) {
+        millisSince12vOvervolt = now;
+    } else if (sys12vMillivolts < OVERVOLT_12V) {
         millisSince12vOvervolt = 0;
+    }
+
+    if (sys12vMillivolts >= ENGINE_RUNNING_VOLTAGE) {
+        millisSinceEngineRunning = now;
     }
 };
 
@@ -37,14 +41,14 @@ const bool VoltageMonitor::underVoltage() {
     return (get3v3MilliVolts() < UNDERVOLT_3V3)
         || (getp3v3MilliVolts() < UNDERVOLT_P3V3)
         || (get5vMilliVolts() < UNDERVOLT_5V)
-        || (millisSince12vUndervolt && (millis() - millisSince12vUndervolt > MS_12V_OUT_OF_RANGE_TIMEOUT));
+        || (millisSince12vUndervolt && (millis() >= millisSince12vUndervolt + MS_12V_OUT_OF_RANGE_TIMEOUT));
 };
 
 const bool VoltageMonitor::overVoltage() {
     return (get3v3MilliVolts() > OVERVOLT_3V3)
         || (getp3v3MilliVolts() > OVERVOLT_P3V3)
         || (get5vMilliVolts() > OVERVOLT_5V)
-        || (millisSince12vOvervolt && (millis() - millisSince12vOvervolt > MS_12V_OUT_OF_RANGE_TIMEOUT));
+        || (millisSince12vOvervolt && (millis() >= millisSince12vOvervolt + MS_12V_OUT_OF_RANGE_TIMEOUT));
 };
 
 const uint16_t VoltageMonitor::get3v3MilliVolts() {
@@ -74,3 +78,9 @@ const uint16_t VoltageMonitor::getLatest5vMilliVolts() {
 const uint16_t VoltageMonitor::getLatest12vMilliVolts() {
     return sys12v.calibratedLatestValue();
 };
+
+const bool VoltageMonitor::isKillswitchOff() {
+    return millisSinceEngineRunning &&
+        millis() <= millisSinceEngineRunning + ENGINE_KILL_DURATION &&
+        getLatest12vMilliVolts() <= KILLSWITCH_OFF_VOLTAGE;
+}

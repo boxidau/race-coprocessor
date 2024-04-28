@@ -87,7 +87,7 @@ void setup()
     ADC *adc = SingletonADC::getADC();
     adc->adc0->setResolution(16);
     adc->adc0->setReference(ADC_REFERENCE::REF_EXT);
-    adc->adc0->setAveraging(32);
+    adc->adc0->setAveraging(16);
     adc->adc0->setConversionSpeed(ADC_CONVERSION_SPEED::HIGH_SPEED);
     adc->adc0->setSamplingSpeed(ADC_SAMPLING_SPEED::VERY_LOW_SPEED);
 
@@ -107,7 +107,7 @@ void setup()
     cooler.setupLogging();
 
     LOG_INFO("System Boot OK");
-    LOG_INFO("Type 0 - 7 for compressor speed (0 = off, 1 = 50%, 7 = 100%), +/- = increment compressor speed, f = flush coolant");
+    LOG_INFO("Type 0 - 7 for compressor speed (0 = off, 1 = 50%, 7 = 100%), +/- = increment compressor speed, r = resume automatic compressor control, f = flush coolant");
 }
 
 void processRXCANMessage()
@@ -131,6 +131,8 @@ void loop()
             cooler.setCompressorSpeedPercentOffset(1);
         } else if (input == '-') {
             cooler.setCompressorSpeedPercentOffset(-1);
+        } else if (input == 'r') {
+            cooler.resumeCompressorControl();
         } else if (input == 'f') {
             cooler.toggleFlush();
         }

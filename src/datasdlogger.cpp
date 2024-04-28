@@ -23,12 +23,6 @@ void DataSDLogger::setup()
     }
 
 #if PREALLOC_MB
-uint32_t m = micros();
-    if (SD.totalSize() - SD.usedSize() < PREALLOC_BYTES) {
-        return;
-    }
-    LOG_INFO("time to check free space", micros()-m);
-
     bool didPrealloc = SDLogger::preAlloc(logFile, PREALLOC_BYTES);
     if (!didPrealloc) {
         return;
@@ -58,10 +52,7 @@ bool DataSDLogger::logData(const char* data, size_t len)
 
     if (bytesWritten + len > PREALLOC_BYTES) {
         LOG_WARN("Log file full, creating new file");
-        logFile.flush();
-        logFile.close();
-        bytesWritten = 0;
-        enableLog = false;
+        finish();
         DataSDLogger::setup();
         if (!enableLog) {
             return false;
@@ -88,4 +79,15 @@ bool DataSDLogger::logData(const char* data, size_t len)
 bool DataSDLogger::logData(const char* data)
 {
     return logData(data, strlen(data));
+}
+
+void DataSDLogger::finish() {
+    if (!enableLog) {
+        return;
+    }
+
+    logFile.flush();
+    logFile.close();
+    bytesWritten = 0;
+    enableLog = false;
 }

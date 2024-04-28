@@ -17,11 +17,16 @@ const uint16_t UNDERVOLT_12V = 11000;
 const uint16_t OVERVOLT_12V  = 16000;
 const uint16_t MS_12V_OUT_OF_RANGE_TIMEOUT = 10000;
 
+const uint16_t ENGINE_RUNNING_VOLTAGE = 13000;
+const uint16_t KILLSWITCH_OFF_VOLTAGE = 6000;
+const uint32_t ENGINE_KILL_DURATION = 1000;
+
 class VoltageMonitor {
     private:
         CalibratedADC sys12v, sys5v, sys3v3, sysp3v3;
         uint32_t millisSince12vUndervolt { 0 };
         uint32_t millisSince12vOvervolt { 0 };
+        uint32_t millisSinceEngineRunning { 0 };
 
     public:
         VoltageMonitor(
@@ -45,6 +50,7 @@ class VoltageMonitor {
 
         const bool underVoltage();
         const bool overVoltage();
+        const bool isKillswitchOff();
 
         const uint16_t get3v3MilliVolts();
         const uint16_t getp3v3MilliVolts();

@@ -10,4 +10,5 @@ class DataSDLogger
         static void logComment(const String line);
         static bool logData(const char* data, size_t len);
         static bool logData(const char* data);
+        static void finish();
 };
