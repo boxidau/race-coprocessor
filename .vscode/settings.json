@@ -25,7 +25,10 @@
         "memory_resource": "cpp",
         "fstream": "cpp",
         "sstream": "cpp",
-        "numbers": "cpp"
+        "numbers": "cpp",
+        "functional": "cpp",
+        "tuple": "cpp",
+        "type_traits": "cpp"
     },
     "C_Cpp.errorSquiggles": "Enabled"
 }

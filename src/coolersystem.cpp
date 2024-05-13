@@ -57,7 +57,7 @@ void CoolerSystem::setupIO()
 
     pinMode(compressorSpeedPin, OUTPUT);
     analogWrite(compressorSpeedPin, 0);
-    compressorPID.SetOutputLimits(COMPRESSOR_MIN_SPEED_RATIO, COMPRESSOR_MAX_SPEED_RATIO);
+    compressorPID.SetOutputLimits(CompressorSpeeds[LOWEST_OPERATING_COMPRESSOR_SPEED_INDEX], CompressorSpeeds[HIGHEST_OPERATING_COMPRESSOR_SPEED_INDEX]);
     compressorPID.SetSampleTime(UPDATE_STATE_TIMER_MS);
     compressorPID.SetMode(MANUAL);
 
@@ -79,7 +79,7 @@ void CoolerSystem::setupLogging()
     //sampleLogger.ensureSetup("time,current,biquad,12V");
     // sampleLogger.ensureSetup("time,inlet,outlet");
 #elif FLOW_DEBUG
-    sampleLogger.ensureSetup("time,index,duration,chillerPump,coolantLevel");
+    sampleLogger.ensureSetup("time,index,duration,inletTemp,outletTemp,chillerPumpSpeed,coolantLevel,flowRate");
 #endif
 
     DataSDLogger::setup();
@@ -110,25 +110,17 @@ void CoolerSystem::runChillerPump()
                 chillerPumpSpeed = 0;
                 chillerPumpPID.SetMode(AUTOMATIC);
 #endif
-#if FLOW_DEBUG
-                // log the exact time the pump started running
-                sampleLogger.logSamples(ClockTime::millisSinceEpoch(), 0, 0, 1, 0);
-#endif
             }
 
             chillerPumpPID.Compute();
-            // scale PWM output by the system voltage, with safety net in case it glitches low
-            chillerPumpPWM.set(roundf(chillerPumpSpeed / max(voltageMonitor.get12vMilliVolts(), 10000) * 1000 * ADC_MAX));
+            // scale PWM output by the system voltage
+            chillerPumpPWM.set(roundf(chillerPumpSpeed / voltageMonitor.get12vMilliVolts() * 1000 * ADC_MAX));
             //LOG_INFO(ClockTime::secSinceEpoch(), chillerPumpSpeed, instantaneousFlowRate, flowRate);
             return;
 
         default:
             if (chillerPumpPWM.value()) {
                 // shut down pump
-#if FLOW_DEBUG
-                sampleLogger.logSamples(ClockTime::millisSinceEpoch(), 0, 0, 0, 0);
-#endif
-
                 chillerPumpPID.SetMode(MANUAL);
                 chillerPumpPWM.set(0);
                 chillerPumpSpeed = 0;
@@ -184,19 +176,25 @@ void CoolerSystem::runCompressor()
         return;
     }
 
+#if !USE_COMPRESSOR_PID
     adjustCompressorSpeed(compressorTempTarget);
+#endif
 
     if (compressorManualControl) {
         return;
     }
 
-    compressorSpeed = CompressorSpeeds[compressorSpeedIndex];
-
     //LOG_INFO(ClockTime::secSinceEpoch(), compressorSpeed, evaporatorInletTemp);
 #if USE_COMPRESSOR_PID
-    compressorPID.Compute();
+    if (!firstCompressorCycle) {
+        compressorPID.Compute();
+        compressorSpeedIndex = pwmGenerator.update(compressorSpeed);
+    }
+#else
+    compressorSpeed = CompressorSpeeds[compressorSpeedIndex];
 #endif
-    analogWrite(compressorSpeedPin, roundf(compressorSpeed * COMPRESSOR_SPEED_RATIO_TO_ANALOG));
+
+    analogWrite(compressorSpeedPin, roundf(CompressorSpeeds[compressorSpeedIndex] * COMPRESSOR_SPEED_RATIO_TO_ANALOG));
 }
 
 void CoolerSystem::shutdownCompressor()
@@ -208,6 +206,7 @@ void CoolerSystem::shutdownCompressor()
         systemEnableOutput.setBoolean(false);
         analogWrite(compressorSpeedPin, 0);
         compressorPID.SetMode(MANUAL);
+        firstCompressorCycle = false;
 
         analyzeNoteFrequency.stop();
         compressorFrequency = 0;
@@ -228,24 +227,30 @@ void CoolerSystem::startupCompressor()
             case CoolerSystemStatus::PUMP_MEDIUM:
             case CoolerSystemStatus::PUMP_HIGH:
                 // start with last compressor speed minus one
-                compressorSpeedIndex = lastCompressorSpeedIndex > LOWEST_USABLE_COMPRESSOR_SPEED + 1 ? lastCompressorSpeedIndex - 1 : LOWEST_USABLE_COMPRESSOR_SPEED;
+                //compressorSpeedIndex = lastCompressorSpeedIndex > LOWEST_USABLE_COMPRESSOR_SPEED + 1 ? lastCompressorSpeedIndex - 1 : LOWEST_USABLE_COMPRESSOR_SPEED;
+                compressorSpeedIndex = firstCompressorCycle ? COMPRESSOR_DEFAULT_SPEED_INDEX : COMPRESSOR_DEFAULT_SPEED_INDEX /* estimateCompressorSpeedTarget */;
                 lastCompressorSpeedIndex = compressorSpeedIndex;
                 compressorNextSpeedUpdateTime = now + CompressorDeadTimeMeasurements[compressorSpeedIndex] * 1000;
+
+#if USE_COMPRESSOR_PID
+                // initialize speed to our best estimate, so the PID controller starts bumpless control
+                if (!firstCompressorCycle && !compressorManualControl) {
+                    compressorSpeed = CompressorSpeeds[compressorSpeedIndex];
+                    compressorPID.SetMode(AUTOMATIC);
+                    pwmGenerator.reset();
+                }
+#endif
+
                 break;
 
             default:
+                firstCompressorCycle = true;
                 compressorSpeedIndex = COMPRESSOR_DEFAULT_SPEED_INDEX;
                 // reset last speed index so if we switch out of prechill, we start from the lowest speed
-                lastCompressorSpeedIndex = LOWEST_USABLE_COMPRESSOR_SPEED;
+                lastCompressorSpeedIndex = LOWEST_OPERATING_COMPRESSOR_SPEED_INDEX;
                 compressorNextSpeedUpdateTime = 0;
                 break;
         }
-
-#if USE_COMPRESSOR_PID
-        // initialize speed to 0 so PID controller doesn't start bumpless control starting at the default speed
-        compressorSpeed = 0;
-        compressorPID.SetMode(AUTOMATIC);
-#endif
 
         // reset note frequency analyzer to start with fresh data
         analyzeNoteFrequency.begin();
@@ -387,7 +392,32 @@ void CoolerSystem::updateCoolerData() {
     condenserInletTemp = condenserInletNTC.temperature();
     condenserOutletTemp = condenserOutletNTC.temperature();
     ambientTemp = ambientNTC.temperature();
-    coolingPower = (evaporatorInletTemp - evaporatorOutletTemp) * SPECIFIC_HEAT * flowRate / 60; // Watts
+
+    // update the temperature the flow sensor is seeing, so it can calibrate
+    flowSensor.updateTemp(evaporatorOutletTemp);
+
+    // water flowing through the evaporator has a lag time depending on flow rate.
+    // in order to calculate cooling power correctly, we need to compare the outlet temp
+    // against the inlet temp from that lag time ago. the lag time is approximately 1.5 sec
+    // (15 samples) at 3.5Lpm.
+    evaporatorInletTempSamples.push(evaporatorInletTemp);
+    if (flowRate >= FLOW_RATE_MIN_THRESHOLD) {
+        float lagSamples = EVAPORATOR_VOLUME * 60 * 1000 / (flowRate * UPDATE_STATE_TIMER_MS);
+        uint32_t lowerOffset = floor(lagSamples);
+        uint32_t upperOffset = ceil(lagSamples);
+        if (evaporatorInletTempSamples.hasSampleAt(-upperOffset)) {
+            // interpolate samples
+            float lowerSample = evaporatorInletTempSamples[-lowerOffset];
+            float upperSample = evaporatorInletTempSamples[-upperOffset];
+            float inletTempLagged = (upperSample - lowerSample) * (lagSamples - lowerOffset) + lowerSample;
+            coolingPower = (inletTempLagged - evaporatorOutletTemp) * SPECIFIC_HEAT * DENSITY * flowRate / 60; // Watts
+        } else {
+            coolingPower = 0;
+        }
+    } else {
+        coolingPower = 0;
+    }
+
     // adjust system voltage by the relative IR drop between the measured system voltage and the compressor
     powerDraw = compressorCurrent * (voltageMonitor.get12vMilliVolts() / 1000.0 - 0.0175 * compressorCurrent + 0.05 + 0.05 * coolshirtPWM.percent() / 100);
 
@@ -470,7 +500,7 @@ bool CoolerSystem::updateState()
                 systemStatus = CoolerSystemStatus::REQUIRES_RESET;
             }
 
-            CoolerSwitchPosition switchPosition = switchADC.position();
+            CoolerSwitchPosition switchPosition = overrideSwitchPosition == CoolerSwitchPosition::UNKNOWN ? switchADC.position() : overrideSwitchPosition;
             if (switchPosition == CoolerSwitchPosition::RESET) {
                 // clear system fault and return now so we don't enter REQUIRES_RESET
                 _systemFault = (byte) SystemFault::SYSTEM_OK;
@@ -525,7 +555,7 @@ void CoolerSystem::updateOutputs()
 
 void CoolerSystem::displayInfo()
 {
-#ifndef DEBUGLOG_DISABLE_LOG
+#if DISPLAY_DEBUG_INFO
     if (systemStatus == CoolerSystemStatus::STARTUP || !displayInfoTimer.check()) {
         return;
     }
@@ -627,8 +657,12 @@ void CoolerSystem::displayInfo()
     format.formatFloat3DP(chillerPumpSpeed);
     format.formatLiteral(" V\n");
 
-    format.formatLiteral("  Compressor Speed:              ");
+    format.formatLiteral("  Compressor Speed Setpoint:     ");
     format.formatUnsignedInt(roundf(compressorSpeed * 100));
+    format.formatLiteral(" %\n");
+
+    format.formatLiteral("  Actual Compressor Speed:       ");
+    format.formatUnsignedInt(roundf(CompressorSpeeds[compressorSpeedIndex] * 100));
     format.formatLiteral(" %\n");
 
     format.formatLiteral("  Compressor Cooldown Time:      ");
@@ -736,8 +770,8 @@ void CoolerSystem::loop()
         //sampleLogger.logSamples(sampleTime, currentSensor.latest(), compressorCurrentBiquadOutput + 30000, analyzeNoteFrequency.read() * 100, analyzeNoteFrequency.probability() * 1000);
 #elif FLOW_DEBUG
         if (flowSensor.lastPulseIndex() != lastLoggedFlowPulse) {
-            sampleLogger.logSamples(ClockTime::millisSinceEpoch(), flowSensor.lastPulseIndex(), flowSensor.lastPulseDuration(), chillerPumpPWM.value(), coolantLevelBounce.read());
-            LOG_INFO("[", ClockTime::secSinceEpoch(), " s] pulse", flowSensor.lastPulseIndex(), ", duration", flowSensor.lastPulseDuration(), ", flow rate", flowSensor.instantaneousFlowRate(), ", speed", chillerPumpSpeed);
+            sampleLogger.logSamples(ClockTime::millisSinceEpoch(), flowSensor.lastPulseIndex(), flowSensor.lastPulseDuration(), roundf(evaporatorInletNTC.temperatureFor(evaporatorInletNTC.latest()) * 1000), roundf(evaporatorOutletNTC.temperatureFor(evaporatorOutletNTC.latest()) * 1000), roundf(chillerPumpSpeed * 1000), coolantLevelBounce.read(), flowSensor.flowRate() * 1000, 0);
+            //LOG_INFO("[", ClockTime::secSinceEpoch(), " s] pulse", flowSensor.lastPulseIndex(), ", duration", flowSensor.lastPulseDuration(), ", flow rate", flowSensor.instantaneousFlowRate(), ", speed", chillerPumpSpeed);
             lastLoggedFlowPulse = flowSensor.lastPulseIndex();
         }
 #endif
@@ -745,6 +779,7 @@ void CoolerSystem::loop()
 
     if (stateComputed) {
         updateOutputs();
+        //LOG_INFO("Evaporator temp stdevs: inlet", evaporatorInletNTC.stdev(), ", outlet", evaporatorOutletNTC.stdev());
     }
 
     logData();
@@ -796,6 +831,15 @@ void CoolerSystem::setCompressorSpeedPercentOffset(int32_t offset) {
 
 void CoolerSystem::resumeCompressorControl() {
     compressorManualControl = false;
+}
+
+void CoolerSystem::toggleSwitchPosition(CoolerSwitchPosition position) {
+    if (overrideSwitchPosition == position) {
+        overrideSwitchPosition = CoolerSwitchPosition::UNKNOWN;
+        return;
+    }
+
+    overrideSwitchPosition = position;
 }
 
 void CoolerSystem::toggleFlush() {

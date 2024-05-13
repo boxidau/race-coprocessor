@@ -13,6 +13,19 @@ enum class CompressorSpeed {
 
 #define NUM_COMPRESSOR_SPEEDS 7
 
+#define LOWEST_OPERATING_COMPRESSOR_SPEED_INDEX 1
+#define HIGHEST_OPERATING_COMPRESSOR_SPEED_INDEX 6
+
+const float CompressorDeadTimeMeasurements[NUM_COMPRESSOR_SPEEDS] = {
+    400,
+    400,
+    400,
+    350,
+    300,
+    250,
+    200
+};
+
 const float CompressorSpeeds[NUM_COMPRESSOR_SPEEDS] = {
     0.52,
     0.60,

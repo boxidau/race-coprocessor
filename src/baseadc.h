@@ -62,12 +62,13 @@ public:
         }
 
         uint32_t var = 0;
-        uint16_t avg = adc();
+        // multiply by 100 to get additional resolution for small stdev values
+        uint32_t avg = runningSum * 100 / samples.size();
         for (size_t i = 0; i < samples.size(); i++) {
-            int32_t diff = samples[i] - avg; 
+            int32_t diff = (uint32_t) samples[i] * 100 - avg; 
             var += diff * diff;
         }
-        return sqrtf((float) var / samples.size());
+        return sqrtf((float) var / (samples.size() * 100 * 100));
     }
 
 protected:

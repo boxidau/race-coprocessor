@@ -149,11 +149,15 @@ template <size_t Size, char Delim = '\0'> class StringFormat {
 
         static char* d3toa(char* out, float in) {
             int32_t integer1000 = roundf(in * 1000);
-            out = itoa(out, integer1000 / 1000);
+            if (integer1000 < 0) {
+                *out++ = '-';
+                integer1000 = -integer1000;
+            }
+            out = uitoa(out, integer1000 / 1000);
             *out++ = '.';
-            *out++ = INT_TO_CHAR((abs(integer1000) / 100) % 10);
-            *out++ = INT_TO_CHAR((abs(integer1000) / 10) % 10);
-            *out++ = INT_TO_CHAR(abs(integer1000) % 10);
+            *out++ = INT_TO_CHAR((integer1000 / 100) % 10);
+            *out++ = INT_TO_CHAR((integer1000 / 10) % 10);
+            *out++ = INT_TO_CHAR(integer1000 % 10);
             return out;
         }
 };

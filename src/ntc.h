@@ -35,7 +35,7 @@ public:
         float ntcResistance = pullupResistance * sample / (ADC_MAX - sample);
         float lnR = logf(ntcResistance);
         // expand out lnR * lnR * lnR, much faster than pow()
-        return 1 / (steinhartA + (steinhartB * lnR) + (steinhartC * lnR * lnR * lnR)) - 273.15;
+        return 1 / (steinhartA + (steinhartB + steinhartC * lnR * lnR) * lnR) - 273.15;
     }
 
 private:

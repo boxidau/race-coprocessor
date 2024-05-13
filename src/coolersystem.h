@@ -22,6 +22,9 @@
 #include "stringformat.h"
 #include "timer.h"
 #include "analyzenotefrequency.h"
+#include "pwmgenerator.h"
+#include "compressormodel.h"
+#include "ringbuffer.h"
 
 #define OVERPRESSURE_THRESHOLD_KPA 250 // operating pressure ~170 - 200kPa
 #define PRESSURE_SENSOR_CALIBRATION_LOW_ADC 5674 // 0.5V = 0psig = 101kPa
@@ -34,13 +37,15 @@
 #define CURRENT_SENSOR_CALIBRATION_LOW_AMPS 0
 #define CURRENT_SENSOR_CALIBRATION_HIGH_AMPS 50000
 
-#define FLOW_SENSOR_PULSES_PER_SECOND 7.5
 #define FLOW_RATE_MIN_THRESHOLD 1.0 // Lpm
 #define FLOW_RATE_STARTUP_TIME 5000 // ms allowed until the flow rate must be above threshold
-#define FLOW_RATE_MISSING_PULSE_TIME 1000 // ms allowed since the last pulse seen
-#define SPECIFIC_HEAT 4033 // J/kgK of chiller fluid (90% water / 10% IPA @ 3C)
+#define FLOW_RATE_PULSE_TIMEOUT 1000 // ms allowed since the last pulse seen
+#define EVAPORATOR_VOLUME 0.09 // L
+#define EVAPORATOR_LAG_SAMPLES_SIZE 60 // enough samples for 1.0 Lpm @ 0.1s sample interval
+#define SPECIFIC_HEAT 4052 // J/kgK of chiller fluid (90% water / 10% IPA @ 10C). 4196 for pure water
+#define DENSITY 0.9759 // kg/L
 #define FLOW_RATE_TARGET 3.5 // Lpm
-#define CHILLER_PUMP_DEFAULT_SPEED 5 // Volts
+#define CHILLER_PUMP_DEFAULT_SPEED 6 // Volts
 #define CHILLER_PUMP_PID_KP (0.05 * 12) // multiply by 12 since gains were tested at that value
 #define CHILLER_PUMP_PID_KI (0.25 * 12) // 0.5 also stable but has overshoot
 #define CHILLER_PUMP_PID_KD 0
@@ -49,8 +54,8 @@
 
 #define COMPRESSOR_UNDER_TEMP_CUTOFF_HIGH 3.5
 #define COMPRESSOR_RESTART_TEMP_HIGH 6.5
-#define COMPRESSOR_UNDER_TEMP_CUTOFF_MED 8.5
-#define COMPRESSOR_RESTART_TEMP_MED 11.5
+#define COMPRESSOR_UNDER_TEMP_CUTOFF_MED 5
+#define COMPRESSOR_RESTART_TEMP_MED 15
 #define COMPRESSOR_UNDER_TEMP_CUTOFF_LOW 13.5
 #define COMPRESSOR_RESTART_TEMP_LOW 16.5
 #define EVAPORATOR_OUTLET_PANIC_TEMPERATURE 0
@@ -59,38 +64,13 @@
 // valid range of compressor speed output is 4.16V = 47%, 8.40V = 96%
 // speed steps are 0.47 (zero below this), 0.56, 0.64, 0.72, 0.80, 0.88, 0.96.
 // midpoints are 0.52, 0.60, 0.68, 0.76, 0.84, 0.92, 1.0.
-#define COMPRESSOR_MIN_SPEED_RATIO 0.52
-#define COMPRESSOR_MAX_SPEED_RATIO 1.0
 #define COMPRESSOR_DEFAULT_SPEED_INDEX 2
 #define COMPRESSOR_SPEED_RATIO_TO_ANALOG (9 / (3.3 * 3.717) * ADC_MAX * 0.97)
 #define COMPRESSOR_MIN_COOLDOWN_MS 60000
-#define COMPRESSOR_PID_KP 0.5
-#define COMPRESSOR_PID_KI 0
+#define COMPRESSOR_PID_KP 0.4 // 0.4/0.003 gives 100s time constant (90% -> 75%). 0.2/0.001 is slower, 150s.
+#define COMPRESSOR_PID_KI 0.003
 #define COMPRESSOR_PID_KD 0
 #define COMPRESSOR_MEASUREMENT_TEMP_LAG_TIME 10000 // ms
-
-#define LOWEST_USABLE_COMPRESSOR_SPEED 1
-#define NUM_COMPRESSOR_SPEEDS 7
-
-const float CompressorDeadTimeMeasurements[NUM_COMPRESSOR_SPEEDS] = {
-    400,
-    400,
-    400,
-    350,
-    300,
-    250,
-    200
-};
-
-const float CompressorSpeeds[NUM_COMPRESSOR_SPEEDS] = {
-    0.52,
-    0.60,
-    0.68,
-    0.76,
-    0.84,
-    0.92,
-    1.00
-};
 
 // max flush time with pumps running, don't want to let them run dry for long
 #define FLUSH_TIMEOUT_MS 30000
@@ -210,6 +190,7 @@ private:
     byte _systemFault { (byte)SystemFault::SYSTEM_OK };
     CoolerSystemStatus systemStatus { CoolerSystemStatus::STARTUP };
     CoolerSwitchPosition switchPosition { CoolerSwitchPosition::UNKNOWN };
+    CoolerSwitchPosition overrideSwitchPosition { CoolerSwitchPosition::UNKNOWN };
 
     uint32_t sampleCounter { 0 };
     uint32_t loggedSampleCounter { 0 };
@@ -246,6 +227,9 @@ private:
     float evaporatorInletTempPrev1 { 0 };
     float evaporatorInletTempPrev2 { 0 };
     bool compressorManualControl { false };
+    bool firstCompressorCycle { true };
+    PWMGenerator pwmGenerator;
+    RingBuffer<float, EVAPORATOR_LAG_SAMPLES_SIZE> evaporatorInletTempSamples;
 
     // PID control inputs/outputs
     float evaporatorInletTemp { -100.0 };
@@ -343,7 +327,7 @@ public:
         , compressorFault(_compressorLDRPin)
         , coolantLevelPin { _coolantLevelPin }
         , compressorSpeedPin { _compressorSpeedPin }
-        , flowSensor(_flowRatePin, FLOW_SENSOR_PULSES_PER_SECOND, FLOW_RATE_MISSING_PULSE_TIME)
+        , flowSensor(_flowRatePin, FLOW_SENSOR_HERTZ_PER_LPM, FLOW_RATE_PULSE_TIMEOUT)
         , evaporatorInletNTC(_evaporatorInletNtcPin, _ntcADCNum, 15000, TDK_THERMISTOR_1_STEINHART_A, TDK_THERMISTOR_1_STEINHART_B, TDK_THERMISTOR_1_STEINHART_C)
         , evaporatorOutletNTC(_evaporatorOutletNtcPin, _ntcADCNum, 15000, TDK_THERMISTOR_2_STEINHART_A, TDK_THERMISTOR_2_STEINHART_B, TDK_THERMISTOR_2_STEINHART_C)
         , condenserInletNTC(_condenserInletNtcPin, _ntcADCNum, 6800, TE_THERMISTOR_STEINHART_A, TE_THERMISTOR_STEINHART_B, TE_THERMISTOR_STEINHART_C)
@@ -368,5 +352,6 @@ public:
     void setCompressorSpeed(uint32_t speed);
     void setCompressorSpeedPercentOffset(int32_t offset);
     void resumeCompressorControl();
+    void toggleSwitchPosition(CoolerSwitchPosition position);
     void toggleFlush();
 };

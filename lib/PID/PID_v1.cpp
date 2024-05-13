@@ -69,7 +69,7 @@ bool PID::Compute()
    if(!pOnE) outputSum-= kp * dInput;
 
    if(outputSum > outMax) outputSum= outMax;
-   else if(outMin <= 0 && outputSum < outMin) outputSum= outMin; // don't floor outputSum if outMin > 0, otherwise we introduce a persistent integral term
+   else if(outputSum < outMin) outputSum= outMin;
 
    /*Add Proportional on Error, if P_ON_E is specified*/
    float output;
@@ -157,7 +157,7 @@ void PID::SetOutputLimits(float Min, float Max)
 	   else if(*myOutput < outMin) *myOutput = outMin;
 
 	   if(outputSum > outMax) outputSum= outMax;
-      else if(outMin <= 0 && outputSum < outMin) outputSum= outMin; // don't floor outputSum if outMin > 0, otherwise we introduce a persistent integral term
+      else if(outputSum < outMin) outputSum= outMin;
    }
 }
 
@@ -185,7 +185,7 @@ void PID::Initialize()
    outputSum = *myOutput;
    lastInput = *myInput;
    if(outputSum > outMax) outputSum = outMax;
-   else if(outMin <= 0 && outputSum < outMin) outputSum= outMin; // don't floor outputSum if outMin > 0, otherwise we introduce a persistent integral term
+   else if(outputSum < outMin) outputSum= outMin;
 }
 
 /* SetControllerDirection(...)*************************************************

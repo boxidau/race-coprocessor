@@ -23,7 +23,7 @@ void SampleLogger::ensureSetup(const char* header)
     enableLog = true;
 }
 
-void SampleLogger::logSamples(uint32_t time, uint16_t sample1, uint16_t sample2, uint16_t sample3, uint16_t sample4) {
+void SampleLogger::logSamples(uint32_t time, uint16_t sample1, uint32_t sample2, int32_t sample3, int32_t sample4, uint16_t sample5, uint16_t sample6, uint16_t sample7, uint16_t sample8) {
     if (!enableLog) {
         return;
     }
@@ -34,6 +34,10 @@ void SampleLogger::logSamples(uint32_t time, uint16_t sample1, uint16_t sample2,
     data.sample2 = sample2;
     data.sample3 = sample3;
     data.sample4 = sample4;
+    data.sample5 = sample5;
+    data.sample6 = sample6;
+    data.sample7 = sample7;
+    data.sample8 = sample8;
     sampleData.push_back(data);
 
     if (sampleData.full()) {
@@ -54,8 +58,12 @@ void SampleLogger::flush()
         format.formatUnsignedInt(data.time);
         format.formatUnsignedInt(data.sample1);
         format.formatUnsignedInt(data.sample2);
-        format.formatUnsignedInt(data.sample3);
-        format.formatUnsignedInt(data.sample4);
+        format.formatInt(data.sample3);
+        format.formatInt(data.sample4);
+        format.formatUnsignedInt(data.sample5);
+        format.formatUnsignedInt(data.sample6);
+        format.formatUnsignedInt(data.sample7);
+        format.formatUnsignedInt(data.sample8);
 
         logFile.write(format.finish(), format.length());
     }

@@ -60,10 +60,10 @@
 
 // NTCs
 // TE thermistor = GA10K3A1IA (condenser)
-// TDK thermistor = B57551G1103F005 (evaporator)
 #define         TE_THERMISTOR_STEINHART_A       1.128653750e-3
 #define         TE_THERMISTOR_STEINHART_B       2.342041378e-4
 #define         TE_THERMISTOR_STEINHART_C       8.737724626e-8
+// TDK thermistor = B57541G1103F005 (evaporator), 7003 curve
 // Evaporator inlet (NTC1)
 #define         TDK_THERMISTOR_1_STEINHART_A    9.195598396e-4
 #define         TDK_THERMISTOR_1_STEINHART_B    2.552863593e-4
@@ -72,3 +72,6 @@
 #define         TDK_THERMISTOR_2_STEINHART_A    9.205205975e-4
 #define         TDK_THERMISTOR_2_STEINHART_B    2.552981188e-4
 #define         TDK_THERMISTOR_2_STEINHART_C    1.065197564e-7
+
+// Flow sensor calibration, measured at 10C with 10% IPA / 90% water mix
+#define FLOW_SENSOR_HERTZ_PER_LPM 7.3674
