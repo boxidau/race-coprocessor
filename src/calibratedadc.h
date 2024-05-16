@@ -7,11 +7,11 @@
 class CalibratedADC : public BaseADC<ADC_SAMPLES>
 {
 private:
-    uint16_t calibrationLowADC, calibrationLowValue;
-    uint16_t calibrationHighADC, calibrationHighValue;
+    uint16_t calibrationLowADC, calibrationHighADC;
+    int32_t calibrationLowValue, calibrationHighValue;
     bool constrainCalibration { false };
 
-    uint16_t calibrate(uint16_t value);
+    int32_t calibrate(uint16_t value);
 
 public:
     CalibratedADC(const uint8_t _pin, const uint8_t _adcNum) : 
@@ -21,12 +21,12 @@ public:
 
     void setCalibration(
         uint16_t lowADC,
-        uint16_t lowValue,
+        int32_t lowValue,
         uint16_t highADC,
-        uint16_t highValue,
+        int32_t highValue,
         bool constrain
     );
 
-    uint16_t calibratedValue();
-    uint16_t calibratedLatestValue();
+    int32_t calibratedValue();
+    int32_t calibratedLatestValue();
 };

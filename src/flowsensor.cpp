@@ -4,8 +4,8 @@
 #include "utils.h"
 
 static volatile uint32_t _flowSamples[FLOW_SAMPLES];
+static volatile uint32_t _pulsePeriodCalibratedSamples[FLOW_SAMPLES];
 static volatile float _tempSamples[FLOW_SAMPLES];
-static volatile float _tempCalibrationSamples[FLOW_SAMPLES];
 static volatile float _currentTemp;
 static volatile uint8_t _idx;
 static volatile bool _filled;
@@ -25,7 +25,9 @@ void recordPulse() {
     uint8_t idx = _idx;
     _flowSamples[idx] = micros();
     _tempSamples[idx] = _currentTemp;
-    _tempCalibrationSamples[idx] = 0; // zero this out so we know it needs to be calculated
+    // zero out the calibration value so we know it needs to be calculated later. want to avoid doing
+    // expensive floating point math in an interrupt handler
+    _pulsePeriodCalibratedSamples[idx] = 0;
 
     idx++;
     if (idx == FLOW_SAMPLES) {
@@ -46,28 +48,31 @@ float FlowSensor::flowRate() {
     uint8_t idx = _idx;
     __enable_irq();
 
-    if (!filled && idx < 2) {
+    uint8_t totalPulses = filled ? FLOW_SAMPLES - 1 : idx;
+    if (totalPulses < 2) {
         return 0;
     }
 
     uint32_t now = micros();
-    idx = idx > 0 ? idx - 1 : FLOW_SAMPLES - 1;
-    uint32_t lastPulse = _flowSamples[idx];
-    uint8_t prevIdx = idx;
-    uint8_t pulses = 0;
-    float runningPeriod = 0;
-    // avoid race condition: ignore last sample in case it gets updated as we're running the loop
-    while (pulses < FLOW_SAMPLES - 2) {
-        prevIdx = prevIdx > 0 ? prevIdx - 1 : FLOW_SAMPLES - 1;
+    uint8_t curIdx = idx > 0 ? idx - 1 : FLOW_SAMPLES - 1;
+    uint32_t lastPulse = _flowSamples[curIdx];
+    if (MICROS_DURATION(now, lastPulse) > _timeoutMilliseconds * 1000) {
+        return 0;
+    }
 
+    uint8_t prevIdx = curIdx;
+    uint8_t pulses = 0;
+    uint32_t runningPeriod = 0;
+    // avoid race condition: ignore last sample in case it gets updated as we're running the loop
+    while (pulses < totalPulses - 1) {
+        prevIdx = curIdx > 0 ? curIdx - 1 : FLOW_SAMPLES - 1;
         uint32_t pulse = _flowSamples[prevIdx];
-        if (MICROS_DURATION(now, pulse) > _timeoutMilliseconds * 1000) {
+        if (MICROS_DURATION(now, pulse) > _measurementIntervalMilliseconds * 1000) {
             break;
         }
 
-        // calibrate each pulse using the temperature at which it was recorded
-        float calibration = ensureCalibrationSample(prevIdx);
-        runningPeriod += MICROS_DURATION(lastPulse, pulse) / calibration;
+        runningPeriod += ensurePulsePeriodSample(curIdx, lastPulse, pulse);
+        curIdx = prevIdx;
         lastPulse = pulse;
         pulses++;
     } 
@@ -96,8 +101,8 @@ float FlowSensor::instantaneousFlowRate() {
         return 0;
     }
 
-    float calibration = ensureCalibrationSample(sample0idx);
-    return _pulsePeriodMicrosec / MICROS_DURATION(sample0, sample1) * calibration;
+    uint32_t pulsePeriod = ensurePulsePeriodSample(sample0idx, sample0, sample1);
+    return _pulsePeriodMicrosec / pulsePeriod;
 }
 
 uint32_t FlowSensor::lastPulseMicros() {
@@ -139,20 +144,25 @@ float FlowSensor::flowRateCalibrationForTemperature(float temp) {
         return memoizedCalibration;
     }
 
-    if (temp < 0 || temp > 45) {
+    if (temp < -2 || temp > 50) {
         LOG_WARN("Temperature out of flow meter calibration range, results will be inaccurate");
     }
 
+    // 4th order polynomial fit
+    memoizedCalibration = (((-0.00000012526 * temp + 0.000018010) * temp - 0.00089138) * temp + 0.016267) * temp + 0.90948;
     memoizedTemp = temp;
-    memoizedCalibration = 9.1896E-01 + (1.3848E-02 - (6.6344E-04 + (1.1984E-05 - 7.6218E-08 * temp) * temp) * temp) * temp;
     return memoizedCalibration;
 }
 
-float FlowSensor::ensureCalibrationSample(uint8_t idx) {
-    float calibration = _tempCalibrationSamples[idx];
-    if (calibration == 0) {
-        calibration = flowRateCalibrationForTemperature(_tempSamples[idx]);
-        _tempCalibrationSamples[idx] = calibration;
+// calculate and store the calibrated pulse period between `pulse` and `prevPulse`. `idx` should be the index
+// of `pulse`, where the result will be stored.
+uint32_t FlowSensor::ensurePulsePeriodSample(uint8_t idx, uint32_t pulse, uint32_t prevPulse) {
+    uint32_t pulsePeriod = _pulsePeriodCalibratedSamples[idx];
+    if (pulsePeriod == 0) {
+        // calibrate each pulse using the temperature at which it was recorded
+        float calibration = flowRateCalibrationForTemperature(_tempSamples[idx]);
+        pulsePeriod = MICROS_DURATION(pulse, prevPulse) / calibration;
     }
-    return calibration;
+    _pulsePeriodCalibratedSamples[idx] = pulsePeriod;
+    return pulsePeriod;
 }

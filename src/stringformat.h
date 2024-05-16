@@ -148,7 +148,7 @@ template <size_t Size, char Delim = '\0'> class StringFormat {
         }
 
         static char* d3toa(char* out, float in) {
-            int32_t integer1000 = roundf(in * 1000);
+            int32_t integer1000 = round(in * 1000);
             if (integer1000 < 0) {
                 *out++ = '-';
                 integer1000 = -integer1000;

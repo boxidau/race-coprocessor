@@ -113,9 +113,7 @@ void CoolerSystem::runChillerPump()
             }
 
             chillerPumpPID.Compute();
-            // scale PWM output by the system voltage
-            chillerPumpPWM.set(roundf(chillerPumpSpeed / voltageMonitor.get12vMilliVolts() * 1000 * ADC_MAX));
-            //LOG_INFO(ClockTime::secSinceEpoch(), chillerPumpSpeed, instantaneousFlowRate, flowRate);
+            chillerPumpPWM.set(round(chillerPumpSpeed / voltageMonitor.getLatest12vMilliVolts() * 1000 * ADC_MAX));
             return;
 
         default:
@@ -158,7 +156,7 @@ void CoolerSystem::runCompressor()
 
     // implement hysteresis on the undertemp cutoff. this isn't an error condition
     // but we are going to shut down the compressor until temp goes back above a safe value
-    if (evaporatorInletTemp < cutoffTemp) {
+    if (evaporatorInletTemp < cutoffTemp || evaporatorOutletTemp < EVAPORATOR_OUTLET_CUTOFF_TEMP) {
         undertempCutoff = true;
     }
     if (evaporatorInletTemp >= restartTemp) {
@@ -194,7 +192,7 @@ void CoolerSystem::runCompressor()
     compressorSpeed = CompressorSpeeds[compressorSpeedIndex];
 #endif
 
-    analogWrite(compressorSpeedPin, roundf(CompressorSpeeds[compressorSpeedIndex] * COMPRESSOR_SPEED_RATIO_TO_ANALOG));
+    analogWrite(compressorSpeedPin, round(CompressorSpeeds[compressorSpeedIndex] * COMPRESSOR_SPEED_RATIO_TO_ANALOG));
 }
 
 void CoolerSystem::shutdownCompressor()
@@ -383,7 +381,9 @@ void CoolerSystem::acquireSamples()
 }
 
 void CoolerSystem::updateCoolerData() {
+    uint32_t m = micros();
     flowRate = flowSensor.flowRate();
+    LOG_INFO("flow rate calculation time", micros()-m, "us");
     instantaneousFlowRate = flowSensor.instantaneousFlowRate();
     systemPressure = pressureSensor.calibratedValue();
     compressorCurrent = (float) currentSensor.calibratedValue() / 1000; // mA -> A
@@ -422,8 +422,8 @@ void CoolerSystem::updateCoolerData() {
     powerDraw = compressorCurrent * (voltageMonitor.get12vMilliVolts() / 1000.0 - 0.0175 * compressorCurrent + 0.05 + 0.05 * coolshirtPWM.percent() / 100);
 
     if (analyzeNoteFrequency.available()) {
-        // only log data if there's a valid result and current is > 2A
-        if (analyzeNoteFrequency.validResult() && compressorCurrent > 2.0) {
+        // only log data if there's a valid result and current is > 3A
+        if (analyzeNoteFrequency.validResult() && compressorCurrent > 3.0) {
             compressorFrequency = analyzeNoteFrequency.read();
             compressorFrequencyProbability = analyzeNoteFrequency.probability();            
         } else {
@@ -658,11 +658,11 @@ void CoolerSystem::displayInfo()
     format.formatLiteral(" V\n");
 
     format.formatLiteral("  Compressor Speed Setpoint:     ");
-    format.formatUnsignedInt(roundf(compressorSpeed * 100));
+    format.formatUnsignedInt(round(compressorSpeed * 100));
     format.formatLiteral(" %\n");
 
     format.formatLiteral("  Actual Compressor Speed:       ");
-    format.formatUnsignedInt(roundf(CompressorSpeeds[compressorSpeedIndex] * 100));
+    format.formatUnsignedInt(round(CompressorSpeeds[compressorSpeedIndex] * 100));
     format.formatLiteral(" %\n");
 
     format.formatLiteral("  Compressor Cooldown Time:      ");
@@ -770,7 +770,7 @@ void CoolerSystem::loop()
         //sampleLogger.logSamples(sampleTime, currentSensor.latest(), compressorCurrentBiquadOutput + 30000, analyzeNoteFrequency.read() * 100, analyzeNoteFrequency.probability() * 1000);
 #elif FLOW_DEBUG
         if (flowSensor.lastPulseIndex() != lastLoggedFlowPulse) {
-            sampleLogger.logSamples(ClockTime::millisSinceEpoch(), flowSensor.lastPulseIndex(), flowSensor.lastPulseDuration(), roundf(evaporatorInletNTC.temperatureFor(evaporatorInletNTC.latest()) * 1000), roundf(evaporatorOutletNTC.temperatureFor(evaporatorOutletNTC.latest()) * 1000), roundf(chillerPumpSpeed * 1000), coolantLevelBounce.read(), flowSensor.flowRate() * 1000, 0);
+            sampleLogger.logSamples(ClockTime::millisSinceEpoch(), flowSensor.lastPulseIndex(), flowSensor.lastPulseDuration(), round(evaporatorInletNTC.temperatureFor(evaporatorInletNTC.latest()) * 1000), round(evaporatorOutletNTC.temperatureFor(evaporatorOutletNTC.latest()) * 1000), round(chillerPumpSpeed * 1000), coolantLevelBounce.read(), flowSensor.flowRate() * 1000, 0);
             //LOG_INFO("[", ClockTime::secSinceEpoch(), " s] pulse", flowSensor.lastPulseIndex(), ", duration", flowSensor.lastPulseDuration(), ", flow rate", flowSensor.instantaneousFlowRate(), ", speed", chillerPumpSpeed);
             lastLoggedFlowPulse = flowSensor.lastPulseIndex();
         }
@@ -779,7 +779,12 @@ void CoolerSystem::loop()
 
     if (stateComputed) {
         updateOutputs();
-        //LOG_INFO("Evaporator temp stdevs: inlet", evaporatorInletNTC.stdev(), ", outlet", evaporatorOutletNTC.stdev());
+    }
+
+    // scale PWM output by the system voltage. we do this every tick because system voltage can change quickly,
+    // and we want the pump voltage to remain stable
+    if (chillerPumpPWM.value()) {
+        chillerPumpPWM.set(round(chillerPumpSpeed / voltageMonitor.getLatest12vMilliVolts() * 1000 * ADC_MAX));
     }
 
     logData();
@@ -819,14 +824,14 @@ void CoolerSystem::setCompressorSpeed(uint32_t speed) {
     }
 
     analogWrite(compressorSpeedPin, compressorSpeed * COMPRESSOR_SPEED_RATIO_TO_ANALOG);
-    LOG_INFO("Setting compressor speed to", roundf(compressorSpeed * 100), "%");
+    LOG_INFO("Setting compressor speed to", round(compressorSpeed * 100), "%");
 }
 
 void CoolerSystem::setCompressorSpeedPercentOffset(int32_t offset) {
     compressorManualControl = true;
-    compressorSpeed = roundf(compressorSpeed * 100 + offset) / 100;
+    compressorSpeed = round(compressorSpeed * 100 + offset) / 100;
     analogWrite(compressorSpeedPin, compressorSpeed * COMPRESSOR_SPEED_RATIO_TO_ANALOG);
-    LOG_INFO("Setting compressor speed to", roundf(compressorSpeed * 100), "%");
+    LOG_INFO("Setting compressor speed to", round(compressorSpeed * 100), "%");
 }
 
 void CoolerSystem::resumeCompressorControl() {
@@ -847,7 +852,7 @@ void CoolerSystem::toggleFlush() {
 }
 
 int32_t clampAndScale(float val, int32_t minVal, int32_t maxVal, uint32_t scale) {
-    return max(min(roundf(val * scale), maxVal), minVal);
+    return max(min(round(val * scale), maxVal), minVal);
 }
 
 void CoolerSystem::getCANMessage(CAN_message_t& msg)

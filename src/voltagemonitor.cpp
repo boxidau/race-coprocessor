@@ -19,7 +19,7 @@ void VoltageMonitor::loop() {
 
     // if 12V out of range, wait for timeout before we report it
     // this is so the car can start without undervolting
-    uint16_t sys12vMillivolts = get12vMilliVolts();
+    int32_t sys12vMillivolts = get12vMilliVolts();
     uint32_t now = millis();
     if (!millisSince12vUndervolt && sys12vMillivolts <= UNDERVOLT_12V) {
         millisSince12vUndervolt = now;
@@ -51,31 +51,31 @@ const bool VoltageMonitor::overVoltage() {
         || (millisSince12vOvervolt && (millis() >= millisSince12vOvervolt + MS_12V_OUT_OF_RANGE_TIMEOUT));
 };
 
-const uint16_t VoltageMonitor::get3v3MilliVolts() {
+const int32_t VoltageMonitor::get3v3MilliVolts() {
     return sys3v3.calibratedValue();
 };
 
-const uint16_t VoltageMonitor::getp3v3MilliVolts() {
+const int32_t VoltageMonitor::getp3v3MilliVolts() {
     return sysp3v3.calibratedValue();
 };
 
-const uint16_t VoltageMonitor::get5vMilliVolts() {
+const int32_t VoltageMonitor::get5vMilliVolts() {
     return sys5v.calibratedValue();
 };
 
-const uint16_t VoltageMonitor::get12vMilliVolts() {
+const int32_t VoltageMonitor::get12vMilliVolts() {
     return sys12v.calibratedValue();
 };
 
-const uint16_t VoltageMonitor::getLatest3v3MilliVolts() {
+const int32_t VoltageMonitor::getLatest3v3MilliVolts() {
     return sys3v3.calibratedLatestValue();
 };
 
-const uint16_t VoltageMonitor::getLatest5vMilliVolts() {
+const int32_t VoltageMonitor::getLatest5vMilliVolts() {
     return sys5v.calibratedLatestValue();
 };
 
-const uint16_t VoltageMonitor::getLatest12vMilliVolts() {
+const int32_t VoltageMonitor::getLatest12vMilliVolts() {
     return sys12v.calibratedLatestValue();
 };
 

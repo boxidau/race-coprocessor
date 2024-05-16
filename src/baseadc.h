@@ -33,7 +33,7 @@ public:
     }
 
     uint16_t adc() {
-        return !samples.empty() ? roundf((float) runningSum / samples.size()) : 0;
+        return !samples.empty() ? round((float) runningSum / samples.size()) : 0;
     }
 
     uint16_t latest() {

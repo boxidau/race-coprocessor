@@ -37,28 +37,30 @@
 #define CURRENT_SENSOR_CALIBRATION_LOW_AMPS 0
 #define CURRENT_SENSOR_CALIBRATION_HIGH_AMPS 50000
 
-#define FLOW_RATE_MIN_THRESHOLD 1.0 // Lpm
+#define FLOW_RATE_MIN_THRESHOLD 1.5 // Lpm
 #define FLOW_RATE_STARTUP_TIME 5000 // ms allowed until the flow rate must be above threshold
-#define FLOW_RATE_PULSE_TIMEOUT 1000 // ms allowed since the last pulse seen
+#define FLOW_RATE_PULSE_TIMEOUT 300 // ms allowed since the last pulse was seen, approx 0.5Lpm
+#define FLOW_RATE_MEASUREMENT_INTERVAL 2000 // ms averaging interval
 #define EVAPORATOR_VOLUME 0.09 // L
 #define EVAPORATOR_LAG_SAMPLES_SIZE 60 // enough samples for 1.0 Lpm @ 0.1s sample interval
 #define SPECIFIC_HEAT 4052 // J/kgK of chiller fluid (90% water / 10% IPA @ 10C). 4196 for pure water
 #define DENSITY 0.9759 // kg/L
-#define FLOW_RATE_TARGET 3.5 // Lpm
+#define FLOW_RATE_TARGET 3.4 // Lpm
 #define CHILLER_PUMP_DEFAULT_SPEED 6 // Volts
 #define CHILLER_PUMP_PID_KP (0.05 * 12) // multiply by 12 since gains were tested at that value
 #define CHILLER_PUMP_PID_KI (0.25 * 12) // 0.5 also stable but has overshoot
 #define CHILLER_PUMP_PID_KD 0
-#define CHILLER_PUMP_MIN_SPEED 4.5 // Volts, try 4.5 here if things work ok. pump is specced down to 5V and drops out at 4V
+#define CHILLER_PUMP_MIN_SPEED 4.5 // Volts. pump is specced down to 5V and drops out at 4V
 #define CHILLER_PUMP_MAX_SPEED 9 // Volts
 
 #define COMPRESSOR_UNDER_TEMP_CUTOFF_HIGH 3.5
 #define COMPRESSOR_RESTART_TEMP_HIGH 6.5
-#define COMPRESSOR_UNDER_TEMP_CUTOFF_MED 5
-#define COMPRESSOR_RESTART_TEMP_MED 15
+#define COMPRESSOR_UNDER_TEMP_CUTOFF_MED 8.5
+#define COMPRESSOR_RESTART_TEMP_MED 11.5
 #define COMPRESSOR_UNDER_TEMP_CUTOFF_LOW 13.5
 #define COMPRESSOR_RESTART_TEMP_LOW 16.5
-#define EVAPORATOR_OUTLET_PANIC_TEMPERATURE 0
+#define EVAPORATOR_OUTLET_CUTOFF_TEMP -1.0 // 10% IPA / 90% water freezes at -4C
+#define EVAPORATOR_OUTLET_PANIC_TEMPERATURE -2.0
 #define COMPRESSOR_STARTUP_DELAY_MS 2000
 
 // valid range of compressor speed output is 4.16V = 47%, 8.40V = 96%
@@ -327,7 +329,7 @@ public:
         , compressorFault(_compressorLDRPin)
         , coolantLevelPin { _coolantLevelPin }
         , compressorSpeedPin { _compressorSpeedPin }
-        , flowSensor(_flowRatePin, FLOW_SENSOR_HERTZ_PER_LPM, FLOW_RATE_PULSE_TIMEOUT)
+        , flowSensor(_flowRatePin, FLOW_SENSOR_HERTZ_PER_LPM, FLOW_RATE_PULSE_TIMEOUT, FLOW_RATE_MEASUREMENT_INTERVAL)
         , evaporatorInletNTC(_evaporatorInletNtcPin, _ntcADCNum, 15000, TDK_THERMISTOR_1_STEINHART_A, TDK_THERMISTOR_1_STEINHART_B, TDK_THERMISTOR_1_STEINHART_C)
         , evaporatorOutletNTC(_evaporatorOutletNtcPin, _ntcADCNum, 15000, TDK_THERMISTOR_2_STEINHART_A, TDK_THERMISTOR_2_STEINHART_B, TDK_THERMISTOR_2_STEINHART_C)
         , condenserInletNTC(_condenserInletNtcPin, _ntcADCNum, 6800, TE_THERMISTOR_STEINHART_A, TE_THERMISTOR_STEINHART_B, TE_THERMISTOR_STEINHART_C)

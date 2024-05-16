@@ -52,11 +52,11 @@ class VoltageMonitor {
         const bool overVoltage();
         const bool isKillswitchOff();
 
-        const uint16_t get3v3MilliVolts();
-        const uint16_t getp3v3MilliVolts();
-        const uint16_t get5vMilliVolts();
-        const uint16_t get12vMilliVolts();
-        const uint16_t getLatest3v3MilliVolts();
-        const uint16_t getLatest5vMilliVolts();
-        const uint16_t getLatest12vMilliVolts();
+        const int32_t get3v3MilliVolts();
+        const int32_t getp3v3MilliVolts();
+        const int32_t get5vMilliVolts();
+        const int32_t get12vMilliVolts();
+        const int32_t getLatest3v3MilliVolts();
+        const int32_t getLatest5vMilliVolts();
+        const int32_t getLatest12vMilliVolts();
 };

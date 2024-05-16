@@ -74,4 +74,4 @@
 #define         TDK_THERMISTOR_2_STEINHART_C    1.065197564e-7
 
 // Flow sensor calibration, measured at 10C with 10% IPA / 90% water mix
-#define FLOW_SENSOR_HERTZ_PER_LPM 7.3674
+#define FLOW_SENSOR_HERTZ_PER_LPM 7.3242
