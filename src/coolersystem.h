@@ -38,7 +38,7 @@
 #define CURRENT_SENSOR_CALIBRATION_HIGH_AMPS 50000
 
 #define FLOW_RATE_MIN_THRESHOLD 1.5 // Lpm
-#define FLOW_RATE_STARTUP_TIME 5000 // ms allowed until the flow rate must be above threshold
+#define FLOW_RATE_STARTUP_TIME 2000 // ms allowed until the flow rate must be above threshold
 #define FLOW_RATE_PULSE_TIMEOUT 300 // ms allowed since the last pulse was seen, approx 0.5Lpm
 #define FLOW_RATE_MEASUREMENT_INTERVAL 2000 // ms averaging interval
 #define EVAPORATOR_VOLUME 0.09 // L
@@ -68,7 +68,7 @@
 // midpoints are 0.52, 0.60, 0.68, 0.76, 0.84, 0.92, 1.0.
 #define COMPRESSOR_DEFAULT_SPEED_INDEX 2
 #define COMPRESSOR_SPEED_RATIO_TO_ANALOG (9 / (3.3 * 3.717) * ADC_MAX * 0.97)
-#define COMPRESSOR_MIN_COOLDOWN_MS 60000
+#define COMPRESSOR_MIN_COOLDOWN_MS 30000
 #define COMPRESSOR_PID_KP 0.4 // 0.4/0.003 gives 100s time constant (90% -> 75%). 0.2/0.001 is slower, 150s.
 #define COMPRESSOR_PID_KI 0.003
 #define COMPRESSOR_PID_KD 0
@@ -229,7 +229,7 @@ private:
     float evaporatorInletTempPrev1 { 0 };
     float evaporatorInletTempPrev2 { 0 };
     bool compressorManualControl { false };
-    bool firstCompressorCycle { true };
+    bool firstCompressorCycle { false };
     PWMGenerator pwmGenerator;
     RingBuffer<float, EVAPORATOR_LAG_SAMPLES_SIZE> evaporatorInletTempSamples;
 

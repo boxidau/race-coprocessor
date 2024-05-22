@@ -186,13 +186,16 @@ void CoolerSystem::runCompressor()
 #if USE_COMPRESSOR_PID
     if (!firstCompressorCycle) {
         compressorPID.Compute();
-        compressorSpeedIndex = pwmGenerator.update(compressorSpeed);
+        compressorSpeedIndex = round(constrain(map(compressorSpeed, CompressorSpeeds[0], CompressorSpeeds[NUM_COMPRESSOR_SPEEDS - 1], 0, NUM_COMPRESSOR_SPEEDS - 1), 0, NUM_COMPRESSOR_SPEEDS - 1));
+        //compressorSpeedIndex = pwmGenerator.update(compressorSpeed);
+    } else {
+        compressorSpeed = CompressorSpeeds[compressorSpeedIndex];
     }
 #else
     compressorSpeed = CompressorSpeeds[compressorSpeedIndex];
 #endif
 
-    analogWrite(compressorSpeedPin, round(CompressorSpeeds[compressorSpeedIndex] * COMPRESSOR_SPEED_RATIO_TO_ANALOG));
+    analogWrite(compressorSpeedPin, CompressorSpeeds[compressorSpeedIndex] * COMPRESSOR_SPEED_RATIO_TO_ANALOG);
 }
 
 void CoolerSystem::shutdownCompressor()
@@ -226,12 +229,12 @@ void CoolerSystem::startupCompressor()
             case CoolerSystemStatus::PUMP_HIGH:
                 // start with last compressor speed minus one
                 //compressorSpeedIndex = lastCompressorSpeedIndex > LOWEST_USABLE_COMPRESSOR_SPEED + 1 ? lastCompressorSpeedIndex - 1 : LOWEST_USABLE_COMPRESSOR_SPEED;
-                compressorSpeedIndex = firstCompressorCycle ? COMPRESSOR_DEFAULT_SPEED_INDEX : COMPRESSOR_DEFAULT_SPEED_INDEX /* estimateCompressorSpeedTarget */;
+                compressorSpeedIndex = COMPRESSOR_DEFAULT_SPEED_INDEX; // estimateCompressorSpeedTarget?
                 lastCompressorSpeedIndex = compressorSpeedIndex;
                 compressorNextSpeedUpdateTime = now + CompressorDeadTimeMeasurements[compressorSpeedIndex] * 1000;
 
 #if USE_COMPRESSOR_PID
-                // initialize speed to our best estimate, so the PID controller starts bumpless control
+                // initialize speed to our best estimate, so the PID controller starts control from that point
                 if (!firstCompressorCycle && !compressorManualControl) {
                     compressorSpeed = CompressorSpeeds[compressorSpeedIndex];
                     compressorPID.SetMode(AUTOMATIC);
@@ -242,7 +245,7 @@ void CoolerSystem::startupCompressor()
                 break;
 
             default:
-                firstCompressorCycle = true;
+                //firstCompressorCycle = true;
                 compressorSpeedIndex = COMPRESSOR_DEFAULT_SPEED_INDEX;
                 // reset last speed index so if we switch out of prechill, we start from the lowest speed
                 lastCompressorSpeedIndex = LOWEST_OPERATING_COMPRESSOR_SPEED_INDEX;
@@ -657,7 +660,7 @@ void CoolerSystem::displayInfo()
     format.formatFloat3DP(chillerPumpSpeed);
     format.formatLiteral(" V\n");
 
-    format.formatLiteral("  Compressor Speed Setpoint:     ");
+    format.formatLiteral("  Desired Compressor Speed:      ");
     format.formatUnsignedInt(round(compressorSpeed * 100));
     format.formatLiteral(" %\n");
 
@@ -818,7 +821,8 @@ void CoolerSystem::setCompressorSpeed(uint32_t speed) {
     if (speed == 0) {
         compressorSpeed = 0;
     } else if (speed >= 1 && speed <= NUM_COMPRESSOR_SPEEDS) {
-        compressorSpeed = CompressorSpeeds[speed - 1];
+        compressorSpeedIndex = speed - 1;
+        compressorSpeed = CompressorSpeeds[compressorSpeedIndex];
     } else {
         return;
     }
@@ -914,7 +918,7 @@ void CoolerSystem::logData() {
 }
 
 const char* CoolerSystem::getLogHeader() {
-    return "time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapInletTempStdev,flowRate,instantaneousFlowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,12v,5v,3v3,p3v3,coolingPower,powerDraw,switchPos,switchADC,status,chillerPumpSpeed,coolshirtEnable,compressorSpeed,underTempCutoff,lowCoolant,flowRateLow,overPressure,underVolt,overVolt,compressorFault,acquiredSamples\n";
+    return "time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapInletTempStdev,flowRate,instantaneousFlowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,12v,5v,3v3,p3v3,coolingPower,powerDraw,switchPos,switchADC,status,chillerPumpSpeed,coolshirtEnable,compressorSpeed,compressorSpeedIndex,underTempCutoff,lowCoolant,flowRateLow,overPressure,underVolt,overVolt,compressorFault,acquiredSamples\n";
 }
 
 void CoolerSystem::getLogMessage(StringFormatLog& format)
@@ -952,6 +956,7 @@ void CoolerSystem::getLogMessage(StringFormatLog& format)
     format.formatFloat3DP(chillerPumpSpeed);
     format.formatBool(coolshirtPWM.value());
     format.formatFloat3DP(compressorSpeed);
+    format.formatUnsignedInt(compressorSpeedIndex);
     format.formatBool(undertempCutoff);
     format.formatBool(_systemFault & (byte) SystemFault::LOW_COOLANT);
     format.formatBool(_systemFault & (byte) SystemFault::FLOW_RATE_LOW);
