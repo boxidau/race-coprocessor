@@ -229,7 +229,7 @@ void CoolerSystem::startupCompressor()
             case CoolerSystemStatus::PUMP_HIGH:
                 // start with last compressor speed minus one
                 //compressorSpeedIndex = lastCompressorSpeedIndex > LOWEST_USABLE_COMPRESSOR_SPEED + 1 ? lastCompressorSpeedIndex - 1 : LOWEST_USABLE_COMPRESSOR_SPEED;
-                compressorSpeedIndex = COMPRESSOR_DEFAULT_SPEED_INDEX; // estimateCompressorSpeedTarget?
+                compressorSpeedIndex = HIGHEST_OPERATING_COMPRESSOR_SPEED_INDEX; // estimateCompressorSpeedTarget?
                 lastCompressorSpeedIndex = compressorSpeedIndex;
                 compressorNextSpeedUpdateTime = now + CompressorDeadTimeMeasurements[compressorSpeedIndex] * 1000;
 
@@ -246,7 +246,8 @@ void CoolerSystem::startupCompressor()
 
             default:
                 //firstCompressorCycle = true;
-                compressorSpeedIndex = COMPRESSOR_DEFAULT_SPEED_INDEX;
+                compressorSpeedIndex = HIGHEST_OPERATING_COMPRESSOR_SPEED_INDEX;
+                compressorSpeed = CompressorSpeeds[compressorSpeedIndex];
                 // reset last speed index so if we switch out of prechill, we start from the lowest speed
                 lastCompressorSpeedIndex = LOWEST_OPERATING_COMPRESSOR_SPEED_INDEX;
                 compressorNextSpeedUpdateTime = 0;
@@ -386,7 +387,7 @@ void CoolerSystem::acquireSamples()
 void CoolerSystem::updateCoolerData() {
     uint32_t m = micros();
     flowRate = flowSensor.flowRate();
-    LOG_INFO("flow rate calculation time", micros()-m, "us");
+    //LOG_INFO("flow rate calculation time", micros()-m, "us");
     instantaneousFlowRate = flowSensor.instantaneousFlowRate();
     systemPressure = pressureSensor.calibratedValue();
     compressorCurrent = (float) currentSensor.calibratedValue() / 1000; // mA -> A

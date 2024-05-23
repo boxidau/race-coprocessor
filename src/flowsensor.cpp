@@ -55,7 +55,7 @@ float FlowSensor::flowRate() {
 
     uint32_t now = micros();
     uint8_t curIdx = idx > 0 ? idx - 1 : FLOW_SAMPLES - 1;
-    LOG_INFO("fetching flow rate, current idx", curIdx);
+    // LOG_INFO("fetching flow rate, current idx", curIdx);
     uint32_t lastPulse = _flowSamples[curIdx];
     if (MICROS_DURATION(now, lastPulse) > _timeoutMilliseconds * 1000) {
         return 0;
@@ -65,9 +65,10 @@ float FlowSensor::flowRate() {
     uint8_t pulses = 0;
     uint32_t runningPeriod = 0;
     // avoid race condition: ignore last sample in case it gets updated as we're running the loop
+    uint32_t pulse;
     while (pulses < totalPulses - 1) {
         prevIdx = curIdx > 0 ? curIdx - 1 : FLOW_SAMPLES - 1;
-        uint32_t pulse = _flowSamples[prevIdx];
+        pulse = _flowSamples[prevIdx];
         if (MICROS_DURATION(now, pulse) > _measurementIntervalMilliseconds * 1000) {
             break;
         }
@@ -78,6 +79,7 @@ float FlowSensor::flowRate() {
         pulses++;
     } 
 
+    // LOG_INFO("recorded", pulses, "pulses, starting idx", idx-1, "ending idx", prevIdx, "time back", (now-pulse)/1000, "ms");
     return pulses > 0 ? _pulsePeriodMicrosec * pulses / runningPeriod : 0;
 }
 
@@ -92,7 +94,7 @@ float FlowSensor::instantaneousFlowRate() {
     }
 
     uint8_t sample0idx = idx > 0 ? idx - 1 : FLOW_SAMPLES - 1;
-    LOG_INFO("fetching instantaneous flow rate, cur idx", sample0idx);
+    // LOG_INFO("fetching instantaneous flow rate, cur idx", sample0idx);
     uint8_t sample1idx = sample0idx > 0 ? sample0idx - 1 : FLOW_SAMPLES - 1;
     uint32_t sample0 = _flowSamples[sample0idx];
     uint32_t sample1 = _flowSamples[sample1idx];
@@ -167,6 +169,6 @@ uint32_t FlowSensor::ensurePulsePeriodSample(uint8_t idx, uint32_t pulse, uint32
         pulsePeriod = MICROS_DURATION(pulse, prevPulse) / calibration;
     }
     _pulsePeriodCalibratedSamples[idx] = pulsePeriod;
-    LOG_INFO("ensuring pulse period sample:", idx, "served from cache?", inCache, "temp sample", _tempSamples[idx], "pulse period", pulsePeriod);
+    // LOG_INFO("ensuring pulse period sample:", idx, "served from cache?", inCache, "temp sample", _tempSamples[idx], "pulse period", pulsePeriod);
     return pulsePeriod;
 }

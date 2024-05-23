@@ -257,13 +257,13 @@
                 "PREALLOC_MB=6",
                 "USB_SERIAL",
                 "ARDUINO=10805",
-                "TEENSYDUINO=159",
+                "TEENSYDUINO=158",
                 "CORE_TEENSY",
                 "F_CPU=120000000L",
                 "LAYOUT_US_ENGLISH",
                 ""
             ],
-            "cppStandard": "gnu++17",
+            "cppStandard": "gnu++14",
             "compilerPath": "/Users/dwitte/.platformio/packages/toolchain-gccarmnoneeabi-teensy/bin/arm-none-eabi-gcc",
             "compilerArgs": [
                 "-mthumb",
