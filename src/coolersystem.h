@@ -280,6 +280,7 @@ private:
     void adjustCompressorSpeed(float targetTemp);
     void runCoolshirtPump();
     void check(bool assertionResult, SystemFault fault);
+    static uint32_t compressorSpeedToIndex(float compressorSpeed, uint32_t compressorSpeedIndex);
 
     void acquireSamples();
     void updateCoolerData();

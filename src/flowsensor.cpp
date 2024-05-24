@@ -55,7 +55,6 @@ float FlowSensor::flowRate() {
 
     uint32_t now = micros();
     uint8_t curIdx = idx > 0 ? idx - 1 : FLOW_SAMPLES - 1;
-    // LOG_INFO("fetching flow rate, current idx", curIdx);
     uint32_t lastPulse = _flowSamples[curIdx];
     if (MICROS_DURATION(now, lastPulse) > _timeoutMilliseconds * 1000) {
         return 0;
@@ -79,7 +78,6 @@ float FlowSensor::flowRate() {
         pulses++;
     } 
 
-    // LOG_INFO("recorded", pulses, "pulses, starting idx", idx-1, "ending idx", prevIdx, "time back", (now-pulse)/1000, "ms");
     return pulses > 0 ? _pulsePeriodMicrosec * pulses / runningPeriod : 0;
 }
 
@@ -94,7 +92,6 @@ float FlowSensor::instantaneousFlowRate() {
     }
 
     uint8_t sample0idx = idx > 0 ? idx - 1 : FLOW_SAMPLES - 1;
-    // LOG_INFO("fetching instantaneous flow rate, cur idx", sample0idx);
     uint8_t sample1idx = sample0idx > 0 ? sample0idx - 1 : FLOW_SAMPLES - 1;
     uint32_t sample0 = _flowSamples[sample0idx];
     uint32_t sample1 = _flowSamples[sample1idx];
@@ -162,13 +159,11 @@ float FlowSensor::flowRateCalibrationForTemperature(float temp) {
 // of `pulse`, where the result will be stored.
 uint32_t FlowSensor::ensurePulsePeriodSample(uint8_t idx, uint32_t pulse, uint32_t prevPulse) {
     uint32_t pulsePeriod = _pulsePeriodCalibratedSamples[idx];
-    bool inCache = !!pulsePeriod;
     if (pulsePeriod == 0) {
         // calibrate each pulse using the temperature at which it was recorded
         float calibration = flowRateCalibrationForTemperature(_tempSamples[idx]);
         pulsePeriod = MICROS_DURATION(pulse, prevPulse) / calibration;
     }
     _pulsePeriodCalibratedSamples[idx] = pulsePeriod;
-    // LOG_INFO("ensuring pulse period sample:", idx, "served from cache?", inCache, "temp sample", _tempSamples[idx], "pulse period", pulsePeriod);
     return pulsePeriod;
 }
