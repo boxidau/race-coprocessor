@@ -158,7 +158,7 @@ struct CoolerSystemData {
     byte fault;
     bool coolantLevel;
     uint16_t systemPressure;
-    uint16_t flowRate;
+    float flowRate;
     float evaporatorInletTemp;
     float evaporatorOutletTemp;
     float condenserInletTemp;

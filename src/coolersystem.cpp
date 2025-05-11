@@ -197,9 +197,7 @@ void CoolerSystem::runCompressor()
 uint32_t CoolerSystem::compressorSpeedToIndex(float compressorSpeed, uint32_t compressorSpeedIndex) {
     // implement hysteresis so the compressor speed doesn't jump around. PID output is somewhat noisy
     float rawCompressorSpeedIndex = constrain(map(compressorSpeed, CompressorSpeeds[0], CompressorSpeeds[NUM_COMPRESSOR_SPEEDS - 1], 0, NUM_COMPRESSOR_SPEEDS - 1), 0, NUM_COMPRESSOR_SPEEDS - 1);
-    uint32_t 
-
-    //compressorSpeedIndex = pwmGenerator.update(compressorSpeed);
+    return rawCompressorSpeedIndex;
 }
 
 void CoolerSystem::shutdownCompressor()
@@ -769,8 +767,9 @@ void CoolerSystem::loop()
 
     if (systemStatus != CoolerSystemStatus::STARTUP) {
 #if NTC_DEBUG
-        sampleLogger.logSamples(ClockTime::millisSinceEpoch(), voltageMonitor.getLatest12vMillivolts(), voltageMonitor.getLatest5vMillivolts(), voltageMonitor.getLatest3v3Millivolts(), 0);
+        //sampleLogger.logSamples(ClockTime::millisSinceEpoch(), voltageMonitor.getLatest12vMillivolts(), voltageMonitor.getLatest5vMillivolts(), voltageMonitor.getLatest3v3Millivolts(), 0);
         // sampleLogger.logSamples(ClockTime::millisSinceEpoch(), evaporatorInletNTC.latest(), evaporatorOutletNTC.latest(), 0, 0);
+        sampleLogger.logSamples(ClockTime::millisSinceEpoch(), currentSensor.latest(), 0, 0, 0, 0, 0, 0, 0);
         //sampleLogger.logSamples(sampleTime, currentSensor.latest(), compressorCurrentBiquadOutput + 30000, analogRead(ADC_SYSTEM_12V), 0);
         //sampleLogger.logSamples(sampleTime, currentSensor.latest(), compressorCurrentBiquadOutput + 30000, analyzeNoteFrequency.read() * 100, analyzeNoteFrequency.probability() * 1000);
 #elif FLOW_DEBUG

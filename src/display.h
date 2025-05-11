@@ -21,11 +21,10 @@ enum class MAX6950Address {
 };
 
 enum class ScreenLED {
-    RED    = B00010000,
+    GREEN  = B00010000,
     YELLOW = B00001000,
-    GREEN  = B00000100
+    RED    = B00000100
 };
-
 
 constexpr const byte CharToSegValue(char c_input)
 {

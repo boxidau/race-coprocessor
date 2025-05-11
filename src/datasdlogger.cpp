@@ -8,7 +8,9 @@
 #include "sdlogger.h"
 #include "clocktime.h"
 
+#if PREALLOC_MB
 #define PREALLOC_BYTES (PREALLOC_MB * 1000000)
+#endif
 
 static char lineBuffer[512];
 static FsFile logFile;
@@ -50,6 +52,7 @@ bool DataSDLogger::logData(const char* data, size_t len)
         }
     }
 
+#if PREALLOC_BYTES
     if (bytesWritten + len > PREALLOC_BYTES) {
         LOG_WARN("Log file full, creating new file");
         finish();
@@ -58,6 +61,7 @@ bool DataSDLogger::logData(const char* data, size_t len)
             return false;
         }
     }
+#endif
 
     uint32_t written = logFile.write(data, len);
     bytesWritten += written;

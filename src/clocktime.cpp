@@ -28,7 +28,7 @@ void ClockTime::setup()
     }
     else
     {
-        LOG_INFO("RTC has set the local system time to year", year(now()), "hour", hour(now()));
+        LOG_INFO("RTC has set the local system time to ", year(now()), hour(now()), minute(now()), second(now()));
     }
 }
 
