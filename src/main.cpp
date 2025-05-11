@@ -87,13 +87,13 @@ void setup()
     ADC *adc = SingletonADC::getADC();
     adc->adc0->setResolution(16);
     adc->adc0->setReference(ADC_REFERENCE::REF_EXT);
-    adc->adc0->setAveraging(32);
+    adc->adc0->setAveraging(1);
     adc->adc0->setConversionSpeed(ADC_CONVERSION_SPEED::HIGH_SPEED);
     adc->adc0->setSamplingSpeed(ADC_SAMPLING_SPEED::VERY_LOW_SPEED);
 
     adc->adc1->setResolution(16);
     adc->adc1->setReference(ADC_REFERENCE::REF_EXT);
-    adc->adc1->setAveraging(8);
+    adc->adc1->setAveraging(1);
     adc->adc1->setConversionSpeed(ADC_CONVERSION_SPEED::HIGH_SPEED);
     adc->adc1->setSamplingSpeed(ADC_SAMPLING_SPEED::HIGH_SPEED);
 
