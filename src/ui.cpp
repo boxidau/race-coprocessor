@@ -1,8 +1,10 @@
 #include "ui.h"
+#include "clocktime.h"
 
 #define STARTUP_MILLIS 2000
 #define STATUS_LED_BLINK_DURATION_MS 200
 #define STATUS_LED_PAUSE_DURATION_MS 1500
+#define SYSTEM_STATUS_LED_BASE_BRIGHTNESS 25 // %
 const uint PAGES = 10;
 
 Metro pageTurner = Metro(5000);
@@ -97,8 +99,7 @@ void CoolerUI::setup() {
     display.setLED(ScreenLED::RED, true);
     display.setLED(ScreenLED::YELLOW, true);
     display.setLED(ScreenLED::GREEN, true);
-    pinMode(systemStatusLEDPin, OUTPUT);
-    digitalWriteFast(systemStatusLEDPin, LOW);
+    systemStatusLED.setup();
 };
 
 bool CoolerUI::shouldDisplayName() {
@@ -147,7 +148,7 @@ void CoolerUI::loop() {
     // blink error codes to red LED and external status LED
     bool statusLEDState = getSystemStatusLEDState();
     if (display.getLED(ScreenLED::RED) != statusLEDState) {
-        digitalWriteFast(systemStatusLEDPin, statusLEDState);
+        systemStatusLED.setPercent(statusLEDState ? ClockTime::getDimmerBrightnessPercent() * SYSTEM_STATUS_LED_BASE_BRIGHTNESS / 100 : 0);
         display.setLED(ScreenLED::RED, statusLEDState);
     }
 

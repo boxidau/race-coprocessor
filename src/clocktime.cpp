@@ -9,6 +9,25 @@ TimeChangeRule PDT = { "PDT", Second, Sun, Mar, 2, -420 };    //Daylight time = 
 TimeChangeRule PST = { "PST", First, Sun, Nov, 2, -480 };     //Standard time = UTC - 8 hours
 Timezone Pacific(PDT, PST);
 
+struct AstronomicalTimeRange {
+    uint8_t startHour;
+    uint8_t startMinute;
+    uint8_t endHour;
+    uint8_t endMinute;
+};
+
+// https://www.timeanddate.com/sun/usa/san-francisco
+// SF, May 30
+static const AstronomicalTimeRange civilTwilightMorning {5, 19, 5, 50};
+static const AstronomicalTimeRange civilTwilightEvening {20, 24, 20, 55};
+
+static const uint8_t dayDimmer = 100; // %
+static const uint8_t nightDimmer = 25; // %
+
+static int timeOffsetFrom(time_t now, int h, int m) {
+    return (hour(now) - h) * 60 + minute(now) - m;
+}
+
 static time_t getTeensy3Time()
 {
     // this is called to fetch the RTC and sync to CPU time.
@@ -28,7 +47,8 @@ void ClockTime::setup()
     }
     else
     {
-        LOG_INFO("RTC has set the local system time to ", year(now()), hour(now()), minute(now()), second(now()));
+        time_t n = now();
+        LOG_INFO("RTC has set the local system time to ", year(n), hour(n), minute(n), second(n));
     }
 }
 
@@ -44,4 +64,33 @@ uint32_t ClockTime::millisSinceEpoch()
 double ClockTime::secSinceEpoch()
 {
     return epoch ? (double)(millis() - epoch) / 1000 : 0;
+}
+
+uint8_t ClockTime::getDimmerBrightnessPercent() {
+    // during nighttime, use 25%
+    // linearly increase to 100% during civil twilight morning
+    // stay at 100% during daytime
+    // transition to 25% during civil twilight evening
+    time_t n = now();
+    int fromStart = timeOffsetFrom(n, civilTwilightMorning.startHour, civilTwilightMorning.startMinute);
+    if (fromStart < 0) {
+        return nightDimmer;
+    }
+    int fromEnd = timeOffsetFrom(n, civilTwilightMorning.endHour, civilTwilightMorning.endMinute);
+    int duration = fromStart - fromEnd;
+    if (fromEnd < 0) {
+        return fromStart * (dayDimmer - nightDimmer) / duration + nightDimmer;
+    }
+
+    fromStart = timeOffsetFrom(n, civilTwilightEvening.startHour, civilTwilightEvening.startMinute);
+    if (fromStart < 0) {
+        return dayDimmer;
+    }
+    fromEnd = timeOffsetFrom(n, civilTwilightEvening.endHour, civilTwilightEvening.endMinute);
+    duration = fromStart - fromEnd;
+    if (fromEnd < 0) {
+        return fromStart * (nightDimmer - dayDimmer) / duration + dayDimmer;
+    }
+
+    return nightDimmer;
 }
