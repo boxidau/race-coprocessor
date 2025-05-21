@@ -129,12 +129,13 @@ constexpr const char* CoolerSwitchPositionToString(CoolerSwitchPosition csp)
 
 enum class SystemFault {
     SYSTEM_OK  = 0,
-    LOW_COOLANT = 1,
-    FLOW_RATE_LOW = 2,
-    SYSTEM_OVER_PRESSURE = 4,
-    SYSTEM_UNDERVOLT = 8,
-    SYSTEM_OVERVOLT = 16,
-    COMPRESSOR_FAULT = 32,
+    GENERAL_FAULT = 1, // catch-all to force a REQUIRES_RESET state, e.g. on startup
+    LOW_COOLANT = 2,
+    FLOW_RATE_LOW = 4,
+    SYSTEM_OVER_PRESSURE = 8,
+    SYSTEM_UNDERVOLT = 16,
+    SYSTEM_OVERVOLT = 32,
+    COMPRESSOR_FAULT = 64,
 };
 
 constexpr const char* SystemFaultToString(SystemFault sf)
@@ -142,6 +143,7 @@ constexpr const char* SystemFaultToString(SystemFault sf)
     switch (sf)
     {
         case SystemFault::SYSTEM_OK: return "SYSTEM_OK";
+        case SystemFault::GENERAL_FAULT: return "GENERAL_FAULT";
         case SystemFault::LOW_COOLANT: return "LOW_COOLANT";
         case SystemFault::FLOW_RATE_LOW: return "FLOW_RATE_LOW";
         case SystemFault::SYSTEM_OVER_PRESSURE: return "SYSTEM_OVER_PRESSURE";
@@ -357,4 +359,5 @@ public:
     void resumeCompressorControl();
     void toggleSwitchPosition(CoolerSwitchPosition position);
     void toggleFlush();
+    static uint32_t getFaultBlinks(byte fault, CompressorFaultCode compressorFaultCode);
 };

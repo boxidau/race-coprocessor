@@ -248,7 +248,7 @@ bool CoolerUI::getSystemStatusLEDState() {
             now = millis();
             if (faultBlinks == 0) {
                 // entering fault state for the first time
-                faultBlinks = getFaultBlinks();
+                faultBlinks = CoolerSystem::getFaultBlinks(rtData.fault, rtData.compressorFaultCode);
                 currentBlink = 1;
                 lastBlinkTime = now;
             }
@@ -276,58 +276,4 @@ bool CoolerUI::getSystemStatusLEDState() {
             faultBlinks = 0;
             return false;
     }
-}
-
-uint32_t CoolerUI::getFaultBlinks() {
-    if (rtData.fault & (byte) SystemFault::LOW_COOLANT) {
-        return 1;
-    }
-
-    if (rtData.fault & (byte) SystemFault::FLOW_RATE_LOW) {
-        return 2;
-    }
-
-    if (rtData.fault & (byte) SystemFault::SYSTEM_OVER_PRESSURE) {
-        return 3;
-    }
-
-    if (rtData.fault & (byte) SystemFault::SYSTEM_UNDERVOLT) {
-        return 4;
-    }
-
-    if (rtData.fault & (byte) SystemFault::SYSTEM_OVERVOLT) {
-        return 5;
-    }
-
-    if (rtData.fault & (byte) SystemFault::COMPRESSOR_FAULT) {
-        if (rtData.compressorFaultCode == CompressorFaultCode::HIGH_CURRENT) {
-            return 6;
-        }
-
-        if (rtData.compressorFaultCode == CompressorFaultCode::MOTOR_BLOCKED) {
-            return 7;
-        }
-
-        if (rtData.compressorFaultCode == CompressorFaultCode::UNDER_VOLTAGE) {
-            return 8;
-        }
-
-        if (rtData.compressorFaultCode == CompressorFaultCode::FAN_FAILURE) {
-            return 9;
-        }
-
-        if (rtData.compressorFaultCode == CompressorFaultCode::COMPRESSOR_OFFLINE) {
-            return 10;
-        }
-
-        if (rtData.compressorFaultCode == CompressorFaultCode::COMPRESSOR_OVERHEAT) {
-            return 11;
-        }
-
-        if (rtData.compressorFaultCode == CompressorFaultCode::SYSTEM_OVERPRESSURE) {
-            return 12;
-        }
-    }
-
-    return rtData.fault ? 13 : 0;
 }

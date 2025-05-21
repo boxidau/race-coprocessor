@@ -29,7 +29,6 @@ public:
             idx = 0;
         }
         runningSum += curValue;
-
     }
 
     uint16_t adc() {

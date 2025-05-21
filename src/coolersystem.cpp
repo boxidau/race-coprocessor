@@ -469,7 +469,9 @@ bool CoolerSystem::updateState()
             dataLogTimer.reset();
             displayInfoTimer.reset();
 
-            systemStatus = CoolerSystemStatus::REQUIRES_RESET;
+            // set fault code, this will force us into a REQUIRES_RESET state below
+            check(false, SystemFault::GENERAL_FAULT);
+
             // fall through to full state update logic, so the first update is aligned
             // with the epoch
 
@@ -495,7 +497,7 @@ bool CoolerSystem::updateState()
             }
             if (systemStatus == CoolerSystemStatus::FLUSH) {
                 // end flushing and fall through to switch handling
-                systemStatus = CoolerSystemStatus::REQUIRES_RESET;
+                check(false, SystemFault::GENERAL_FAULT);
                 shouldFlush = false;
             }
 
@@ -701,6 +703,7 @@ void CoolerSystem::displayInfo()
     }
 
     format.formatLiteral("Faults ------------------------------------------------\n");
+    printFaultLine(format, SystemFault::GENERAL_FAULT, _systemFault);
     printFaultLine(format, SystemFault::LOW_COOLANT, _systemFault);
     printFaultLine(format, SystemFault::FLOW_RATE_LOW, _systemFault);
     printFaultLine(format, SystemFault::SYSTEM_OVER_PRESSURE, _systemFault);
@@ -733,6 +736,7 @@ void CoolerSystem::loop()
     // panic and shut the compressor down
     if (evaporatorOutletNTC.temperature() <= EVAPORATOR_OUTLET_PANIC_TEMPERATURE && systemEnableOutput.value()) {
         undertempCutoff = true;
+        check(false, SystemFault::GENERAL_FAULT);
         systemStatus = CoolerSystemStatus::REQUIRES_RESET;
         shutdownCompressor();
         LOG_ERROR("Panic condition: evaporator outlet temp", evaporatorOutletNTC.temperature(), "C (below", EVAPORATOR_OUTLET_PANIC_TEMPERATURE, "), shutting down compressor");
@@ -880,6 +884,7 @@ void CoolerSystem::getCANMessage(CAN_message_t& msg)
     //      |   [2,1,0]: system status
     // 4    | system faults
     // 5    | compressor fault
+    // 6    | fault blinks for display purposes
 
     uint16_t temp = clampAndScale(evaporatorInletTemp, 0, UINT16_MAX, 256);
     msg.buf[0] = (temp & 0xff00) >> 8;
@@ -898,7 +903,7 @@ void CoolerSystem::getCANMessage(CAN_message_t& msg)
     msg.buf[4] = (uint8_t) _systemFault;
     msg.buf[5] = (uint8_t) compressorFaultCode;
 
-    msg.buf[6] = 0;
+    msg.buf[6] = (uint8_t) getFaultBlinks(_systemFault, compressorFaultCode);
     msg.buf[7] = 0;
 };
 
@@ -969,3 +974,61 @@ void CoolerSystem::getLogMessage(StringFormatLog& format)
 
     loggedSampleCounter = sampleCounter;
 };
+
+uint32_t CoolerSystem::getFaultBlinks(byte fault, CompressorFaultCode compressorFaultCode) {
+    if (fault & (byte) SystemFault::GENERAL_FAULT) {
+        return 1;
+    }
+
+    if (fault & (byte) SystemFault::LOW_COOLANT) {
+        return 2;
+    }
+
+    if (fault & (byte) SystemFault::FLOW_RATE_LOW) {
+        return 3;
+    }
+
+    if (fault & (byte) SystemFault::SYSTEM_OVER_PRESSURE) {
+        return 4;
+    }
+
+    if (fault & (byte) SystemFault::SYSTEM_UNDERVOLT) {
+        return 5;
+    }
+
+    if (fault & (byte) SystemFault::SYSTEM_OVERVOLT) {
+        return 6;
+    }
+
+    if (fault & (byte) SystemFault::COMPRESSOR_FAULT) {
+        if (compressorFaultCode == CompressorFaultCode::HIGH_CURRENT) {
+            return 7;
+        }
+
+        if (compressorFaultCode == CompressorFaultCode::MOTOR_BLOCKED) {
+            return 8;
+        }
+
+        if (compressorFaultCode == CompressorFaultCode::UNDER_VOLTAGE) {
+            return 9;
+        }
+
+        if (compressorFaultCode == CompressorFaultCode::FAN_FAILURE) {
+            return 10;
+        }
+
+        if (compressorFaultCode == CompressorFaultCode::COMPRESSOR_OFFLINE) {
+            return 11;
+        }
+
+        if (compressorFaultCode == CompressorFaultCode::COMPRESSOR_OVERHEAT) {
+            return 12;
+        }
+
+        if (compressorFaultCode == CompressorFaultCode::SYSTEM_OVERPRESSURE) {
+            return 13;
+        }
+    }
+
+    return fault ? 14 : 0;
+}
