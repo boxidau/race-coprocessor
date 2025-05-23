@@ -110,11 +110,6 @@ void setup()
     LOG_INFO("Input 0 - 7 for compressor speed (0 = off, 1 = 50%, 7 = 100%), +/- = increment compressor speed, c = resume automatic compressor control, f = flush coolant, r = toggle reset, p = toggle prechill");
 }
 
-void processRXCANMessage()
-{
-    //CANLogger::logCANMessage(rxMessage, CAN_RX);
-}
-
 void loop()
 {
 #if LOG_SLOW_LOOPS
@@ -151,10 +146,19 @@ void loop()
     // end tick functions
 
     // // read canbus data if message is available
-    // if (Can0.read(rxMessage))
-    // {
-    //     processRXCANMessage();
-    // }
+    if (CANbus.available()) {
+        CAN_message_t canMessage;
+        canMessage.timeout = 0;
+
+        uint32_t m = micros();
+        int read = CANbus.read(canMessage);
+        if (read && canMessage.id == CANID_RCP) {
+            cooler.setLapCount(canMessage.buf[0]);
+        } else {
+            LOG_INFO("Received unknown CAN message id", canMessage.id);
+        }
+        LOG_INFO("CANBus read took", micros() - m, "us");
+    }
 
 #if LOG_SLOW_LOOPS
     static uint32_t loopMax = 0;

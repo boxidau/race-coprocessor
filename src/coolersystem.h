@@ -185,6 +185,7 @@ private:
     bool shouldFlush { false };
     uint32_t flushStartTime { 0 };
     FlexCAN& CANBus;
+    uint8_t lapCount { 0 };
 
 #if NTC_DEBUG || FLOW_DEBUG
     SampleLogger sampleLogger;
@@ -302,5 +303,6 @@ public:
     void resumeCompressorControl();
     void toggleSwitchPosition(CoolerSwitchPosition position);
     void toggleFlush();
+    void setLapCount(uint8_t lapCount);
     static uint32_t getFaultBlinks(byte fault, CompressorFaultCode compressorFaultCode);
 };

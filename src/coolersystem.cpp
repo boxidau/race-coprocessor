@@ -712,12 +712,12 @@ void CoolerSystem::getCANMessage(CAN_message_t& msg)
 {
     msg.id = CANID_COOLER_SYSTEM;
     msg.ext = false;
-    msg.len = 6;
-    msg.timeout = 1; // ms
+    msg.len = 8;
+    msg.timeout = 0; // ms
 
     // byte | purpose
     // ------------------------------
-    // 0,1  | chiller reservoir temp (int16_t) = T (degrees C) * 256
+    // 0,1  | evaporator inlet temp (int16_t) = T (degrees C) * 256
     //        byte 0: integer temp in C, byte 1: fractional temp * 256
     // 2    | quantized compressor speed (uint8_t) = speed (%) (0 - 100)
     // 3    | state bitmap
@@ -728,7 +728,8 @@ void CoolerSystem::getCANMessage(CAN_message_t& msg)
     //      |   [2,1,0]: system status
     // 4    | system faults
     // 5    | compressor fault
-    // 6    | fault blinks for display purposes
+    // 6    | [6,5,4]: dimmer period, 1 .. 4 (1 = 100% brightness, 2 = 50%, 3 = 33%, 4 = 25%)
+    //      | [3,2,1,0]: fault blinks for display purposes
     // 7    | cooling power (int8_t) = P (W) / 8
 
     uint16_t temp = clampAndScale(evaporatorInletTemp, 0, UINT16_MAX, 256);
@@ -748,9 +749,17 @@ void CoolerSystem::getCANMessage(CAN_message_t& msg)
     msg.buf[4] = (uint8_t) _systemFault;
     msg.buf[5] = (uint8_t) compressorFaultCode;
 
-    msg.buf[6] = (uint8_t) getFaultBlinks(_systemFault, compressorFaultCode);
+    msg.buf[6] = ((uint8_t) getFaultBlinks(_systemFault, compressorFaultCode)) & 0x0f;
+    float dimmerPeriod = 100 / (float) ClockTime::getDimmerBrightnessPercent();
+    msg.buf[6] |= ((uint8_t) clampAndScale(dimmerPeriod, 1, 4, 1)) << 4;
+
     msg.buf[7] = (int8_t) clampAndScale(coolingPower, INT8_MIN, INT8_MAX, 0.125);
 };
+
+void CoolerSystem::setLapCount(uint8_t lapCountInput) {
+    lapCount = lapCountInput;
+    LOG_INFO("Received lap count", lapCount);
+}
 
 void CoolerSystem::logData() {
     if (systemStatus == CoolerSystemStatus::STARTUP || !dataLogTimer.check()) {
@@ -761,15 +770,15 @@ void CoolerSystem::logData() {
     getLogMessage(format);
     DataSDLogger::logData(format.finish(), format.length());
 
-    // uint32_t m = micros();
-    // CAN_message_t message;
-    // getCANMessage(message);
-    // //CANBus.write(message);
-    // LOG_INFO("CANBus write took", micros()-m, "us");
+    uint32_t m = micros();
+    CAN_message_t message;
+    getCANMessage(message);
+    CANBus.write(message);
+    LOG_INFO("CANBus write took", micros() - m, "us");
 }
 
 const char* CoolerSystem::getLogHeader() {
-    return "time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapInletTempStdev,flowRate,instantaneousFlowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,12v,5v,3v3,p3v3,coolingPower,powerDraw,switchPos,switchADC,status,coolshirtEnable,chillerLoopState,chillerPumpSpeed,evapInletTempFiltered,compressorSpeedContinuous,compressorSpeedQuantized,lowCoolant,flowRateLow,overPressure,underVolt,overVolt,compressorFault,acquiredSamples\n";
+    return "time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapInletTempStdev,flowRate,instantaneousFlowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,12v,5v,3v3,p3v3,coolingPower,powerDraw,switchPos,switchADC,status,coolshirtEnable,chillerLoopState,chillerPumpSpeed,evapInletTempFiltered,compressorSpeedContinuous,compressorSpeedQuantized,lowCoolant,flowRateLow,overPressure,underVolt,overVolt,compressorFault,lapCount,acquiredSamples\n";
 }
 
 void CoolerSystem::getLogMessage(StringFormatLog& format)
@@ -816,6 +825,7 @@ void CoolerSystem::getLogMessage(StringFormatLog& format)
     format.formatBool(_systemFault & (byte) SystemFault::SYSTEM_UNDERVOLT);
     format.formatBool(_systemFault & (byte) SystemFault::SYSTEM_OVERVOLT);
     format.formatUnsignedInt((uint32_t) compressorFaultCode);
+    format.formatUnsignedInt(lapCount);
     format.formatUnsignedInt(sampleCounter - loggedSampleCounter);
 
     loggedSampleCounter = sampleCounter;

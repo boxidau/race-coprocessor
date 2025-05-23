@@ -50,6 +50,7 @@
 // CANBUS
 #define         CAN_TX_PIN                      3
 #define         CAN_RX_PIN                      4
+#define         CANID_RCP                       1030
 #define         CANID_COOLER_SYSTEM             2030
 
 // UART
