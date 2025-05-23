@@ -22,9 +22,8 @@
 #include "stringformat.h"
 #include "timer.h"
 #include "analyzenotefrequency.h"
-#include "pwmgenerator.h"
-#include "compressormodel.h"
 #include "ringbuffer.h"
+#include "chillerloop.h"
 
 #define OVERPRESSURE_THRESHOLD_KPA 250 // operating pressure ~170 - 200kPa
 #define PRESSURE_SENSOR_CALIBRATION_LOW_ADC 5674 // 0.5V = 0psig = 101kPa
@@ -45,13 +44,6 @@
 #define EVAPORATOR_LAG_SAMPLES_SIZE 60 // enough samples for 1.0 Lpm @ 0.1s sample interval
 #define SPECIFIC_HEAT 4052 // J/kgK of chiller fluid (90% water / 10% IPA @ 10C). 4196 for pure water
 #define DENSITY 0.9759 // kg/L
-#define FLOW_RATE_TARGET 3.4 // Lpm
-#define CHILLER_PUMP_DEFAULT_SPEED 6 // Volts
-#define CHILLER_PUMP_PID_KP (0.05 * 12) // multiply by 12 since gains were tested at that value
-#define CHILLER_PUMP_PID_KI (0.25 * 12) // 0.5 also stable but has overshoot
-#define CHILLER_PUMP_PID_KD 0
-#define CHILLER_PUMP_MIN_SPEED 4.5 // Volts. pump is specced down to 5V and drops out at 4V
-#define CHILLER_PUMP_MAX_SPEED 9 // Volts
 
 #define COMPRESSOR_UNDER_TEMP_CUTOFF_HIGH 3.5
 #define COMPRESSOR_RESTART_TEMP_HIGH 6.5
@@ -59,20 +51,8 @@
 #define COMPRESSOR_RESTART_TEMP_MED 11.5
 #define COMPRESSOR_UNDER_TEMP_CUTOFF_LOW 13.5
 #define COMPRESSOR_RESTART_TEMP_LOW 16.5
-#define EVAPORATOR_OUTLET_CUTOFF_TEMP -1.0 // 10% IPA / 90% water freezes at -4C
-#define EVAPORATOR_OUTLET_PANIC_TEMPERATURE -2.0
-#define COMPRESSOR_STARTUP_DELAY_MS 2000
 
-// valid range of compressor speed output is 4.16V = 47%, 8.40V = 96%
-// speed steps are 0.47 (zero below this), 0.56, 0.64, 0.72, 0.80, 0.88, 0.96.
-// midpoints are 0.52, 0.60, 0.68, 0.76, 0.84, 0.92, 1.0.
-#define COMPRESSOR_DEFAULT_SPEED_INDEX 2
 #define COMPRESSOR_SPEED_RATIO_TO_ANALOG (9 / (3.3 * 3.717) * ADC_MAX * 0.97)
-#define COMPRESSOR_MIN_COOLDOWN_MS 30000
-#define COMPRESSOR_PID_KP 0.4 // 0.4/0.003 gives 100s time constant (90% -> 75%). 0.2/0.001 is slower, 150s.
-#define COMPRESSOR_PID_KI 0.003
-#define COMPRESSOR_PID_KD 0
-#define COMPRESSOR_MEASUREMENT_TEMP_LAG_TIME 10000 // ms
 
 // max flush time with pumps running, don't want to let them run dry for long
 #define FLUSH_TIMEOUT_MS 30000
@@ -129,7 +109,7 @@ constexpr const char* CoolerSwitchPositionToString(CoolerSwitchPosition csp)
 
 enum class SystemFault {
     SYSTEM_OK  = 0,
-    GENERAL_FAULT = 1, // catch-all to force a REQUIRES_RESET state, e.g. on startup
+    RESET_ON_STARTUP = 1,
     LOW_COOLANT = 2,
     FLOW_RATE_LOW = 4,
     SYSTEM_OVER_PRESSURE = 8,
@@ -143,7 +123,7 @@ constexpr const char* SystemFaultToString(SystemFault sf)
     switch (sf)
     {
         case SystemFault::SYSTEM_OK: return "SYSTEM_OK";
-        case SystemFault::GENERAL_FAULT: return "GENERAL_FAULT";
+        case SystemFault::RESET_ON_STARTUP: return "RESET_ON_STARTUP";
         case SystemFault::LOW_COOLANT: return "LOW_COOLANT";
         case SystemFault::FLOW_RATE_LOW: return "FLOW_RATE_LOW";
         case SystemFault::SYSTEM_OVER_PRESSURE: return "SYSTEM_OVER_PRESSURE";
@@ -202,8 +182,8 @@ private:
     MetroTimer updateStateTimer = { MetroTimer(UPDATE_STATE_TIMER_MS) };
     MetroTimer dataLogTimer = { MetroTimer(DATA_LOG_INTERVAL_MS) };
     MetroTimer displayInfoTimer = { MetroTimer(DISPLAY_INFO_MS) };
-    uint32_t pumpStartTime = { 0 };
     bool shouldFlush { false };
+    uint32_t flushStartTime { 0 };
     FlexCAN& CANBus;
 
 #if NTC_DEBUG || FLOW_DEBUG
@@ -212,57 +192,24 @@ private:
 
     // sensor values
     CompressorFaultCode compressorFaultCode { CompressorFaultCode::OK };
+    float instantaneousFlowRate { 0 };
     float flowRate { 0 };
     uint8_t lastLoggedFlowPulse { 0 };
     bool coolantLevel { false };
     uint16_t systemPressure { 0 };
     float compressorCurrent { 0 };
+    float evaporatorInletTemp { -100.0 };
     float evaporatorOutletTemp { -100.0 };
     float condenserInletTemp { -100.0 };
     float condenserOutletTemp { -100.0 };
     float ambientTemp { -100.0 };
     float coolingPower { 0 };
     float powerDraw { 0 };
-    uint32_t compressorShutoffTime { 0 };
-    uint32_t compressorSpeedIndex { 0 };
-    bool undertempCutoff { false };
-    uint32_t lastCompressorSpeedIndex { 0 };
-    uint32_t compressorNextSpeedUpdateTime { 0 };
-    float evaporatorInletTempPrev1 { 0 };
-    float evaporatorInletTempPrev2 { 0 };
-    bool compressorManualControl { false };
-    bool firstCompressorCycle { false };
-    PWMGenerator pwmGenerator;
     RingBuffer<float, EVAPORATOR_LAG_SAMPLES_SIZE> evaporatorInletTempSamples;
 
-    // PID control inputs/outputs
-    float evaporatorInletTemp { -100.0 };
-    float compressorSpeed { 0 };
-    float compressorTempTarget { 5 };
-    PID compressorPID {
-        &evaporatorInletTemp,
-        &compressorSpeed,
-        &compressorTempTarget,
-        COMPRESSOR_PID_KP,
-        COMPRESSOR_PID_KI,
-        COMPRESSOR_PID_KD,
-        P_ON_M,
-        REVERSE
-    };
-
-    float instantaneousFlowRate { 0 };
-    float chillerPumpSpeed { 0 };
-    float flowRateTarget { FLOW_RATE_TARGET };
-    PID chillerPumpPID {
-        &instantaneousFlowRate,
-        &chillerPumpSpeed,
-        &flowRateTarget,
-        CHILLER_PUMP_PID_KP,
-        CHILLER_PUMP_PID_KI,
-        CHILLER_PUMP_PID_KD,
-        P_ON_E,
-        DIRECT
-    };
+    ChillerLoopController chillerLoop;
+    bool compressorManualControl { false };
+    float compressorSpeedOverride { 0 };
 
     // Biquad IIR filtering for compressor current frequency measurement
     FixedPointBiquad biquad;
@@ -277,18 +224,14 @@ private:
     // executors
     void runChillerPump();
     void runCompressor();
-    void shutdownCompressor();
-    void startupCompressor();
-    void adjustCompressorSpeed(float targetTemp);
     void runCoolshirtPump();
     void check(bool assertionResult, SystemFault fault);
-    static uint32_t compressorSpeedToIndex(float compressorSpeed, uint32_t compressorSpeedIndex);
 
     void acquireSamples();
     void updateCoolerData();
     void updateFaults();
     bool updateState();
-    void updateOutputs();
+    void updateChillerLoopState();
     void displayInfo();
     void getLogMessage(StringFormatLog& format);
     void getCANMessage(CAN_message_t &msg);

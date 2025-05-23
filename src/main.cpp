@@ -107,7 +107,7 @@ void setup()
     cooler.setupLogging();
 
     LOG_INFO("System Boot OK");
-    LOG_INFO("Input 0 - 7 for compressor speed (0 = off, 1 = 50%, 7 = 100%), +/- = increment compressor speed, r = resume automatic compressor control, f = flush coolant, p = toggle prechill");
+    LOG_INFO("Input 0 - 7 for compressor speed (0 = off, 1 = 50%, 7 = 100%), +/- = increment compressor speed, c = resume automatic compressor control, f = flush coolant, r = toggle reset, p = toggle prechill");
 }
 
 void processRXCANMessage()
@@ -131,12 +131,14 @@ void loop()
             cooler.setCompressorSpeedPercentOffset(1);
         } else if (input == '-') {
             cooler.setCompressorSpeedPercentOffset(-1);
-        } else if (input == 'r') {
+        } else if (input == 'c') {
             cooler.resumeCompressorControl();
         } else if (input == 'f') {
             cooler.toggleFlush();
         } else if (input == 'p') {
             cooler.toggleSwitchPosition(CoolerSwitchPosition::PRECHILL);
+        } else if (input == 'r') {
+            cooler.toggleSwitchPosition(CoolerSwitchPosition::RESET);
         }
     }
 #endif

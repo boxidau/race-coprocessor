@@ -1,3 +1,5 @@
+#if 0
+
 #include "pwmgenerator.h"
 #include "compressormodel.h"
 
@@ -71,3 +73,5 @@ uint32_t PWMGenerator::getUpperBound(float value) {
 float PWMGenerator::getSawtoothWave(uint32_t sample) {
     return (CompressorSpeeds[maxIndex] - CompressorSpeeds[minIndex]) / SAMPLE_PERIOD * sample + CompressorSpeeds[minIndex];
 }
+
+#endif
