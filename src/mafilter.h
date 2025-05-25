@@ -17,7 +17,7 @@ public:
         if (idx == SAMPLES) {
             idx = 0;
         }
-        runningSum += curValue;
+        runningSum += roundedValue;
     }
 
     SAMPLE_TYPE filteredValue() {
@@ -25,7 +25,7 @@ public:
             return !samples.empty() ? round((float) runningSum / samples.size() / PRECISION) : 0;
         }
 
-        return !samples.empty() ? (float) runningSum / samples.size() / PRECISION : 0;
+        return !samples.empty() ? (SAMPLE_TYPE) runningSum / samples.size() / PRECISION : 0;
     }
 
     SAMPLE_TYPE latest() {

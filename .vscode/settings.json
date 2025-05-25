@@ -28,7 +28,8 @@
         "numbers": "cpp",
         "functional": "cpp",
         "tuple": "cpp",
-        "type_traits": "cpp"
+        "type_traits": "cpp",
+        "*.tpp": "cpp"
     },
     "C_Cpp.errorSquiggles": "Enabled"
 }

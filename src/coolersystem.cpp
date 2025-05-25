@@ -409,7 +409,7 @@ void CoolerSystem::updateChillerLoopState()
 
 void CoolerSystem::displayInfo()
 {
-#if DISPLAY_DEBUG_INFO
+#if RC_DEBUG
     if (systemStatus == CoolerSystemStatus::STARTUP || !displayInfoTimer.check()) {
         return;
     }
