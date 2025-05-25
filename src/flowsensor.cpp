@@ -146,7 +146,8 @@ float FlowSensor::flowRateCalibrationForTemperature(float temp) {
     }
 
     if (temp < -2 || temp > 50) {
-        LOG_WARN("Temperature out of flow meter calibration range, results will be inaccurate");
+        LOG_WARN("Temperature out of flow meter calibration range, results will be inaccurate. Clamping temperature");
+        temp = max(min(temp, 50), -2);
     }
 
     // 4th order polynomial fit
