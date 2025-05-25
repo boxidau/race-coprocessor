@@ -95,7 +95,7 @@ void CoolerUI::setup() {
     display.setup();
     pinMode(uiButtonPin, INPUT);
     displayPageNameUntil = millis() + 1000;
-    display.setString("888");        
+    display.setString("888");
     display.setLED(ScreenLED::RED, true);
     display.setLED(ScreenLED::YELLOW, true);
     display.setLED(ScreenLED::GREEN, true);
@@ -117,6 +117,19 @@ void CoolerUI::loop() {
         display.setLED(ScreenLED::YELLOW, false);
         display.setLED(ScreenLED::GREEN, false);
         coolerSystem.getSystemData(rtData);
+    }
+
+    // blink error codes to red LED and external status LED
+    bool statusLEDState = getSystemStatusLEDState();
+    if (!!systemStatusLED.value() != statusLEDState) {
+        systemStatusLED.setPercent(statusLEDState ? ClockTime::getDimmerBrightnessPercent() * SYSTEM_STATUS_LED_BASE_BRIGHTNESS / 100 : 0);
+        if (enable) {
+            display.setLED(ScreenLED::RED, statusLEDState);
+        }
+    }
+
+    if (!enable) {
+        return;
     }
 
     if (uiButton.update() && uiButton.fallingEdge()) {
@@ -143,13 +156,6 @@ void CoolerUI::loop() {
         }
     } else {
         display.setLED(ScreenLED::GREEN, false);
-    }
-
-    // blink error codes to red LED and external status LED
-    bool statusLEDState = getSystemStatusLEDState();
-    if (display.getLED(ScreenLED::RED) != statusLEDState) {
-        systemStatusLED.setPercent(statusLEDState ? ClockTime::getDimmerBrightnessPercent() * SYSTEM_STATUS_LED_BASE_BRIGHTNESS / 100 : 0);
-        display.setLED(ScreenLED::RED, statusLEDState);
     }
 
     if (!displayUpdate.check()) {
@@ -276,4 +282,13 @@ bool CoolerUI::getSystemStatusLEDState() {
             faultBlinks = 0;
             return false;
     }
+}
+
+void CoolerUI::disableBoardLEDs() {
+    // disable segment & board status LEDs, but keep the system status LED enabled
+    enable = false;
+    display.setLED(ScreenLED::RED, false);
+    display.setLED(ScreenLED::YELLOW, false);
+    display.setLED(ScreenLED::GREEN, false);
+    display.setString("");
 }

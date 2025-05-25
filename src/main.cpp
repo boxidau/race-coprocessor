@@ -137,7 +137,13 @@ void loop()
         uint32_t m = micros();
         int read = CANbus.read(canMessage);
         if (read && canMessage.id == CANID_RCP) {
-            cooler.setLapCount(canMessage.buf[0]);
+            uint8_t lapCount = canMessage.buf[0];
+            // log lap count
+            cooler.setLapCount(lapCount);
+            if (lapCount != 0) {
+                // disable LEDs to save power
+                ui.disableBoardLEDs();
+            }
         } else {
             LOG_INFO("Received unknown CAN message id", canMessage.id);
         }

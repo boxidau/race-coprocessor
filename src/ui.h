@@ -17,6 +17,7 @@ private:
     bool pageTurnerEnabled { true };
     uint32_t lastFlowPulseDisplayed { 0 };
     uint8_t pulseDivider { 0 };
+    bool enable { true };
 
     PWMOutput systemStatusLED;
     uint32_t faultBlinks { 0 };
@@ -44,4 +45,5 @@ public:
 
     void setup();
     void loop();
+    void disableBoardLEDs();
 };
