@@ -1,6 +1,7 @@
 #include <Arduino.h>
 #include <PID_v1.h>
 #include "mafilter.h"
+#include "constants.h"
 
 #define COMPRESSOR_PID_KP 0.4 // 0.4/0.003 gives 100s time constant (90% -> 75%). 0.2/0.001 is slower, 150s.
 #define COMPRESSOR_PID_KI 0.003
@@ -8,8 +9,8 @@
 
 // values interpreted from Buttonwillow 9/24 data
 #define COMPRESSOR_STARTUP_DELAY_MS 3000 // time between pump and compressor start, to 1) allow temp to stabilize before deciding whether to turn on the compressor and 2) to allow driver switch selection to stabilize
-// todo: try 0 here because previously we were initializing to 0.84, see what happens at 0.52
-#define COMPRESSOR_PID_START_DELAY_MS 0 // compressor on time before starting PID control, to allow temperature velocity to stabilize
+// todo: try 0 here because previously we were initializing to 0.84, see what happens at 0.50
+#define COMPRESSOR_PID_START_DELAY_MS 6000 // compressor on time before starting PID control, to allow temp filter to stabilize
 //#define COMPRESSOR_PID_START_DELAY_MS 20000 // compressor on time before starting PID control, to allow temperature velocity to stabilize
 #define COMPRESSOR_COOLDOWN_MS 60000 // durations w/o switchoff are 40s @ high, 60s @ med, 75s @ low; heating is ~100W compressor/100W driver; target 1.5x this and use high as worst case
 #define COMPRESSOR_SPEED_UPDATE_MS 5000 // min time between speed changes to prevent chatter
@@ -29,13 +30,26 @@
 #define CHILLER_PUMP_DEFAULT_SPEED 6 // Volts, when not using PID control
 
 // valid range of compressor speed output is 4.16V = 47%, 8.40V = 96%
-// speed steps are 0.47 (zero below this), 0.56, 0.64, 0.72, 0.80, 0.88, 0.96.
-// midpoints are 0.52, 0.60, 0.68, 0.76, 0.84, 0.92, 1.0.
+// speed steps occur at voltage ratios 0.47 (zero below this), 0.56, 0.64, 0.72, 0.80, 0.88, 0.96.
+// these translate to 0.50 .. 1.00 normalized.
+// midpoints are 0.52, 0.60, 0.68, 0.76, 0.84, 0.92, 1.0 for setting compressor voltage.
 #define NUM_COMPRESSOR_SPEEDS 7
-#define LOWEST_OPERATING_COMPRESSOR_SPEED_INDEX 0 // 0.52
+#define LOWEST_OPERATING_COMPRESSOR_SPEED_INDEX 0 // 0.50
 #define HIGHEST_OPERATING_COMPRESSOR_SPEED_INDEX 6 // 1.00
+#define COMPRESSOR_SPEED_RATIO_TO_ANALOG (9 / (3.3 * 3.717) * ADC_MAX * 0.97)
 
 const float CompressorSpeeds[NUM_COMPRESSOR_SPEEDS] = {
+    0.50,
+    0.58,
+    0.67,
+    0.75,
+    0.83,
+    0.92,
+    1.00
+};
+
+// midpoint voltages
+const float CompressorSpeedVoltageRatios[NUM_COMPRESSOR_SPEEDS] = {
     0.52,
     0.60,
     0.68,
@@ -77,7 +91,11 @@ class ChillerLoopController {
         }
 
         float getCompressorSpeedQuantized() {
-            return compressorSpeedQuantized;
+            return compressorSpeed ? CompressorSpeeds[compressorSpeedIndex] : 0;
+        }
+
+        float getCompressorSpeedVoltage() {
+            return compressorSpeed ? CompressorSpeedVoltageRatios[compressorSpeedIndex] * COMPRESSOR_SPEED_RATIO_TO_ANALOG : 0;
         }
 
         uint32_t getCompressorCooldownSecondsRemaining() {
@@ -114,7 +132,7 @@ class ChillerLoopController {
         void shutdownPump(); 
         void updatePumpSpeed();
 
-        static float getQuantizedSpeedFor(float compressorSpeed);
+        static uint32_t getQuantizedSpeedIndexFor(float compressorSpeed);
 
         ChillerLoopState state { ChillerLoopState::OFF };
         uint32_t time { 0 };
@@ -142,7 +160,7 @@ class ChillerLoopController {
         float evapInletTempFiltered { -100 };
         float evapInletTempTarget { 10 };
         float compressorSpeed { 0 };
-        float compressorSpeedQuantized { 0 };
+        uint32_t compressorSpeedIndex { 0 };
         PID compressorPID {
             &evapInletTempFiltered,
             &compressorSpeed,

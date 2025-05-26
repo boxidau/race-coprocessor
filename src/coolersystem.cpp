@@ -112,6 +112,7 @@ void CoolerSystem::runCompressor()
         analyzeNoteFrequency.stop();
         compressorFrequency = 0;
         compressorFrequencyProbability = 0;
+        vfRatio = 0;
     } else if (!systemEnableOutput.value() && enableCompressor) {
         // reset note frequency analyzer to start with fresh data
         analyzeNoteFrequency.begin();
@@ -226,8 +227,8 @@ void CoolerSystem::updateCoolerData() {
 
     // water flowing through the evaporator has a lag time depending on flow rate.
     // in order to calculate cooling power correctly, we need to compare the outlet temp
-    // against the inlet temp from that lag time ago. the lag time is approximately 1.5 sec
-    // (15 samples) at 3.5Lpm.
+    // against the inlet temp from that lag time ago. the lag time is approximately 1.6 sec
+    // (16 samples) at 3.4Lpm.
     evaporatorInletTempSamples.push(evaporatorInletTemp);
     if (flowRate >= FLOW_RATE_MIN_THRESHOLD) {
         float lagSamples = EVAPORATOR_VOLUME * 60 * 1000 / (flowRate * UPDATE_STATE_TIMER_MS);
@@ -247,16 +248,19 @@ void CoolerSystem::updateCoolerData() {
     }
 
     // adjust system voltage by the relative IR drop between the measured system voltage and the compressor
-    powerDraw = compressorCurrent * (voltageMonitor.get12vMilliVolts() / 1000.0 - 0.0175 * compressorCurrent + 0.05 + 0.05 * coolshirtPWM.percent() / 100);
+    float compressorVoltage = (voltageMonitor.get12vMilliVolts() / 1000.0 - 0.0175 * compressorCurrent + 0.05 + 0.05 * coolshirtPWM.percent() / 100);
+    powerDraw = compressorCurrent * compressorVoltage;
 
     if (analyzeNoteFrequency.available()) {
         // only log data if there's a valid result and current is > 3A
         if (analyzeNoteFrequency.validResult() && compressorCurrent > 3.0) {
             compressorFrequency = analyzeNoteFrequency.read();
-            compressorFrequencyProbability = analyzeNoteFrequency.probability();            
+            compressorFrequencyProbability = analyzeNoteFrequency.probability();
+            vfRatio = compressorFrequency ? compressorVoltage * chillerLoop.getCompressorSpeedQuantized() / compressorFrequency : 0;
         } else {
             compressorFrequency = 0;
             compressorFrequencyProbability = 0;
+            vfRatio = 0;
         }
     }
 }
@@ -778,7 +782,7 @@ void CoolerSystem::logData() {
 }
 
 const char* CoolerSystem::getLogHeader() {
-    return "time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapInletTempStdev,flowRate,instantaneousFlowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,12v,5v,3v3,p3v3,coolingPower,powerDraw,switchPos,switchADC,status,coolshirtEnable,chillerLoopState,chillerPumpSpeed,evapInletTempFiltered,compressorSpeedContinuous,compressorSpeedQuantized,lowCoolant,flowRateLow,overPressure,underVolt,overVolt,compressorFault,lapCount,acquiredSamples\n";
+    return "time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapInletTempStdev,flowRate,instantaneousFlowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,vfRatio,12v,5v,3v3,p3v3,coolingPower,powerDraw,switchPos,switchADC,status,coolshirtEnable,chillerLoopState,chillerPumpSpeed,evapInletTempFiltered,compressorSpeedContinuous,compressorSpeedQuantized,lowCoolant,flowRateLow,overPressure,underVolt,overVolt,compressorFault,lapCount,acquiredSamples\n";
 }
 
 void CoolerSystem::getLogMessage(StringFormatLog& format)
@@ -799,7 +803,9 @@ void CoolerSystem::getLogMessage(StringFormatLog& format)
     if (compressorFrequency) {
         format.formatFloat3DP(compressorFrequency);
         format.formatFloat3DP(compressorFrequencyProbability);
+        format.formatFloat3DP(vfRatio);
     } else {
+        format.formatLiteral("");
         format.formatLiteral("");
         format.formatLiteral("");
     }

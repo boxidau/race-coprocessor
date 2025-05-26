@@ -1,5 +1,6 @@
 #include <SD.h>
 #include <DebugLog.h>
+#include <Time.h>
 #include "sdlogger.h"
 
 #define RETRY_INTERVAL_MS 5000

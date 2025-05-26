@@ -39,7 +39,7 @@
 #define FLOW_RATE_MIN_THRESHOLD 1.5 // Lpm
 #define FLOW_RATE_STARTUP_TIME 2000 // ms allowed until the flow rate must be above threshold
 #define FLOW_RATE_PULSE_TIMEOUT 300 // ms allowed since the last pulse was seen, approx 0.5Lpm
-#define FLOW_RATE_MEASUREMENT_INTERVAL 2000 // ms averaging interval
+#define FLOW_RATE_MEASUREMENT_INTERVAL 1600 // ms averaging interval (same as evaporator transit time @ 3.4Lpm)
 #define EVAPORATOR_VOLUME 0.09 // L
 #define EVAPORATOR_LAG_SAMPLES_SIZE 60 // enough samples for 1.0 Lpm @ 0.1s sample interval
 #define SPECIFIC_HEAT 4052 // J/kgK of chiller fluid (90% water / 10% IPA @ 10C). 4196 for pure water
@@ -51,8 +51,6 @@
 #define COMPRESSOR_RESTART_TEMP_MED 11.5
 #define COMPRESSOR_UNDER_TEMP_CUTOFF_LOW 13.5
 #define COMPRESSOR_RESTART_TEMP_LOW 16.5
-
-#define COMPRESSOR_SPEED_RATIO_TO_ANALOG (9 / (3.3 * 3.717) * ADC_MAX * 0.97)
 
 // max flush time with pumps running, don't want to let them run dry for long
 #define FLUSH_TIMEOUT_MS 30000
@@ -218,6 +216,7 @@ private:
     float compressorFrequency { 0 };
     float compressorFrequencyProbability { 0 };
     float compressorCurrentBiquadOutput;
+    float vfRatio { 0 };
 
     // pollers/updaters
     void pollCoolantLevel();

@@ -54,8 +54,8 @@ void ChillerLoopController::updateState(bool systemEnableRequested, float evapIn
                 break;
             }
             
-            // allow time for temp velocity to stabilize to a lower value before starting PID control,
-            // to avoid cranking up the speed only to reduce it rapidly
+            // allow time for temp filter to stabilize before starting PID control.
+            // todo: consider whether we also need temp velocity to stabilize with compressor running
             if (time >= compressorStartTime + COMPRESSOR_PID_START_DELAY_MS) {
                 enableCompressorPID();
             }
@@ -91,14 +91,14 @@ void ChillerLoopController::startCompressor() {
     compressorStartTime = time;
     lastCompressorSpeedChangeTime = time;
     compressorSpeed = CompressorSpeeds[LOWEST_OPERATING_COMPRESSOR_SPEED_INDEX];
-    compressorSpeedQuantized = compressorSpeed;
+    compressorSpeedIndex = LOWEST_OPERATING_COMPRESSOR_SPEED_INDEX;
 }
 
 void ChillerLoopController::shutdownCompressor() {
     compressorShutdownTime = time;
     compressorPID.SetMode(MANUAL);
     compressorSpeed = 0;
-    compressorSpeedQuantized = 0;
+    compressorSpeedIndex = 0;
     compressorCycle++;
 }
 
@@ -110,10 +110,10 @@ void ChillerLoopController::enableCompressorPID() {
 
 void ChillerLoopController::updateCompressorSpeed() {
     compressorPID.Compute();
-    float newCompressorSpeedQuantized = getQuantizedSpeedFor(compressorSpeed);
+    uint32_t newCompressorSpeedIndex = getQuantizedSpeedIndexFor(compressorSpeed);
     // set a minimum time in between speed changes to prevent chatter and reduce impact of temp noise
-    if (compressorSpeedQuantized != newCompressorSpeedQuantized && time >= lastCompressorSpeedChangeTime + COMPRESSOR_SPEED_UPDATE_MS) {
-        compressorSpeedQuantized = newCompressorSpeedQuantized;
+    if (compressorSpeedIndex != newCompressorSpeedIndex && time >= lastCompressorSpeedChangeTime + COMPRESSOR_SPEED_UPDATE_MS) {
+        compressorSpeedIndex = newCompressorSpeedIndex;
         lastCompressorSpeedChangeTime = time;
     }
 }
@@ -135,8 +135,7 @@ void ChillerLoopController::updatePumpSpeed() {
     chillerPumpPID.Compute();
 }
 
-float ChillerLoopController::getQuantizedSpeedFor(float compressorSpeed) {
+uint32_t ChillerLoopController::getQuantizedSpeedIndexFor(float compressorSpeed) {
     // map continuous speed to quantized value, rounding inbetween states
-    uint32_t index = round(constrain(map(compressorSpeed, CompressorSpeeds[0], CompressorSpeeds[NUM_COMPRESSOR_SPEEDS - 1], 0, NUM_COMPRESSOR_SPEEDS - 1), 0, NUM_COMPRESSOR_SPEEDS - 1));
-    return CompressorSpeeds[index];
+    return round(constrain(map(compressorSpeed, CompressorSpeeds[0], CompressorSpeeds[NUM_COMPRESSOR_SPEEDS - 1], 0, NUM_COMPRESSOR_SPEEDS - 1), 0, NUM_COMPRESSOR_SPEEDS - 1));
 }
