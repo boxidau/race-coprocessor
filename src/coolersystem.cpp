@@ -120,7 +120,7 @@ void CoolerSystem::runCompressor()
     systemEnableOutput.setBoolean(enableCompressor);
 
     if (!compressorSpeedOverride) {
-        analogWrite(compressorSpeedPin, speed * COMPRESSOR_SPEED_RATIO_TO_ANALOG);
+        analogWrite(compressorSpeedPin, chillerLoop.getCompressorSpeedVoltage());
     }
 }
 
@@ -675,20 +675,20 @@ void CoolerSystem::setCompressorSpeed(uint32_t speed) {
     if (speed == 0) {
         compressorSpeedOverride = 0;
     } else if (speed <= NUM_COMPRESSOR_SPEEDS) {
-        compressorSpeedOverride = CompressorSpeeds[speed - 1];
+        compressorSpeedOverride = CompressorSpeedVoltageRatios[speed - 1];
     } else {
         return;
     }
 
     analogWrite(compressorSpeedPin, compressorSpeedOverride * COMPRESSOR_SPEED_RATIO_TO_ANALOG);
-    LOG_INFO("Setting compressor speed to", round(compressorSpeedOverride * 100), "%");
+    LOG_INFO("Setting compressor speed voltage ratio to", round(compressorSpeedOverride * 100), "%");
 }
 
 void CoolerSystem::setCompressorSpeedPercentOffset(int32_t offset) {
     compressorManualControl = true;
     compressorSpeedOverride = round(compressorSpeedOverride * 100 + offset) / 100;
     analogWrite(compressorSpeedPin, compressorSpeedOverride * COMPRESSOR_SPEED_RATIO_TO_ANALOG);
-    LOG_INFO("Setting compressor speed to", round(compressorSpeedOverride * 100), "%");
+    LOG_INFO("Setting compressor speed voltage ratio to", round(compressorSpeedOverride * 100), "%");
 }
 
 void CoolerSystem::resumeCompressorControl() {
