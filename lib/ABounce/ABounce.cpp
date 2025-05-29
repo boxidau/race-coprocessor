@@ -9,7 +9,8 @@ ABounce::ABounce(uint8_t pin,unsigned long interval_millis, uint16_t threshold)
 {
 	interval(interval_millis);
 	previous_millis = millis();
-	state = analogRead(pin) > threshold;
+	adcValue = analogRead(pin);
+	state = adcValue > threshold;
     this->pin = pin;
     this->threshold = threshold;
 }
@@ -58,14 +59,18 @@ int ABounce::read()
 	return (int)state;
 }
 
+uint16_t ABounce::readADCValue() {
+	return adcValue;
+}
 
 // Protected: debounces the pin
 int ABounce::debounce() {
-	
-	uint8_t newState = analogRead(pin) > threshold;
+	uint16_t value = analogRead(pin);
+	uint8_t newState = value > threshold;
 	if (state != newState ) {
   		if (millis() - previous_millis >= interval_millis) {
   			previous_millis = millis();
+			adcValue = value;
   			state = newState;
   			return 1;
 	}
@@ -79,4 +84,3 @@ int ABounce::debounce() {
 bool  ABounce::risingEdge() { return stateChanged && state; }
 // The fallingEdge  method it true for one scan after the de-bounced input goes from on-to-off. 
 bool  ABounce::fallingEdge() { return stateChanged && !state; }
-

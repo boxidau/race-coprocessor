@@ -2,7 +2,7 @@
 #include <Arduino.h>
 
 // 2 C/s drop in coolant temp if the evaporator is cooling at 700W
-#define WATCHDOG_MILLISECONDS 200
+#define WATCHDOG_MILLISECONDS 500
 
 static bool watchdogInited;
 

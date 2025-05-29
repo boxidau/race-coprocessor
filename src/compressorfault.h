@@ -94,4 +94,8 @@ public:
 
         return bounce.duration();
     }
+
+    uint16_t latestSample() {
+        return bounce.readADCValue();
+    }
 };

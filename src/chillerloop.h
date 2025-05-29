@@ -14,7 +14,7 @@
 //#define COMPRESSOR_PID_START_DELAY_MS 20000 // compressor on time before starting PID control, to allow temperature velocity to stabilize
 #define COMPRESSOR_COOLDOWN_MS 60000 // durations w/o switchoff are 40s @ high, 60s @ med, 75s @ low; heating is ~100W compressor/100W driver; target 1.5x this and use high as worst case
 #define COMPRESSOR_SPEED_UPDATE_MS 5000 // min time between speed changes to prevent chatter
-#define CHILLER_PUMP_REMAIN_ON_MS 4000 // time the chiller pump remains on after compressor shutdown
+#define CHILLER_PUMP_REMAIN_ON_MS 5000 // time the chiller pump remains on after compressor shutdown
 #define CHILLER_PUMP_EARLY_SHUTDOWN_MODULUS 3 // period of A/B testing for chiller pump off vs on. first cycle is on, remainder are off
 #define TEMP_MA_FILTER_SAMPLES 50 // 5s @ 0.1s per sample
 #define TEMP_MA_FILTER_PRECISION 100000 // 1e-5 C
@@ -29,12 +29,11 @@
 #define CHILLER_PUMP_MAX_SPEED 9 // Volts
 #define CHILLER_PUMP_DEFAULT_SPEED 6 // Volts, when not using PID control
 
-// valid range of compressor speed output is 4.16V = 47%, 8.40V = 96%
-// speed steps occur at voltage ratios 0.47 (zero below this), 0.56, 0.64, 0.72, 0.80, 0.88, 0.96.
+// speed steps occur at voltage ratios 0.470 (zero below this) .. 0.955.
 // these translate to 0.50 .. 1.00 normalized.
-// midpoints are 0.52, 0.60, 0.68, 0.76, 0.84, 0.92, 1.0 for setting compressor voltage.
+// use midpoints of speed steps for setting compressor voltage.
 #define NUM_COMPRESSOR_SPEEDS 7
-#define LOWEST_OPERATING_COMPRESSOR_SPEED_INDEX 0 // 0.50
+#define LOWEST_OPERATING_COMPRESSOR_SPEED_INDEX 1 // 0.58
 #define HIGHEST_OPERATING_COMPRESSOR_SPEED_INDEX 6 // 1.00
 #define COMPRESSOR_SPEED_RATIO_TO_ANALOG (9 / (3.3 * 3.717) * ADC_MAX * 0.97)
 
@@ -50,13 +49,13 @@ const float CompressorSpeeds[NUM_COMPRESSOR_SPEEDS] = {
 
 // midpoint voltages
 const float CompressorSpeedVoltageRatios[NUM_COMPRESSOR_SPEEDS] = {
-    0.52,
-    0.60,
-    0.68,
-    0.76,
-    0.84,
-    0.92,
-    1.00
+    0.510, // transition point 0.470 (4.16V)
+    0.591, // transition point 0.551
+    0.672, // transition point 0.632
+    0.753, // transition point 0.713
+    0.834, // transition point 0.793
+    0.915, // transition point 0.874
+    0.995  // transition point 0.955 (8.45V)
 };
 
 enum class ChillerLoopState {

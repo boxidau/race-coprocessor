@@ -271,7 +271,8 @@ void CoolerSystem::updateFaults() {
     // check faults and set systemFault flags
     check(systemPressure < OVERPRESSURE_THRESHOLD_KPA, SystemFault::SYSTEM_OVER_PRESSURE);
     check(coolantLevel, SystemFault::LOW_COOLANT);
-    check(compressorFaultCode == CompressorFaultCode::OK, SystemFault::COMPRESSOR_FAULT);
+    // don't fault out on COMPRESSOR_OFFLINE since the compressor still seems to work
+    check(compressorFaultCode == CompressorFaultCode::OK || compressorFaultCode == CompressorFaultCode::COMPRESSOR_OFFLINE, SystemFault::COMPRESSOR_FAULT);
     check(!voltageMonitor.overVoltage(), SystemFault::SYSTEM_OVERVOLT);
     check(!voltageMonitor.underVoltage(), SystemFault::SYSTEM_UNDERVOLT);
 
@@ -521,18 +522,18 @@ void CoolerSystem::displayInfo()
     format.formatLiteral(" V\n");
 
     format.formatLiteral("  Compressor Speed, Continuous:  ");
-    float compressorSpeedContinuous = compressorManualControl ?
-        compressorSpeedOverride :
-        chillerLoop.getCompressorSpeedContinuous();
-    format.formatUnsignedInt(round(compressorSpeedContinuous * 100));
+    format.formatUnsignedInt(round(chillerLoop.getCompressorSpeedContinuous() * 100));
     format.formatLiteral(" %\n");
 
     format.formatLiteral("  Compressor Speed, Quantized:   ");
-    float compressorSpeedQuantized = compressorManualControl ?
-        compressorSpeedOverride :
-        chillerLoop.getCompressorSpeedQuantized();
-    format.formatUnsignedInt(round(compressorSpeedQuantized * 100));
+    format.formatUnsignedInt(round(chillerLoop.getCompressorSpeedQuantized() * 100));
     format.formatLiteral(" %\n");
+
+    if (compressorManualControl) {
+        format.formatLiteral("  Compressor Speed Override:     ");
+        format.formatUnsignedInt(round(compressorSpeedOverride * 100));
+        format.formatLiteral(" % V\n");
+    }
 
     format.formatLiteral("  Compressor Cooldown Time:      ");
     uint32_t cooldownTime = chillerLoop.getCompressorCooldownSecondsRemaining();
@@ -686,9 +687,9 @@ void CoolerSystem::setCompressorSpeed(uint32_t speed) {
 
 void CoolerSystem::setCompressorSpeedPercentOffset(int32_t offset) {
     compressorManualControl = true;
-    compressorSpeedOverride = round(compressorSpeedOverride * 100 + offset) / 100;
+    compressorSpeedOverride = round(compressorSpeedOverride * 1000 + offset) / 1000;
     analogWrite(compressorSpeedPin, compressorSpeedOverride * COMPRESSOR_SPEED_RATIO_TO_ANALOG);
-    LOG_INFO("Setting compressor speed voltage ratio to", round(compressorSpeedOverride * 100), "%");
+    LOG_INFO("Setting compressor speed voltage ratio to", compressorSpeedOverride * 100, "%");
 }
 
 void CoolerSystem::resumeCompressorControl() {
@@ -774,15 +775,13 @@ void CoolerSystem::logData() {
     getLogMessage(format);
     DataSDLogger::logData(format.finish(), format.length());
 
-    uint32_t m = micros();
     CAN_message_t message;
     getCANMessage(message);
     CANBus.write(message);
-    LOG_INFO("CANBus write took", micros() - m, "us");
 }
 
 const char* CoolerSystem::getLogHeader() {
-    return "time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapInletTempStdev,flowRate,instantaneousFlowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,vfRatio,12v,5v,3v3,p3v3,coolingPower,powerDraw,switchPos,switchADC,status,coolshirtEnable,chillerLoopState,chillerPumpSpeed,evapInletTempFiltered,compressorSpeedContinuous,compressorSpeedQuantized,lowCoolant,flowRateLow,overPressure,underVolt,overVolt,compressorFault,lapCount,acquiredSamples\n";
+    return "time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapInletTempStdev,flowRate,instantaneousFlowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,vfRatio,12v,5v,3v3,p3v3,coolingPower,powerDraw,switchPos,switchADC,status,coolshirtEnable,chillerLoopState,chillerPumpSpeed,evapInletTempFiltered,compressorSpeedContinuous,compressorSpeedQuantized,lowCoolant,flowRateLow,overPressure,underVolt,overVolt,compressorFault,compressorFaultSample,lapCount,acquiredSamples\n";
 }
 
 void CoolerSystem::getLogMessage(StringFormatLog& format)
@@ -831,6 +830,7 @@ void CoolerSystem::getLogMessage(StringFormatLog& format)
     format.formatBool(_systemFault & (byte) SystemFault::SYSTEM_UNDERVOLT);
     format.formatBool(_systemFault & (byte) SystemFault::SYSTEM_OVERVOLT);
     format.formatUnsignedInt((uint32_t) compressorFaultCode);
+    format.formatUnsignedInt(compressorFault.latestSample());
     format.formatUnsignedInt(lapCount);
     format.formatUnsignedInt(sampleCounter - loggedSampleCounter);
 

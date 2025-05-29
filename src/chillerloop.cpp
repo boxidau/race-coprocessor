@@ -37,7 +37,9 @@ void ChillerLoopController::updateState(bool systemEnableRequested, float evapIn
 
             updatePumpSpeed();
             // wait for the temperature to stabilize after starting the pump, and to prevent the compressor turning on/off immediately
-            // and entering cooldown state if the driver clicks through off->prechill->low switch states
+            // and entering cooldown state if the driver clicks through off->prechill->low switch states. it's ok to turn on compressor
+            // immediately if clicking from med->high states, however, since it's unlikely the driver will click med->high->med->low
+            // therefore debouncing is unnecessary.
             if (time >= pumpStartTime + COMPRESSOR_STARTUP_DELAY_MS && evapInletTemp >= restartTemp) {
                 state = ChillerLoopState::COMPRESSOR_AND_PUMP_ON;
                 // todo: fixed prechill speed?
@@ -47,6 +49,7 @@ void ChillerLoopController::updateState(bool systemEnableRequested, float evapIn
 
         case ChillerLoopState::COMPRESSOR_AND_PUMP_ON:
             updatePumpSpeed();
+
             if (!systemEnableRequested || evapInletTemp < cutoffTemp || evapOutletTemp < EVAPORATOR_OUTLET_CUTOFF_TEMP) {
                 // lower bound of evap inlet or outlet temp reached
                 state = ChillerLoopState::COMPRESSOR_COOLDOWN;
@@ -64,7 +67,9 @@ void ChillerLoopController::updateState(bool systemEnableRequested, float evapIn
             break;
 
         case ChillerLoopState::COMPRESSOR_COOLDOWN:
-            // A/B test early pump shutdown (1 cycle no shutdown, N - 1 cycles early shutdown)
+            updatePumpSpeed();
+
+            // A/B test early pump shutdown (first N - 1 cycles early shutdown, 1 cycle no shutdown, repeat)
             if (time >= compressorShutdownTime + CHILLER_PUMP_REMAIN_ON_MS && pumpSpeed != 0 && compressorCycle % CHILLER_PUMP_EARLY_SHUTDOWN_MODULUS) {
                 // shut down pump to reduce heat soak back into the evaporator
                 shutdownPump();
@@ -79,9 +84,15 @@ void ChillerLoopController::updateState(bool systemEnableRequested, float evapIn
 
             if (systemEnableRequested) {
                 state = ChillerLoopState::PUMP_ONLY;
-                startPump();
+                if (pumpSpeed == 0) {
+                    startPump();
+                    updatePumpSpeed();
+                }
             } else {
                 state = ChillerLoopState::OFF;
+                if (pumpSpeed != 0) {
+                    shutdownPump();
+                }
             }
             break;
     }

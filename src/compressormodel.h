@@ -1,3 +1,4 @@
+#if 0
 #include <Arduino.h>
 
 enum class CompressorSpeed {
@@ -56,3 +57,4 @@ class CompressorModel {
         float evaporatorInletTempPrev1 { 0 };
         float evaporatorInletTempPrev2 { 0 };
 };
+#endif
