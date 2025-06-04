@@ -10,12 +10,13 @@ void ChillerLoopController::setup(uint32_t sampleTime) {
     chillerPumpPID.SetMode(MANUAL);
 }
 
-void ChillerLoopController::updateState(bool systemEnableRequested, float evapInletTemp, float restartTemp, float cutoffTemp, float evapOutletTemp, float flowRateInput) {
+void ChillerLoopController::updateState(bool systemEnableRequested, float evapInletTemp, float restartTemp, float cutoffTemp, float evapOutletTemp, float flowRateInput, float compressorCurrentInput) {
     time = millis();
     evapInletTempFilter.push(evapInletTemp);
     evapInletTempFiltered = evapInletTempFilter.filteredValue();
     evapInletTempTarget = (cutoffTemp + restartTemp) / 2;
     flowRate = flowRateInput;
+    compressorCurrent = compressorCurrentInput;
 
     switch (state) {
         case ChillerLoopState::OFF:
@@ -120,6 +121,16 @@ void ChillerLoopController::enableCompressorPID() {
 }
 
 void ChillerLoopController::updateCompressorSpeed() {
+    if (compressorCurrent >= COMPRESSOR_MAX_CURRENT_LIMIT && time >= lastCompressorSpeedChangeTime + COMPRESSOR_SPEED_UPDATE_MS) {
+        // reduce the maximum speed of the compressor to limit current draw. this is necessary in high ambient/condenser temp
+        // conditions where the compressor can draw 40A+ at 100% speed
+        if (compressorMaxSpeedIndex > LOWEST_OPERATING_COMPRESSOR_SPEED_INDEX) {
+            compressorMaxSpeedIndex--;
+        }
+
+        compressorPID.SetOutputLimits(CompressorSpeeds[LOWEST_OPERATING_COMPRESSOR_SPEED_INDEX], CompressorSpeeds[compressorMaxSpeedIndex]);
+    }
+
     compressorPID.Compute();
     uint32_t newCompressorSpeedIndex = getQuantizedSpeedIndexFor(compressorSpeed);
     // set a minimum time in between speed changes to prevent chatter and reduce impact of temp noise

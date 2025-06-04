@@ -34,8 +34,9 @@
 // use midpoints of speed steps for setting compressor voltage.
 #define NUM_COMPRESSOR_SPEEDS 7
 #define LOWEST_OPERATING_COMPRESSOR_SPEED_INDEX 1 // 0.58
-#define HIGHEST_OPERATING_COMPRESSOR_SPEED_INDEX 3 // 0.75
+#define HIGHEST_OPERATING_COMPRESSOR_SPEED_INDEX 6 // 1.0
 #define COMPRESSOR_SPEED_RATIO_TO_ANALOG (9 / (3.3 * 3.717) * ADC_MAX * 0.97)
+#define COMPRESSOR_MAX_CURRENT_LIMIT 32 // A. appropriate for 40A fuse, shoot to keep maximum steady state current around 30A
 
 const float CompressorSpeeds[NUM_COMPRESSOR_SPEEDS] = {
     0.50,
@@ -79,7 +80,7 @@ constexpr const char* chillerLoopStateToString(ChillerLoopState cls)
 class ChillerLoopController {
     public:
         void setup(uint32_t sampleTime);
-        void updateState(bool systemEnableRequested, float evapInletTemp, float restartTemp, float cutoffTemp, float evapOutletTemp, float flowRateInput);
+        void updateState(bool systemEnableRequested, float evapInletTemp, float restartTemp, float cutoffTemp, float evapOutletTemp, float flowRateInput, float compressorCurrentInput);
 
         float getEvapInletTempFiltered() {
             return evapInletTempFiltered;
@@ -160,6 +161,8 @@ class ChillerLoopController {
         float evapInletTempTarget { 10 };
         float compressorSpeed { 0 };
         uint32_t compressorSpeedIndex { 0 };
+        uint32_t compressorMaxSpeedIndex { HIGHEST_OPERATING_COMPRESSOR_SPEED_INDEX };
+        float compressorCurrent { 0 };
         PID compressorPID {
             &evapInletTempFiltered,
             &compressorSpeed,

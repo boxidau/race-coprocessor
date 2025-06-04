@@ -409,7 +409,7 @@ void CoolerSystem::updateChillerLoopState()
             break;
     }
 
-    chillerLoop.updateState(systemEnableRequested, evaporatorInletTemp, restartTemp, cutoffTemp, evaporatorOutletTemp, instantaneousFlowRate);    
+    chillerLoop.updateState(systemEnableRequested, evaporatorInletTemp, restartTemp, cutoffTemp, evaporatorOutletTemp, instantaneousFlowRate, compressorCurrent);    
 }
 
 void CoolerSystem::displayInfo()
