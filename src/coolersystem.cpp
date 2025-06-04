@@ -747,7 +747,7 @@ void CoolerSystem::getCANMessage(CAN_message_t& msg)
     systemEnableOutput.value() && (state |= 1 << 7);
     chillerPumpPWM.value() && (state |= 1 << 6);
     coolshirtPWM.value() && (state |= 1 << 5);
-    state |= (uint8_t) chillerLoop.getState() & 0x03 << 3;
+    state |= ((uint8_t) chillerLoop.getState() & 0x03) << 3;
     state |= (uint8_t) systemStatus & 0x07;
     msg.buf[3] = state;
 
@@ -781,7 +781,7 @@ void CoolerSystem::logData() {
 }
 
 const char* CoolerSystem::getLogHeader() {
-    return "time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapInletTempStdev,flowRate,instantaneousFlowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,vfRatio,12v,5v,3v3,p3v3,coolingPower,powerDraw,switchPos,switchADC,status,coolshirtEnable,chillerLoopState,chillerPumpSpeed,evapInletTempFiltered,compressorSpeedContinuous,compressorSpeedQuantized,lowCoolant,flowRateLow,overPressure,underVolt,overVolt,compressorFault,compressorFaultSample,lapCount,acquiredSamples\n";
+    return "time,evapInletTemp,evapOutletTemp,condInletTemp,condOutletTemp,ambientTemp,evapInletTempStdev,flowRate,instantaneousFlowRate,pressure,compressorCurrent,compressorFrequency,compressorFrequencyProbability,vfRatio,12v,5v,3v3,p3v3,coolingPower,powerDraw,switchPos,switchADC,status,coolshirtEnable,chillerLoopState,chillerPumpSpeed,evapInletTempFiltered,compressorSpeedContinuous,compressorSpeedQuantized,lowCoolant,flowRateLow,overPressure,underVolt,overVolt,compressorFault,compressorFaultTime,compressorFaultSample,lapCount,acquiredSamples\n";
 }
 
 void CoolerSystem::getLogMessage(StringFormatLog& format)
@@ -830,6 +830,7 @@ void CoolerSystem::getLogMessage(StringFormatLog& format)
     format.formatBool(_systemFault & (byte) SystemFault::SYSTEM_UNDERVOLT);
     format.formatBool(_systemFault & (byte) SystemFault::SYSTEM_OVERVOLT);
     format.formatUnsignedInt((uint32_t) compressorFaultCode);
+    format.formatFloat3DP(compressorFault.getFaultStartTime());
     format.formatUnsignedInt(compressorFault.latestSample());
     format.formatUnsignedInt(lapCount);
     format.formatUnsignedInt(sampleCounter - loggedSampleCounter);

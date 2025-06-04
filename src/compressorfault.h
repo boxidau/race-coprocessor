@@ -2,6 +2,7 @@
 
 #include "Arduino.h"
 #include <ABounce.h>
+#include "clocktime.h"
 
 enum class CompressorFaultCode {
     OK = 0,
@@ -45,6 +46,7 @@ private:
     ABounce bounce;
     bool recordingFault = { false };
     uint8_t blinks = { 0 };
+    double faultStartTime = { 0 };
     CompressorFaultCode code { CompressorFaultCode::OK };
 
 public:
@@ -61,6 +63,7 @@ public:
         if (!recordingFault && bounce.fallingEdge()) {
             recordingFault = true;
             blinks = 1;
+            faultStartTime = ClockTime::secSinceEpoch();
         } else if (recordingFault && bounce.fallingEdge()) {
             blinks++;
         } else if (recordingFault && bounce.duration() > LDR_DEAD_TIME_RESET_MS) {
@@ -85,6 +88,14 @@ public:
 
     void reset() {
         code = CompressorFaultCode::OK;
+    }
+
+    double getFaultStartTime() {
+        if (code == CompressorFaultCode::OK) {
+            return 0;
+        }
+
+        return faultStartTime;
     }
 
     uint32_t durationSinceFaultRecorded() {

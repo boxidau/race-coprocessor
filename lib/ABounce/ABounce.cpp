@@ -65,12 +65,11 @@ uint16_t ABounce::readADCValue() {
 
 // Protected: debounces the pin
 int ABounce::debounce() {
-	uint16_t value = analogRead(pin);
-	uint8_t newState = value > threshold;
+	adcValue = analogRead(pin);
+	uint8_t newState = adcValue > threshold;
 	if (state != newState ) {
   		if (millis() - previous_millis >= interval_millis) {
   			previous_millis = millis();
-			adcValue = value;
   			state = newState;
   			return 1;
 	}

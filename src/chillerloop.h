@@ -34,7 +34,7 @@
 // use midpoints of speed steps for setting compressor voltage.
 #define NUM_COMPRESSOR_SPEEDS 7
 #define LOWEST_OPERATING_COMPRESSOR_SPEED_INDEX 1 // 0.58
-#define HIGHEST_OPERATING_COMPRESSOR_SPEED_INDEX 6 // 1.00
+#define HIGHEST_OPERATING_COMPRESSOR_SPEED_INDEX 3 // 0.75
 #define COMPRESSOR_SPEED_RATIO_TO_ANALOG (9 / (3.3 * 3.717) * ADC_MAX * 0.97)
 
 const float CompressorSpeeds[NUM_COMPRESSOR_SPEEDS] = {

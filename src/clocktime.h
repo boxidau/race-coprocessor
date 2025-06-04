@@ -1,3 +1,4 @@
+#pragma once
 #include <TimeLib.h>
 
 class ClockTime
